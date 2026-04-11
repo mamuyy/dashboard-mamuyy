@@ -1939,11 +1939,19 @@ function pullAllFromSheets(){
     // Invoice
     if(rInvs.ok && rInvs.invs && rInvs.invs.length){
       invs=rInvs.invs.map(function(i){
+        var rawPay = String(i.pay||'');
+        var payVal = rawPay;
+        var typeVal = String(i.type||'');
+        if(rawPay.indexOf('|||')!==-1){
+          var pts=rawPay.split('|||');
+          payVal=pts[0];
+          typeVal=pts[1];
+        }
         return {no:String(i.no||''),cust:String(i.cust||''),amt:Number(i.amt||0),
-          pay:String(i.pay||''),picB:String(i.picB||''),
+          pay:payVal,picB:String(i.picB||''),
           sBA:String(i.sBA||''),sSrt:String(i.sSrt||''),
           sMIR:String(i.sMIR||''),sNota:String(i.sNota||''),tgl:String(i.tgl||''),
-          type:String(i.type||''),desc:String(i.desc||'')};
+          type:typeVal,desc:String(i.desc||'')};
       });
       var updEl=document.getElementById('gs-last-update');
       if(updEl&&rInvs.updatedAt) updEl.textContent='Data terakhir diupload: '+new Date(rInvs.updatedAt).toLocaleString('id-ID');
@@ -1983,9 +1991,9 @@ function pullAllFromSheets(){
 // ── Auto push setelah proses data (admin) ──
 function autoPushAfterProcess(){
   if(!gsUrl) return;
-  // Push invoice — sertakan type untuk non-P2P & migrasi
+  // Push invoice — selipkan type ke dalam pay sebagai trik bypass backend lama
   var payload=invs.map(function(i){
-    return {no:i.no,cust:i.cust,amt:i.amt,pay:i.pay,picB:i.picB||'',
+    return {no:i.no,cust:i.cust,amt:i.amt,pay:(i.pay||'')+'|||'+(i.type||''),picB:i.picB||'',
       sBA:i.sBA||'',sSrt:i.sSrt||'',sMIR:i.sMIR||'',sNota:i.sNota||'',
       tgl:i.tgl||'',type:i.type||''};
   });
