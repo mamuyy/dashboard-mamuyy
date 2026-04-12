@@ -264,6 +264,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 <div class="topbar">
   <h1>📬 Penagihan – PT Pelindo Daya Sejahtera</h1>
   <div class="right">
+    <a href="Panduan_Aplikasi_Penagihan_Tim.docx" download title="Download Panduan Aplikasi" style="text-decoration:none;font-size:1.1rem;margin-right:4px;transition:0.2s;opacity:0.85;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.85'">📖</a>
     <div class="data-badge" id="data-badge">Belum ada data</div>
     <div id="cloud-badge" style="display:none;font-size:.68rem;opacity:.75;cursor:pointer;" onclick="showPage('setup')" title="Klik untuk ke pengaturan sync">☁️</div>
     <div class="pic-badge" onclick="showPage('setup')" id="pic-display">👤 Pilih PIC</div>
@@ -1268,8 +1269,8 @@ function renderDash(){
   const totPymad=unpaidPymad.reduce((s,i)=>s+i.amt,0);
   
   // STRATEGI MATEMATIKA SEMPURNA:
-  // agGrandTotal adalah TARIKAN MURNI 100% DARI FILE FBL5N (Nilai Suci/Ground Truth).
-  // Migrasi kita fungsikan sebagai "Balancing Figure" agar rincian secara matematis 100% klop dengan nilai suci FBL5N.
+  // agGrandTotal adalah TARIKAN MURNI 100% DARI FILE FBL5N (Nilai Acuan/Ground Truth).
+  // Migrasi kita fungsikan sebagai "Balancing Figure" agar rincian secara matematis 100% klop dengan nilai acuan mutlak FBL5N.
   let totMig = agGrandTotal > 0 ? (agGrandTotal - totP2PBilled - totNonP2P) : unpaidMig.reduce((s,i)=>s+i.amt,0);
   if(totMig < 0) totMig = 0; // Failsafe
 
