@@ -1254,7 +1254,10 @@ function renderH(){
     return tb.localeCompare(ta);
   });
 
-  if(hf==='t') list=list.filter(l=>l.date===TODAY);
+  if(hf==='t') list=list.filter(l=>{
+    const ld = l.date || (l.ts ? l.ts.slice(0,10) : '');
+    return ld === TODAY;
+  });
   if(hf==='j') list=list.filter(l=>l.hasil==='Janji Bayar');
   if(q) list=list.filter(l=>
     (l.inv||'').toLowerCase().includes(q) ||
@@ -1288,7 +1291,7 @@ function renderH(){
 let chAging=null, chTeam=null;
 function renderDash(){
   const today=TODAY;
-  const todayLogs=logs.filter(l=>l.date===today);
+  const todayLogs=logs.filter(l => (l.date || (l.ts?l.ts.slice(0,10):'')) === today);
   const unpaid=invs.filter(i=>i.pay==='Unpaid');
   const paid=invs.filter(i=>i.pay==='Paid');
 
@@ -1572,11 +1575,13 @@ function renderDash(){
         const lastLog=(logsByPic[p]||[])[0];
         // Kartu dengan info aktivitas (data invoice per orang tidak ada di TANOS)
         const tim=TIM.operasi, sc=actToday>0?'#1565c0':'#9e9e9e', sb=actToday>0?'#e3f2fd':'#f5f5f5';
+        const statusText = actToday ? `✅ Sudah log hari ini (${actToday})` : '⏳ Belum ada log hari ini';
+        const statusColor = actToday ? 'var(--blue)' : 'var(--sub)';
         html+='<div style="background:'+sb+';border:1px solid '+sc+'44;border-radius:9px;padding:10px;min-width:150px;flex:1;max-width:200px;">'
           +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
           +'<span style="font-weight:700;font-size:.8rem;color:'+tim.color+';">'+p.split(' ').map(function(w){return w.charAt(0).toUpperCase()+w.slice(1);}).join(' ')+'</span>'
           +'<span style="font-size:.63rem;background:'+sc+';color:#fff;border-radius:20px;padding:1px 6px;">'+actToday+' log</span></div>'
-          +'<div style="font-size:.68rem;color:var(--sub);">'+(actToday?'✅ Ada aktivitas hari ini':'⏳ Menunggu input log')+'</div>'
+          +'<div style="font-size:.68rem; font-weight:700; color:'+statusColor+';">'+statusText+'</div>'
           +(lastLog?'<div style="font-size:.6rem;color:var(--sub);margin-top:3px;">Terakhir: '+lastLog.date+'</div>':'')
           +'</div>';
       });
@@ -1606,7 +1611,8 @@ function renderDash(){
           +'<span class="pic-card-arr">▼</span>'
           +'</div>'
           +'<div style="font-size:.72rem;color:var(--sub);margin-bottom:5px;"><strong>'+myInvs.length+'</strong> invoice</div>'
-          +'<div style="font-size:.7rem;color:var(--sub);">'+(actToday?actToday+' log hari ini':'Belum log hari ini')+'</div>'
+          +'<div style="font-size:.7rem; font-weight:700; color:'+(actToday?'var(--green)':'var(--red)')+';">'
+          +(actToday?'✅ Sudah log hari ini ('+actToday+')':'⚠️ Belum log hari ini')+'</div>'
           +'<div class="pic-card-detail">'
           +'<table class="pic-dtbl"><thead><tr><th>No Invoice</th><th>Customer</th><th>Nilai</th><th>Aksi</th></tr></thead><tbody>';
         if(myInvs.length){
@@ -1678,7 +1684,8 @@ function renderDash(){
           +'<span class="pic-card-arr">▼</span>'
           +'</div>'
           +'<div style="font-size:.72rem;color:var(--sub);margin-bottom:5px;"><strong>'+myInvs.length+'</strong> invoice</div>'
-          +'<div style="font-size:.7rem;color:var(--sub);">'+(actToday?actToday+' log hari ini':'Belum log hari ini')+'</div>'
+          +'<div style="font-size:.7rem; font-weight:700; color:'+(actToday?'var(--green)':'var(--red)')+';">'
+          +(actToday?'✅ Sudah log hari ini ('+actToday+')':'⚠️ Belum log hari ini')+'</div>'
           +'<div class="pic-card-detail">'
           +'<table class="pic-dtbl"><thead><tr><th>No Invoice</th><th>Customer</th><th>Nilai</th><th>FU Terakhir</th><th>Hari</th><th>Janji</th><th>Aksi</th></tr></thead><tbody>';
         if(myInvs.length){
