@@ -1996,7 +1996,8 @@ function pushInvsToSheets(){
   setGsStatus('⏳ Push '+invs.length+' invoice ke Sheets...','#1565c0');
   var payload=invs.map(function(i){
     return {no:i.no,cust:i.cust,amt:i.amt,pay:i.pay,picB:i.picB||'',
-      sBA:i.sBA||'',sSrt:i.sSrt||'',sMIR:i.sMIR||'',sNota:i.sNota||'',tgl:i.tgl||''};
+      sBA:i.sBA||'',sSrt:i.sSrt||'',sMIR:i.sMIR||'',sNota:i.sNota||'',tgl:i.tgl||'',
+      type:i.type||'',desc:i.desc||''};
   });
   fetch(gsUrl,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},
     body:JSON.stringify({action:'push_invs',invs:payload,updatedAt:new Date().toISOString()})
@@ -2085,7 +2086,7 @@ function autoPushAfterProcess(){
   var payload=invs.map(function(i){
     return {no:i.no,cust:i.cust,amt:i.amt,pay:i.pay,picB:i.picB||'',
       sBA:i.sBA||'',sSrt:i.sSrt||'',sMIR:i.sMIR||'',sNota:i.sNota||'',
-      tgl:i.tgl||'',type:i.type||''};
+      tgl:i.tgl||'',type:i.type||'',desc:i.desc||''};
   });
   fetch(gsUrl,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},
     body:JSON.stringify({action:'push_invs',invs:payload,updatedAt:new Date().toISOString()})
