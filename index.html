@@ -636,17 +636,33 @@ const raw={};
 let gsUrl='';
 window.onload=()=>{
   try {
-    const sl=localStorage.getItem('fu_logs'); if(sl) { try{ logs=JSON.parse(sl); }catch(e){ logs=[]; } }
-    const sp=localStorage.getItem('fu_pic');  if(sp){ pic=sp; updPIC(); }
+    const sl=localStorage.getItem('fu_logs');
+    if(sl) {
+      try{ logs=JSON.parse(sl); }catch(e){ logs=[]; }
+    }
+
+    const sp=localStorage.getItem('fu_pic');
+    if(sp){ pic=sp; updPIC(); }
+
     const su=localStorage.getItem('gs_url');
-    if(su){ gsUrl=su; document.getElementById('gs-url').value=su; const cb=document.getElementById('cloud-badge'); if(cb) cb.style.display='block'; pullAllFromSheets(true); }
+    if(su){
+      gsUrl=su;
+      document.getElementById('gs-url').value=su;
+      const cb=document.getElementById('cloud-badge');
+      if(cb) cb.style.display='block';
+      pullAllFromSheets(true);
+      startAutoSync();
+    }
+
     if(document.getElementById('ql-date')) document.getElementById('ql-date').value=TODAY;
     if(document.getElementById('m-date')) document.getElementById('m-date').value=TODAY;
-    renderH(); renderDash();
+
+    renderH();
+    renderDash();
   } catch(e) {
     alert("Startup Error: " + e.message);
   }
-};
+};;
 
 // ═══ PIC ═══
 function selPIC(n){ if(!n.trim()) return; pic=n.trim(); localStorage.setItem('fu_pic',pic); updPIC();
@@ -1231,20 +1247,41 @@ function setHF(f){ hf=f; document.querySelectorAll('#page-history .fbtn').forEac
 function renderH(){
   const q=(document.getElementById('hsrch')?.value||'').toLowerCase();
   let list=[...logs];
+
+  list.sort(function(a,b){
+    const ta = (a.ts || a.date || '');
+    const tb = (b.ts || b.date || '');
+    return tb.localeCompare(ta);
+  });
+
   if(hf==='t') list=list.filter(l=>l.date===TODAY);
   if(hf==='j') list=list.filter(l=>l.hasil==='Janji Bayar');
-  if(q) list=list.filter(l=>l.inv.toLowerCase().includes(q)||l.note?.toLowerCase().includes(q)||l.cust?.toLowerCase().includes(q));
+  if(q) list=list.filter(l=>
+    (l.inv||'').toLowerCase().includes(q) ||
+    (l.note||'').toLowerCase().includes(q) ||
+    (l.cust||'').toLowerCase().includes(q) ||
+    (l.pic||'').toLowerCase().includes(q)
+  );
+
   const el=document.getElementById('hlist');
-  if(!list.length){el.innerHTML='<div style="text-align:center;padding:40px;color:var(--sub);">📜 Tidak ada log untuk filter ini</div>';return;}
-  el.innerHTML=list.slice(0,60).map(l=>`
+  if(!list.length){
+    el.innerHTML='<div style="text-align:center;padding:40px;color:var(--sub);">📜 Tidak ada log untuk filter ini</div>';
+    return;
+  }
+
+  el.innerHTML=list.map(l=>`
     <div class="hcard">
-      <div class="hhead"><span class="hinv">${l.inv}</span><span class="hdate">${l.date} · ${l.pic||'—'}</span></div>
+      <div class="hhead">
+        <span class="hinv">${l.inv}</span>
+        <span class="hdate">${l.date} · ${l.pic||'—'}</span>
+      </div>
       <span class="htag h-${(l.hasil||'').toLowerCase().replace(' ','')}">${l.hasil||'?'}</span>
       ${l.ch?`<span style="font-size:.65rem;color:var(--sub);margin-left:5px;">via ${l.ch}</span>`:''}
       ${l.cust?`<div style="font-size:.72rem;color:var(--sub);margin-top:2px;">${l.cust} · ${fmt(l.amt||0)}</div>`:''}
       ${l.note?`<div style="font-size:.72rem;color:var(--sub);margin-top:3px;">${l.note}</div>`:''}
       ${l.jt?`<div style="font-size:.72rem;color:var(--blue);margin-top:3px;">📅 ${l.jt}${l.jn?' · '+fmt(l.jn):''}</div>`:''}
-    </div>`).join('');
+    </div>
+  `).join('');
 }
 
 // ═══ DASHBOARD ═══
@@ -1833,15 +1870,57 @@ function exportLaporan(){
 // ═══ HELPERS ═══
 function saveLogs(){
   localStorage.setItem('fu_logs',JSON.stringify(logs));
-  if(gsUrl) pushLastLogToSheets();
+
+  if(gsUrl){
+    pushLastLogToSheets();
+
+    setTimeout(function(){
+      pullAllFromSheets(true);
+    }, 1500);
+
+    setTimeout(function(){
+      pullAllFromSheets(true);
+    }, 4000);
+  }
 }
 
 // ═══ GOOGLE SHEETS SYNC ═══
+let autoSyncTimer=null;
+const AUTO_SYNC_MS = 20000;
+
+function startAutoSync(){
+  if(autoSyncTimer) clearInterval(autoSyncTimer);
+  if(!gsUrl) return;
+
+  autoSyncTimer = setInterval(function(){
+    if(document.visibilityState === 'visible' && gsUrl){
+      pullAllFromSheets(true);
+    }
+  }, AUTO_SYNC_MS);
+}
+
+window.addEventListener('focus', function(){
+  if(gsUrl) pullAllFromSheets(true);
+});
+
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState === 'visible' && gsUrl){
+    pullAllFromSheets(true);
+  }
+});
+
 function saveGsUrl(v){
   gsUrl=v.trim();
   localStorage.setItem('gs_url',gsUrl);
   const cb=document.getElementById('cloud-badge');
   if(cb) cb.style.display=gsUrl?'block':'none';
+
+  if(gsUrl){
+    startAutoSync();
+  } else if(autoSyncTimer){
+    clearInterval(autoSyncTimer);
+    autoSyncTimer=null;
+  }
 }
 
 function setGsStatus(msg,color){
@@ -1874,15 +1953,20 @@ function syncFromSheets(silent){
 
 // Upload 1 log terakhir ke Sheets (dipanggil otomatis saat saveLogs)
 function pushLastLogToSheets(){
-  if(!gsUrl||!logs.length) return;
-  const l=logs[logs.length-1];
+  if(!gsUrl || !logs.length) return;
+
+  const l = logs[0];
+
   fetch(gsUrl,{
     method:'POST',
     mode:'no-cors',
     headers:{'Content-Type':'text/plain'},
     body:JSON.stringify({action:'add',log:l})
-  }).catch(function(){});  // fire-and-forget, no-cors tidak bisa baca response
-  setGsStatus('☁️ Log terakhir dikirim ke Sheets — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
+  }).catch(function(err){
+    console.warn('pushLastLogToSheets gagal:', err);
+  });
+
+  setGsStatus('☁️ Log terbaru dikirim ke Sheets — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
 }
 
 // Upload SEMUA log ke Sheets (overwrite)
