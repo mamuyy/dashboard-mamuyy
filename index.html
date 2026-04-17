@@ -826,6 +826,8 @@ function _doProsesData(){ try{
     agTotals={b0:0,b30:0,b60:0,b90:0,b120:0,b150:0,b180:0,b210:0,bOld:0,hasData:false};
     const ash=raw[3].Sheets[raw[3].SheetNames[0]];
     const agRawRows=XLSX.utils.sheet_to_json(ash,{defval:'',header:1});
+    // Versi text-formatted untuk menjaga nilai reference/assignment tetap apa adanya.
+    const agRawRowsText=XLSX.utils.sheet_to_json(ash,{defval:'',header:1,raw:false});
 
     // === Cari baris header yang sebenarnya (SAP sering ada baris judul di atas) ===
     let hdrIdx=0;
@@ -864,7 +866,8 @@ function _doProsesData(){ try{
     window.fbl5nDocsMap = {}; // Penyimpan unik untuk mengakumulasi duplikat baris invoice yang sama di FBL5N
     let blankIdx = 0;
 
-    agRawRows.slice(hdrIdx+1).forEach(r=>{
+    agRawRows.slice(hdrIdx+1).forEach(function(r,rowOffset){
+      const rText=agRawRowsText[hdrIdx+1+rowOffset]||[];
       const custCode=s(String(r[codeColIdx]||''));
       const custName=s(String(r[nameColIdx]||''));
       const k=custName||custCode;
@@ -891,8 +894,8 @@ function _doProsesData(){ try{
       }
       if(rowAmt===0) return;
       // === Simpan per-dokumen untuk deteksi migrasi & override ===
-      const rowDocNo=docNoColIdx>=0?s(String(r[docNoColIdx]||'')):'';
-      const rowRefNo=refColIdx>=0?s(String(r[refColIdx]||'')):'';
+      const rowDocNo=docNoColIdx>=0?rawTextValue(rText[docNoColIdx]!==undefined?rText[docNoColIdx]:r[docNoColIdx], ''):'';
+      const rowRefNo=refColIdx>=0?rawTextValue(rText[refColIdx]!==undefined?rText[refColIdx]:r[refColIdx], ''):'';
       let dKey = rowDocNo || rowRefNo;
       if(!dKey) { blankIdx++; dKey = 'M-BLANK-'+custCode+'-'+blankIdx; }
       
@@ -2162,6 +2165,11 @@ function showRekonViewer(type) {
 function selR(f,v,el){ document.getElementById(f).value=v; el.closest('.rrow').querySelectorAll('.rbtn').forEach(b=>b.classList.remove('sel')); el.classList.add('sel'); }
 function jBox(pref,show){ document.getElementById(pref+'-jb').style.display=show?'block':'none'; }
 function fmt(n){ if(!n)return'Rp 0'; if(n>=1e9)return'Rp '+(n/1e9).toFixed(1)+' M'; if(n>=1e6)return'Rp '+(n/1e6).toFixed(1)+' jt'; return'Rp '+n.toLocaleString('id-ID'); }
+function rawTextValue(value,emptyFallback='-'){
+  if(value===null||value===undefined) return emptyFallback;
+  if(value==='') return emptyFallback;
+  return String(value);
+}
 function isRealDateField(fieldName){
   const f=String(fieldName||'').trim().toLowerCase();
   return /(^|_|\s)(tgl|tanggal|date|due|jatuh tempo|janji|jt)(_|$|\s)/.test(f);
