@@ -891,8 +891,8 @@ function _doProsesData(){ try{
       }
       if(rowAmt===0) return;
       // === Simpan per-dokumen untuk deteksi migrasi & override ===
-      const rowDocNo=docNoColIdx>=0?s(String(r[docNoColIdx]||'')):'';
-      const rowRefNo=refColIdx>=0?s(String(r[refColIdx]||'')):'';
+      const rowDocNo=docNoColIdx>=0?rawTextValue(r[docNoColIdx], ''):'';
+      const rowRefNo=refColIdx>=0?rawTextValue(r[refColIdx], ''):'';
       let dKey = rowDocNo || rowRefNo;
       if(!dKey) { blankIdx++; dKey = 'M-BLANK-'+custCode+'-'+blankIdx; }
       
@@ -2129,7 +2129,7 @@ function showRekonViewer(type) {
   if(type!=='selisih' && data.length) {
      html+=`<div style="font-size:0.75rem;margin-bottom:10px;color:#666;font-weight:bold">Menampilkan ${data.length} baris</div>`;
      html+=`<table class="pic-dtbl" style="width:100%;text-align:left;"><thead><tr><th>No Dokumen</th><th>Customer</th><th style="text-align:right">Nilai Tagihan</th></tr></thead><tbody>`;
-     html+=data.map(d=>`<tr style="border-bottom:1px solid #eee"><td style="font-weight:bold;padding:6px 5px">${esc(d.no)}</td><td style="padding:6px 5px">${esc(d.cust)}</td><td style="text-align:right;padding:6px 5px;font-family:monospace;font-size:.85rem">${fmt(d.amt)}</td></tr>`).join('');
+     html+=data.map(d=>`<tr style="border-bottom:1px solid #eee"><td style="font-weight:bold;padding:6px 5px">${esc(safeDisplayValue(d.no,'reference'))}</td><td style="padding:6px 5px">${esc(safeDisplayValue(d.cust,'cust'))}</td><td style="text-align:right;padding:6px 5px;font-family:monospace;font-size:.85rem">${fmt(d.amt)}</td></tr>`).join('');
      html+=`</tbody></table>`;
   } else if (type!=='selisih') {
      html='<div style="text-align:center;padding:40px;color:#888;">Tidak ada data untuk kategori ini.</div>';
@@ -2162,6 +2162,69 @@ function showRekonViewer(type) {
 function selR(f,v,el){ document.getElementById(f).value=v; el.closest('.rrow').querySelectorAll('.rbtn').forEach(b=>b.classList.remove('sel')); el.classList.add('sel'); }
 function jBox(pref,show){ document.getElementById(pref+'-jb').style.display=show?'block':'none'; }
 function fmt(n){ if(!n)return'Rp 0'; if(n>=1e9)return'Rp '+(n/1e9).toFixed(1)+' M'; if(n>=1e6)return'Rp '+(n/1e6).toFixed(1)+' jt'; return'Rp '+n.toLocaleString('id-ID'); }
+function rawTextValue(value,emptyFallback='-'){
+  if(value===null||value===undefined) return emptyFallback;
+  if(typeof value==='string'){
+    const t=value.trim();
+    return t===''?emptyFallback:t;
+  }
+  if(value instanceof Date){
+    if(isNaN(value.getTime())) return emptyFallback;
+    const d=value.getDate(),m=value.getMonth()+1,y=String(value.getFullYear()).slice(-2);
+    return d+'/'+m+'/'+y; // tampil tekstual, hindari "Fri Nov ..."
+  }
+  const t=String(value).trim();
+  return t===''?emptyFallback:t;
+}
+function isAlwaysRawTextField(fieldName){
+  const f=String(fieldName||'').trim().toLowerCase();
+  return ['reference','assignment','doc no','document no','document number','no','no dokumen'].includes(f);
+}
+function isRealDateField(fieldName){
+  const f=String(fieldName||'').trim().toLowerCase();
+  return /(^|_|\s)(tgl|tanggal|date|due|jatuh tempo|janji|jt)(_|$|\s)/.test(f);
+}
+function formatExcelSerialDate(value){
+  if(value===null||value===undefined||value==='') return '';
+  let dt=null;
+  if(value instanceof Date){
+    dt=value;
+  }else if(typeof value==='number'&&isFinite(value)){
+    const serial=Math.floor(value);
+    if(serial>0&&serial<300000){
+      dt=new Date(Math.round((serial-25569)*86400*1000));
+    }
+  }else if(typeof value==='string'){
+    const raw=value.trim();
+    if(!raw) return '';
+    if(/^\d+(\.\d+)?$/.test(raw)){
+      const serial=parseFloat(raw);
+      if(serial>0&&serial<300000){
+        dt=new Date(Math.round((serial-25569)*86400*1000));
+      }
+    }else{
+      const parsed=new Date(raw);
+      if(!isNaN(parsed.getTime())) dt=parsed;
+    }
+  }
+  if(!dt||isNaN(dt.getTime())) return '';
+  return dt.toLocaleDateString('id-ID',{day:'2-digit',month:'2-digit',year:'numeric'});
+}
+function safeDisplayValue(value,fieldName){
+  if(isAlwaysRawTextField(fieldName)){
+    return rawTextValue(value,'-');
+  }
+  if(value===null||value===undefined) return '-';
+  if(typeof value==='string'&&value.trim()==='') return '-';
+  if(isRealDateField(fieldName)){
+    const fmtDate=formatExcelSerialDate(value);
+    if(fmtDate) return fmtDate;
+  }
+  if(value instanceof Date){
+    return rawTextValue(value,'-');
+  }
+  return String(value);
+}
 function esc(v){ return String(v??'').replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 function jsq(v){ return String(v??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
 function s(v){ return v===undefined||v===null?'':String(v).trim(); }
