@@ -1130,10 +1130,11 @@ function renderQ(append=false){
   const html = slice.map(item => {
     const i = item.inv, pr = item.p, fu = item.fu, ac=i.amt>100000000?'amt-big':i.amt>30000000?'amt-med':'';
     const done=getLogs(i.no).find(l=>l.hasil==='Paid');
-    return`<div class="inv-card p${pr}${done?' done':''}" onclick="openM('${i.no}')">
-      <div class="inv-head"><div><div class="inv-no">${i.no}</div><div class="inv-pic-sub">${i.picB||'—'}</div></div><div class="inv-amt ${ac}">${fmt(i.amt)}</div></div>
-      <div class="inv-cust">${i.cust}</div>
-      <div class="inv-desc">${i.desc}</div>
+    const invNoEsc=esc(i.no), picBEsc=esc(i.picB||'—'), custEsc=esc(i.cust), descEsc=esc(i.desc);
+    return`<div class="inv-card p${pr}${done?' done':''}" onclick="openM('${jsq(i.no)}')">
+      <div class="inv-head"><div><div class="inv-no">${invNoEsc}</div><div class="inv-pic-sub">${picBEsc}</div></div><div class="inv-amt ${ac}">${fmt(i.amt)}</div></div>
+      <div class="inv-cust">${custEsc}</div>
+      <div class="inv-desc">${descEsc}</div>
       <div class="inv-foot">${stagePills(i)}<span class="fu-tag ${fu.d?'d':fu.w?'w':''}">${fu.t}</span></div>
     </div>`;
   }).join('');
@@ -1179,11 +1180,11 @@ function openM(no){
   document.querySelectorAll('#mbg .rbtn').forEach(b=>b.classList.remove('sel'));
   jBox('m',false);
   document.getElementById('m-info').innerHTML=`
-    <div class="irow"><span class="ilbl">Customer</span><span class="ival">${i.cust}</span></div>
+    <div class="irow"><span class="ilbl">Customer</span><span class="ival">${esc(i.cust)}</span></div>
     <div class="irow"><span class="ilbl">Jumlah</span><span class="ival" style="color:var(--red);font-size:.95rem;">${fmt(i.amt)}</span></div>
-    <div class="irow"><span class="ilbl">PIC Billing</span><span class="ival">${i.picB||'—'}</span></div>
-    <div class="irow"><span class="ilbl">Payment</span><span class="ival">${i.pay}</span></div>
-    <div class="irow"><span class="ilbl">Deskripsi</span><span class="ival" style="font-size:.72rem;">${i.desc.slice(0,70)}${i.desc.length>70?'...':''}</span></div>`;
+    <div class="irow"><span class="ilbl">PIC Billing</span><span class="ival">${esc(i.picB||'—')}</span></div>
+    <div class="irow"><span class="ilbl">Payment</span><span class="ival">${esc(i.pay)}</span></div>
+    <div class="irow"><span class="ilbl">Deskripsi</span><span class="ival" style="font-size:.72rem;">${esc(i.desc.slice(0,70))}${i.desc.length>70?'...':''}</span></div>`;
   const st=[{n:'BA/BAST',v:i.sBA},{n:'Surat',v:i.sSrt},{n:'Nota Dinas',v:i.sNota},{n:'MIR7/SAP',v:i.sMIR},{n:'Payment',v:i.pay}];
   document.getElementById('m-stages').innerHTML=st.map(x=>{
     const c=x.v==='Completed'||x.v==='Paid'?'ok':x.v.includes('Progress')?'ip':x.v==='Belum Dibuat'||x.v==='Rejected'?'bl':'na';
@@ -1192,8 +1193,8 @@ function openM(no){
   document.getElementById('m-prev').innerHTML=prev.length?
     `<div style="font-size:.68rem;font-weight:700;color:var(--sub);text-transform:uppercase;margin-bottom:5px;">📜 Riwayat FU</div>`+
     prev.map(l=>`<div style="background:#f5f5f5;border-radius:6px;padding:7px 9px;margin-bottom:4px;font-size:.73rem;">
-      <strong>${l.date}</strong> · ${l.ch||'—'} · <span class="htag h-${(l.hasil||'').toLowerCase().replace(' ','')}">${l.hasil}</span>
-      ${l.note?`<br><span style="color:var(--sub);">${l.note}</span>`:''}
+      <strong>${esc(l.date)}</strong> · ${esc(l.ch||'—')} · <span class="htag h-${(l.hasil||'').toLowerCase().replace(' ','')}">${esc(l.hasil)}</span>
+      ${l.note?`<br><span style="color:var(--sub);">${esc(l.note)}</span>`:''}
       ${l.jt?`<br>📅 Janji: ${l.jt}${l.jn?' · '+fmt(l.jn):''}`:''}</div>`).join(''):'';
   document.getElementById('mbg').classList.add('open');
 }
@@ -1216,7 +1217,7 @@ function saveMLog(){
 document.getElementById('ql-inv').addEventListener('input',function(){
   const v=this.value, no=v.includes(' — ')?v.split(' — ')[0].trim():v.trim();
   const i=invs.find(x=>x.no===no); const el=document.getElementById('ql-info');
-  if(i){el.style.display='block';el.innerHTML=`<strong>${i.cust}</strong> · ${fmt(i.amt)}<br><small style="color:var(--sub);">${i.desc.slice(0,60)}...</small>`;}
+  if(i){el.style.display='block';el.innerHTML=`<strong>${esc(i.cust)}</strong> · ${fmt(i.amt)}<br><small style="color:var(--sub);">${esc(i.desc.slice(0,60))}...</small>`;}
   else el.style.display='none';
 });
 function saveQL(){
@@ -1275,13 +1276,13 @@ function renderH(){
   el.innerHTML=list.map(l=>`
     <div class="hcard">
       <div class="hhead">
-        <span class="hinv">${l.inv}</span>
-        <span class="hdate">${l.date} · ${l.pic||'—'}</span>
+        <span class="hinv">${esc(l.inv)}</span>
+        <span class="hdate">${esc(l.date)} · ${esc(l.pic||'—')}</span>
       </div>
-      <span class="htag h-${(l.hasil||'').toLowerCase().replace(' ','')}">${l.hasil||'?'}</span>
-      ${l.ch?`<span style="font-size:.65rem;color:var(--sub);margin-left:5px;">via ${l.ch}</span>`:''}
-      ${l.cust?`<div style="font-size:.72rem;color:var(--sub);margin-top:2px;">${l.cust} · ${fmt(l.amt||0)}</div>`:''}
-      ${l.note?`<div style="font-size:.72rem;color:var(--sub);margin-top:3px;">${l.note}</div>`:''}
+      <span class="htag h-${(l.hasil||'').toLowerCase().replace(' ','')}">${esc(l.hasil||'?')}</span>
+      ${l.ch?`<span style="font-size:.65rem;color:var(--sub);margin-left:5px;">via ${esc(l.ch)}</span>`:''}
+      ${l.cust?`<div style="font-size:.72rem;color:var(--sub);margin-top:2px;">${esc(l.cust)} · ${fmt(l.amt||0)}</div>`:''}
+      ${l.note?`<div style="font-size:.72rem;color:var(--sub);margin-top:3px;">${esc(l.note)}</div>`:''}
       ${l.jt?`<div style="font-size:.72rem;color:var(--blue);margin-top:3px;">📅 ${l.jt}${l.jn?' · '+fmt(l.jn):''}</div>`:''}
     </div>
   `).join('');
@@ -1793,8 +1794,8 @@ function buildAlertDetail(type){
     const byP={};
     list.forEach(i=>{const p=i.picB||'—';if(!byP[p])byP[p]=[];byP[p].push(i);});
     const rows=Object.entries(byP).sort((a,b)=>b[1].length-a[1].length)
-      .map(([p,arr])=>'<tr><td><strong>'+p+'</strong><br>'+timBadge(p)+'</td><td>'+arr.length+'</td><td>'+fmt(arr.reduce((s,i)=>s+i.amt,0))+'</td>'
-        +'<td style="color:#666;font-size:.68rem;">'+arr.slice(0,4).map(i=>i.no).join(', ')+(arr.length>4?' <em>+lainnya</em>':'')+'</td></tr>');
+      .map(([p,arr])=>'<tr><td><strong>'+esc(p)+'</strong><br>'+timBadge(p)+'</td><td>'+arr.length+'</td><td>'+fmt(arr.reduce((s,i)=>s+i.amt,0))+'</td>'
+        +'<td style="color:#666;font-size:.68rem;">'+arr.slice(0,4).map(i=>esc(i.no)).join(', ')+(arr.length>4?' <em>+lainnya</em>':'')+'</td></tr>');
     return buildPICTable(['PIC / Tim','Surat Belum','Nilai','No Invoice'],rows,'Tidak ada surat pending.');
   }
   if(type==='bfu'){
@@ -1802,8 +1803,8 @@ function buildAlertDetail(type){
     const byP={};
     list.forEach(i=>{const p=i.picB||'—';if(!byP[p])byP[p]=[];byP[p].push(i);});
     const rows=Object.entries(byP).sort((a,b)=>b[1].reduce((s,i)=>s+i.amt,0)-a[1].reduce((s,i)=>s+i.amt,0))
-      .map(([p,arr])=>'<tr><td><strong>'+p+'</strong><br>'+timBadge(p)+'</td><td>'+arr.length+'</td><td>'+fmt(arr.reduce((s,i)=>s+i.amt,0))+'</td>'
-        +'<td style="color:#666;font-size:.68rem;">'+arr.slice(0,4).map(i=>i.no).join(', ')+(arr.length>4?' <em>+lainnya</em>':'')+'</td></tr>');
+      .map(([p,arr])=>'<tr><td><strong>'+esc(p)+'</strong><br>'+timBadge(p)+'</td><td>'+arr.length+'</td><td>'+fmt(arr.reduce((s,i)=>s+i.amt,0))+'</td>'
+        +'<td style="color:#666;font-size:.68rem;">'+arr.slice(0,4).map(i=>esc(i.no)).join(', ')+(arr.length>4?' <em>+lainnya</em>':'')+'</td></tr>');
     return buildPICTable(['PIC / Tim','Blm Di-FU','Nilai','No Invoice'],rows,'Semua invoice sudah pernah di-FU.');
   }
   if(type==='janji'){
@@ -1811,9 +1812,9 @@ function buildAlertDetail(type){
     const byP={};
     list.forEach(l=>{const p=l.pic||'—';if(!byP[p])byP[p]=[];byP[p].push(l);});
     const rows=Object.entries(byP).sort((a,b)=>b[1].length-a[1].length)
-      .map(([p,arr])=>'<tr><td><strong>'+p+'</strong><br>'+timBadge(p)+'</td><td>'+arr.length+'</td>'
+      .map(([p,arr])=>'<tr><td><strong>'+esc(p)+'</strong><br>'+timBadge(p)+'</td><td>'+arr.length+'</td>'
         +'<td>'+fmt(arr.reduce((s,l)=>s+(l.jn||0),0))+'</td>'
-        +'<td style="color:#666;font-size:.68rem;">'+arr.slice(0,3).map(l=>l.inv+' ('+l.jt+')').join('<br>')+(arr.length>3?' <em>+lainnya</em>':'')+'</td></tr>');
+        +'<td style="color:#666;font-size:.68rem;">'+arr.slice(0,3).map(l=>esc(l.inv)+' ('+esc(l.jt)+')').join('<br>')+(arr.length>3?' <em>+lainnya</em>':'')+'</td></tr>');
     return buildPICTable(['PIC / Tim','Jml Janji OD','Nominal','Detail'],rows,'Tidak ada janji yang jatuh tempo.');
   }
   if(type==='nolog'){
@@ -1830,7 +1831,7 @@ function buildAlertDetail(type){
         :cnt>=2?'<span style="color:#e65100;font-weight:700;">⚠ Kurang ('+cnt+')</span>'
         :'<span style="color:#c62828;font-weight:700;">❌ Belum ada</span>';
       const invCnt=unpaid.filter(i=>i.picB===p).length;
-      return '<tr><td><strong>'+p+'</strong><br>'+timBadge(p)+'</td><td>'+invCnt+'</td><td>'+status+'</td></tr>';
+      return '<tr><td><strong>'+esc(p)+'</strong><br>'+timBadge(p)+'</td><td>'+invCnt+'</td><td>'+status+'</td></tr>';
     });
     return buildPICTable(['PIC / Tim','Invoice','Status FU Hari Ini'],rows,'');
   }
@@ -2120,7 +2121,7 @@ function showRekonViewer(type) {
      if(!data.length) html='<div style="text-align:center;padding:40px;color:#2e7d32;font-size:1.2rem;font-weight:700">Wusss! ✅ 100% Klop.<br><span style="font-size:0.9rem;font-weight:normal;color:#666">Tidak ada selisih nominal dan semua invoice FBL5N terpetakan.</span></div>';
      else {
         html=`<table class="pic-dtbl" style="width:100%;text-align:left;"><thead><tr><th>Dokumen / ID SAP</th><th>Nominal Tanos vs FBL5N</th></tr></thead><tbody>`;
-        html+=data.map(d=>`<tr style="border-bottom:1px solid #eee"><td style="font-weight:bold;padding:8px 5px">${d.Dokumen}</td><td style="color:#d32f2f;padding:8px 5px">${d["Tanos vs FBL5N"]}</td></tr>`).join('');
+        html+=data.map(d=>`<tr style="border-bottom:1px solid #eee"><td style="font-weight:bold;padding:8px 5px">${esc(d.Dokumen)}</td><td style="color:#d32f2f;padding:8px 5px">${esc(d["Tanos vs FBL5N"])}</td></tr>`).join('');
         html+=`</tbody></table><div style="margin-top:15px;font-size:0.75rem;color:#666;line-height:1.4"><strong>*PANDUAN BACA:</strong> Jika ada label peringatan "Tidak Ada di FBL5N", artinya invoice tersebut tercatat menggantung secara Unpaid di web, tapi sebenarnya sudah hilang dari antrian open balance SAP FBL5N (kemungkinan besar sudah lunas/cleared diam-diam di pusat). Segera pastikan tagihan tersebut!</div>`;
      }
   }
@@ -2128,7 +2129,7 @@ function showRekonViewer(type) {
   if(type!=='selisih' && data.length) {
      html+=`<div style="font-size:0.75rem;margin-bottom:10px;color:#666;font-weight:bold">Menampilkan ${data.length} baris</div>`;
      html+=`<table class="pic-dtbl" style="width:100%;text-align:left;"><thead><tr><th>No Dokumen</th><th>Customer</th><th style="text-align:right">Nilai Tagihan</th></tr></thead><tbody>`;
-     html+=data.map(d=>`<tr style="border-bottom:1px solid #eee"><td style="font-weight:bold;padding:6px 5px">${d.no}</td><td style="padding:6px 5px">${d.cust}</td><td style="text-align:right;padding:6px 5px;font-family:monospace;font-size:.85rem">${fmt(d.amt)}</td></tr>`).join('');
+     html+=data.map(d=>`<tr style="border-bottom:1px solid #eee"><td style="font-weight:bold;padding:6px 5px">${esc(d.no)}</td><td style="padding:6px 5px">${esc(d.cust)}</td><td style="text-align:right;padding:6px 5px;font-family:monospace;font-size:.85rem">${fmt(d.amt)}</td></tr>`).join('');
      html+=`</tbody></table>`;
   } else if (type!=='selisih') {
      html='<div style="text-align:center;padding:40px;color:#888;">Tidak ada data untuk kategori ini.</div>';
@@ -2161,6 +2162,8 @@ function showRekonViewer(type) {
 function selR(f,v,el){ document.getElementById(f).value=v; el.closest('.rrow').querySelectorAll('.rbtn').forEach(b=>b.classList.remove('sel')); el.classList.add('sel'); }
 function jBox(pref,show){ document.getElementById(pref+'-jb').style.display=show?'block':'none'; }
 function fmt(n){ if(!n)return'Rp 0'; if(n>=1e9)return'Rp '+(n/1e9).toFixed(1)+' M'; if(n>=1e6)return'Rp '+(n/1e6).toFixed(1)+' jt'; return'Rp '+n.toLocaleString('id-ID'); }
+function esc(v){ return String(v??'').replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function jsq(v){ return String(v??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
 function s(v){ return v===undefined||v===null?'':String(v).trim(); }
 function n(v){ const x=parseFloat(String(v).replace(/[^0-9.-]/g,'')); return isNaN(x)?0:x; }
 let tt; function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(tt); tt=setTimeout(()=>t.classList.remove('show'),2500); }
