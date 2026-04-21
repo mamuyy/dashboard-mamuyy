@@ -347,6 +347,12 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
     <label class="lbl">URL Google Apps Script</label>
     <input type="text" id="gs-url" placeholder="https://script.google.com/macros/s/.../exec"
       style="font-size:.75rem;" oninput="saveGsUrl(this.value)">
+    <label class="lbl">PIN Admin Lokal (opsional, untuk proses master data)</label>
+    <input type="password" id="admin-pin" placeholder="Set PIN admin perangkat ini"
+      style="font-size:.75rem;" oninput="saveAdminPin(this.value)">
+    <div style="font-size:.68rem;color:var(--sub);margin-top:4px;">
+      PIN disimpan lokal di browser perangkat ini (bukan hardcoded di source).
+    </div>
 
     <!-- Tombol untuk TIM (tarik data) -->
     <div style="margin-top:10px;background:#e3f2fd;border-radius:8px;padding:10px 12px;">
@@ -631,6 +637,7 @@ function getTimInfo(name){ return TIM[getTimKey(name)]; }
 let invs=[], bilMap={}, agMap={}, agTotals={b30:0,b60:0,b90:0,b120:0,b150:0,b180:0,b210:0,bOld:0,hasData:false}, logs=[], pic='', cf='a', hf='a';
 const TODAY=new Date().toISOString().slice(0,10);
 const raw={};
+let adminPinHash='';
 
 // ═══ INIT ═══
 let gsUrl='';
@@ -652,6 +659,13 @@ window.onload=()=>{
       if(cb) cb.style.display='block';
       pullAllFromSheets(true);
       startAutoSync();
+    }
+
+    const aph=localStorage.getItem('admin_pin_hash');
+    if(aph){
+      adminPinHash=aph;
+      const pinEl=document.getElementById('admin-pin');
+      if(pinEl) pinEl.placeholder='PIN admin tersimpan (isi untuk mengganti)';
     }
 
     if(document.getElementById('ql-date')) document.getElementById('ql-date').value=TODAY;
@@ -701,8 +715,13 @@ function autoBackupLog(){
 
 // ═══ PROCESS ═══
 function prosesData(){
+  if(!adminPinHash){
+    alert('⚠️ PIN Admin Lokal belum diatur.\nBuka tab Data → isi "PIN Admin Lokal" terlebih dulu.');
+    showPage('setup');
+    return;
+  }
   const pin = prompt('⛔ AKSES KHUSUS ADMIN ⛔\nMasukkan Kunci Rahasia / PIN untuk merubah Master Data:');
-  if(pin !== 'pds2026') {
+  if(hashPin(pin||'') !== adminPinHash) {
     alert('❌ Akses Ditolak!\nMaaf, hanya Admin yang mendelegasikan wewenang ini. Tim silakan gunakan tombol "Tarik Data" saja.');
     return;
   }
@@ -1041,11 +1060,26 @@ function resetData(){
 
 // ═══ QUEUE ═══
 let pageQ = 1;
+function getAgingByInvoice(inv){
+  if(!inv) return null;
+  if(agMap[inv.no]) return agMap[inv.no];
+  const ck=(inv.cust||'').toLowerCase().replace(/\s+/g,' ').trim();
+  if(!ck) return null;
+  const exactKey=Object.keys(agMap).find(function(k){
+    return (k||'').toLowerCase().replace(/\s+/g,' ').trim()===ck;
+  });
+  if(exactKey) return agMap[exactKey];
+  const fuzzyKey=Object.keys(agMap).find(function(k){
+    const v=(k||'').toLowerCase().replace(/\s+/g,' ').trim();
+    return v && (v.includes(ck.slice(0,10)) || ck.includes(v.slice(0,10)));
+  });
+  return fuzzyKey?agMap[fuzzyKey]:null;
+}
 function prio(inv){
   const il=logs.filter(l=>l.inv===inv.no); const last=il.sort((a,b)=>b.date.localeCompare(a.date))[0];
   let sc=0;
   if(inv.amt>100000000)sc+=40; else if(inv.amt>50000000)sc+=25; else if(inv.amt>10000000)sc+=10;
-  const ag=agMap[inv.no]; if(ag&&ag.o90>0) sc+=30;
+  const ag=getAgingByInvoice(inv); if(ag&&ag.o90>0) sc+=30;
   if(!last) sc+=20;
   else{ const d=Math.floor((new Date(TODAY)-new Date(last.date))/86400000);
     if(d>7)sc+=15; if(last.hasil==='Janji Bayar'&&last.jt&&last.jt<TODAY)sc+=35; }
@@ -1078,7 +1112,7 @@ function renderQ(append=false){
     const il=getLogs(inv.no); const last=il.length?il[0]:null;
     let sc=0;
     if(inv.amt>100000000)sc+=40; else if(inv.amt>50000000)sc+=25; else if(inv.amt>10000000)sc+=10;
-    const ag=agMap[inv.no]; if(ag&&ag.o90>0) sc+=30;
+    const ag=getAgingByInvoice(inv); if(ag&&ag.o90>0) sc+=30;
     if(!last) sc+=20;
     else{ const d=Math.floor((new Date(TODAY)-new Date(last.date))/86400000);
       if(d>7)sc+=15; if(last.hasil==='Janji Bayar'&&last.jt&&last.jt<TODAY)sc+=35; }
@@ -1934,17 +1968,62 @@ function saveGsUrl(v){
   }
 }
 
+function hashPin(pin){
+  let h=2166136261;
+  for(let i=0;i<pin.length;i++){
+    h^=pin.charCodeAt(i);
+    h=Math.imul(h,16777619);
+  }
+  return (h>>>0).toString(16);
+}
+
+function saveAdminPin(v){
+  const pin=(v||'').trim();
+  if(pin.length<4){
+    if(pin.length===0){
+      localStorage.removeItem('admin_pin_hash');
+      adminPinHash='';
+      setGsStatus('ℹ️ PIN admin lokal dihapus.','var(--sub)');
+    }
+    return;
+  }
+  adminPinHash=hashPin(pin);
+  localStorage.setItem('admin_pin_hash',adminPinHash);
+  setGsStatus('✅ PIN admin lokal diperbarui.','var(--green)');
+}
+
 function setGsStatus(msg,color){
   const el=document.getElementById('gs-status');
   if(el){ el.textContent=msg; el.style.color=color||'var(--sub)'; }
+}
+
+function fetchJsonWithTimeout(url, opts={}, timeoutMs=12000){
+  const ctrl=new AbortController();
+  const t=setTimeout(()=>ctrl.abort(), timeoutMs);
+  return fetch(url,{...opts,signal:ctrl.signal})
+    .then(function(r){
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      return r.json();
+    })
+    .finally(function(){ clearTimeout(t); });
+}
+
+function postGsAction(action,payload){
+  return fetchJsonWithTimeout(gsUrl,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action,...payload})
+  }).then(function(res){
+    if(!res || res.ok!==true) throw new Error(res && res.error ? res.error : 'Respon backend tidak valid');
+    return res;
+  });
 }
 
 // Tarik semua log dari Google Sheets (merge dengan lokal)
 function syncFromSheets(silent){
   if(!gsUrl){ if(!silent) toast('⚠️ URL belum diisi!'); return; }
   if(!silent) setGsStatus('⏳ Mengambil data dari Google Sheets...','#1565c0');
-  fetch(gsUrl+'?t='+Date.now())
-    .then(function(r){ return r.json(); })
+  fetchJsonWithTimeout(gsUrl+'?t='+Date.now())
     .then(function(d){
       if(!d.ok){ setGsStatus('❌ Error: '+d.error,'var(--red)'); return; }
       const remote=d.logs||[];
@@ -1968,16 +2047,14 @@ function pushLastLogToSheets(){
 
   const l = logs[0];
 
-  fetch(gsUrl,{
-    method:'POST',
-    mode:'no-cors',
-    headers:{'Content-Type':'text/plain'},
-    body:JSON.stringify({action:'add',log:l})
-  }).catch(function(err){
+  postGsAction('add',{log:l})
+  .then(function(){
+    setGsStatus('☁️ Log terbaru dikirim ke Sheets — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
+  })
+  .catch(function(err){
+    setGsStatus('⚠️ Push log belum terkonfirmasi: '+err.message,'var(--orange)');
     console.warn('pushLastLogToSheets gagal:', err);
   });
-
-  setGsStatus('☁️ Log terbaru dikirim ke Sheets — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
 }
 
 // Upload SEMUA log ke Sheets (overwrite)
@@ -1985,9 +2062,7 @@ function pushAllToSheets(){
   if(!gsUrl){ toast('⚠️ URL belum diisi!'); return; }
   if(!logs.length){ toast('ℹ️ Belum ada log untuk diupload.'); return; }
   setGsStatus('⏳ Mengupload '+logs.length+' log ke Sheets...','#1565c0');
-  fetch(gsUrl,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},
-    body:JSON.stringify({action:'sync',logs:logs})
-  }).then(function(){
+  postGsAction('sync',{logs:logs}).then(function(){
     setGsStatus('✅ '+logs.length+' log diupload — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
     toast('✅ Semua log diupload ke Sheets!');
   }).catch(function(e){ setGsStatus('❌ Gagal: '+e.message,'var(--red)'); });
@@ -2003,9 +2078,7 @@ function pushInvsToSheets(){
       sBA:i.sBA||'',sSrt:i.sSrt||'',sMIR:i.sMIR||'',sNota:i.sNota||'',tgl:i.tgl||'',
       type:i.type||'',desc:i.desc||''};
   });
-  fetch(gsUrl,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},
-    body:JSON.stringify({action:'push_invs',invs:payload,updatedAt:new Date().toISOString()})
-  }).then(function(){
+  postGsAction('push_invs',{invs:payload,updatedAt:new Date().toISOString()}).then(function(){
     setGsStatus('✅ '+invs.length+' invoice di-push — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
     toast('✅ Data invoice di-push ke Sheets!');
   }).catch(function(e){ setGsStatus('❌ Gagal: '+e.message,'var(--red)'); });
@@ -2016,9 +2089,7 @@ function pushAgingToSheets(){
   if(!gsUrl){ toast('⚠️ URL belum diisi!'); return; }
   if(!agTotals.hasData){ toast('ℹ️ Belum ada data aging. Upload File 3 dulu.'); return; }
   setGsStatus('⏳ Push aging ke Sheets...','#1565c0');
-  fetch(gsUrl,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},
-    body:JSON.stringify({action:'push_aging',agMap:agMap})
-  }).then(function(){
+  postGsAction('push_aging',{agMap:agMap}).then(function(){
     setGsStatus('✅ Aging di-push — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
     toast('✅ Data aging di-push ke Sheets!');
   }).catch(function(e){ setGsStatus('❌ Gagal: '+e.message,'var(--red)'); });
@@ -2032,9 +2103,9 @@ function pullAllFromSheets(silent=false){
 
   // Ambil invoice + aging + logs sekaligus
   Promise.all([
-    fetch(gsUrl+'?action=get_invs&t='+Date.now()).then(function(r){return r.json();}),
-    fetch(gsUrl+'?action=get_aging&t='+Date.now()).then(function(r){return r.json();}),
-    fetch(gsUrl+'?action=get_logs&t='+Date.now()).then(function(r){return r.json();})
+    fetchJsonWithTimeout(gsUrl+'?action=get_invs&t='+Date.now()),
+    fetchJsonWithTimeout(gsUrl+'?action=get_aging&t='+Date.now()),
+    fetchJsonWithTimeout(gsUrl+'?action=get_logs&t='+Date.now())
   ]).then(function(results){
     var rInvs=results[0], rAging=results[1], rLogs=results[2];
     var ok=true;
@@ -2092,14 +2163,10 @@ function autoPushAfterProcess(){
       sBA:i.sBA||'',sSrt:i.sSrt||'',sMIR:i.sMIR||'',sNota:i.sNota||'',
       tgl:i.tgl||'',type:i.type||'',desc:i.desc||''};
   });
-  fetch(gsUrl,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},
-    body:JSON.stringify({action:'push_invs',invs:payload,updatedAt:new Date().toISOString()})
-  }).catch(function(){});
+  postGsAction('push_invs',{invs:payload,updatedAt:new Date().toISOString()}).catch(function(){});
   // Push aging jika ada
   if(agTotals.hasData){
-    fetch(gsUrl,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},
-      body:JSON.stringify({action:'push_aging',agMap:agMap})
-    }).catch(function(){});
+    postGsAction('push_aging',{agMap:agMap}).catch(function(){});
   }
   setGsStatus('☁️ Data otomatis di-push ke Sheets — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
 }
