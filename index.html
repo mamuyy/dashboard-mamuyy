@@ -2425,7 +2425,7 @@ function fetchJsonWithTimeout(url, opts={}, timeoutMs=12000){
 function postGsAction(action,payload){
   return fetchJsonWithTimeout(gsUrl,{
     method:'POST',
-    headers:{'Content-Type':'application/json'},
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
     body:JSON.stringify({action,...payload})
   }).then(function(res){
     if(!res || res.ok!==true) throw new Error(res && res.error ? res.error : 'Respon backend tidak valid');
