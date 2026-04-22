@@ -1225,6 +1225,33 @@ function renderStageSubfilters(){
   const host=document.getElementById('stage-subfilters');
   if(!host) return;
   const items=getStageSubfilters(cf);
+  function countForSubfilter(key){
+    return invs.filter(function(inv){
+      if(normalizePayStatus(inv.pay)!=='Unpaid') return false;
+      const prog=getInvoiceProgress(inv);
+      if(cf==='p1' && !['ba_pending','ba_rejected'].includes(prog.key)) return false;
+      if(cf==='p2' && !['surat_pending','surat_rejected'].includes(prog.key)) return false;
+      if(cf==='p5' && !['nota_pending','nota_rejected'].includes(prog.key)) return false;
+      if(cf==='p4' && !['mir7_pending','mir7_rejected'].includes(prog.key)) return false;
+      if(cf==='p3' && !['collection_no_fu','collection_active','collection_janji_overdue'].includes(prog.key)) return false;
+      if(cf==='np' && !['direct_no_fu','direct_active','direct_janji_overdue'].includes(prog.key)) return false;
+      if(['p1','p2','p5','p4'].includes(cf)){
+        const fieldMap={p1:'sBA',p2:'sSrt',p5:'sNota',p4:'sMIR'};
+        return prog[fieldMap[cf]]===key;
+      }
+      if(cf==='p3'){
+        if(key==='belum_fu') return prog.key==='collection_no_fu';
+        if(key==='sudah_fu') return prog.key==='collection_active';
+        if(key==='janji_jt') return prog.key==='collection_janji_overdue';
+      }
+      if(cf==='np'){
+        if(key==='direct_belum_fu') return prog.key==='direct_no_fu';
+        if(key==='direct_sudah_fu') return prog.key==='direct_active';
+        if(key==='direct_janji_jt') return prog.key==='direct_janji_overdue';
+      }
+      return false;
+    }).length;
+  }
   if(!items.length){
     host.style.display='none';
     host.innerHTML='';
@@ -1234,7 +1261,7 @@ function renderStageSubfilters(){
   host.innerHTML='<span style="font-size:.63rem;color:var(--sub);font-weight:700;padding:4px 2px;white-space:nowrap;">Substatus:</span>'
     + '<button class="fbtn'+(!csub?' active':'')+'" onclick="setStageSubfilter(\'\')">Semua</button>'
     + items.map(function(item){
-      return '<button class="fbtn'+(csub===item.key?' active':'')+'" onclick="setStageSubfilter(\''+jsq(item.key)+'\')">'+item.label+'</button>';
+      return '<button class="fbtn'+(csub===item.key?' active':'')+'" onclick="setStageSubfilter(\''+jsq(item.key)+'\')">'+item.label+' ('+countForSubfilter(item.key)+')</button>';
     }).join('');
 }
 function setStageSubfilter(sub){
