@@ -659,6 +659,7 @@ function getTimInfo(name){ return TIM[getTimKey(name)]; }
 
 // ═══ STATE ═══
 let invs=[], bilMap={}, agMap={}, agTotals={b30:0,b60:0,b90:0,b120:0,b150:0,b180:0,b210:0,bOld:0,hasData:false}, logs=[], pic='', cf='a', csub='', hf='a';
+let localDraftMode=false;
 const TODAY=new Date().toISOString().slice(0,10);
 const raw={};
 let adminPinHash='';
@@ -1057,6 +1058,7 @@ function _doProsesData(){ try{
 
   const un=invs.filter(i=>i.pay==='Unpaid').length;
   const unNP=invs.filter(i=>i.pay==='Unpaid'&&(i.type==='nonp2p'||i.type==='migrasi')).length;
+  localDraftMode=true;
   document.getElementById('load-msg').textContent=`✅ Data lokal berhasil diproses: ${invs.length} invoice (${un} unpaid, ${unNP} non-P2P/migrasi). Jika ingin tim lain melihat versi ini, lanjutkan dengan push ke Sheets.`;
   const postEl=document.getElementById('post-process-actions');
   if(postEl) postEl.style.display='block';
@@ -1081,6 +1083,7 @@ function resetData(){
     const inp=document.getElementById('f'+n); if(inp) inp.value='';});
   document.getElementById('btn-proses').disabled=true;
   document.getElementById('load-msg').textContent='';
+  localDraftMode=false;
   const postEl=document.getElementById('post-process-actions');
   if(postEl) postEl.style.display='none';
   document.getElementById('data-badge').textContent='Belum ada data';
@@ -2317,6 +2320,11 @@ function updateAutoSyncBadge(extra){
     el.style.color='var(--red)';
     return;
   }
+  if(localDraftMode){
+    el.textContent='Auto sync dijeda: ada data lokal baru yang belum dipush ke Sheets.';
+    el.style.color='var(--orange)';
+    return;
+  }
   const secs=Math.round(AUTO_SYNC_MS/1000);
   const ageSec=lastAutoSyncAt?Math.floor((Date.now()-lastAutoSyncAt)/1000):null;
   let color='#2e7d32';
@@ -2344,7 +2352,7 @@ function startAutoSync(){
   updateAutoSyncBadge();
 
   autoSyncTimer = setInterval(function(){
-    if(document.visibilityState === 'visible' && gsUrl){
+    if(document.visibilityState === 'visible' && gsUrl && !localDraftMode){
       pullAllFromSheets(true);
     }
   }, AUTO_SYNC_MS);
@@ -2354,11 +2362,11 @@ function startAutoSync(){
 }
 
 window.addEventListener('focus', function(){
-  if(gsUrl) pullAllFromSheets(true);
+  if(gsUrl && !localDraftMode) pullAllFromSheets(true);
 });
 
 document.addEventListener('visibilitychange', function(){
-  if(document.visibilityState === 'visible' && gsUrl){
+  if(document.visibilityState === 'visible' && gsUrl && !localDraftMode){
     pullAllFromSheets(true);
   }
 });
@@ -2533,6 +2541,7 @@ function pushAllDataToSheets(){
     .then(function(){
       var updEl=document.getElementById('gs-last-update');
       if(updEl) updEl.textContent='Terakhir dipush ke Sheets: '+new Date().toLocaleString('id-ID');
+      localDraftMode=false;
       lastAutoSyncAt=Date.now();
       lastAutoSyncState='ok';
       setGsStatus('✅ Semua data berhasil di-push ke Sheets — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
@@ -2549,6 +2558,14 @@ function pushAllDataToSheets(){
 
 // ── PULL semua data dari Sheets (untuk TIM) ──
 function pullAllFromSheets(silent=false){
+  if(localDraftMode){
+    if(!silent){
+      setGsStatus('ℹ️ Auto sync dijeda sementara: data lokal baru belum dipush ke Sheets.','#ef6c00');
+      toast('ℹ️ Data lokal baru belum dipush. Klik Push Semua Data dulu.');
+    }
+    updateAutoSyncBadge();
+    return;
+  }
   if(!gsUrl){ if(!silent) toast('⚠️ URL Google Sheets belum diisi!'); if(!silent) showPage('setup'); return; }
   if(!silent) setGsStatus('⏳ Mengambil semua data dari Sheets...','#1565c0');
   if(!silent) toast('⏳ Menarik data dari Sheets...');
