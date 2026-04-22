@@ -381,6 +381,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
     <div style="margin-top:8px;background:#f3e5f5;border-radius:8px;padding:10px 12px;">
       <div style="font-size:.72rem;font-weight:700;color:#6a1b9a;margin-bottom:6px;">🔑 UNTUK ADMIN — Setelah proses data harian, push ke Sheets agar timestamp cloud ikut update:</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-sm" style="background:#512da8;color:#fff;font-weight:700;" onclick="pushAllDataToSheets()">🚀 Push Semua Data</button>
         <button class="btn btn-sm" style="background:#7b1fa2;color:#fff;" onclick="pushAllToSheets()">☁️ Push Semua Log FU</button>
         <button class="btn btn-sm" style="background:#1565c0;color:#fff;" onclick="pushInvsToSheets()">📋 Push Data Invoice</button>
         <button class="btn btn-sm" style="background:#2e7d32;color:#fff;" onclick="pushAgingToSheets()">📊 Push Data Aging</button>
@@ -2458,6 +2459,39 @@ function pushAgingToSheets(){
     setGsStatus('✅ Aging di-push — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
     toast('✅ Data aging di-push ke Sheets!');
   }).catch(function(e){ setGsStatus('❌ Gagal: '+e.message,'var(--red)'); });
+}
+
+function pushAllDataToSheets(){
+  if(!gsUrl){ toast('⚠️ URL belum diisi!'); return; }
+  if(!invs.length){ toast('ℹ️ Belum ada data invoice. Proses data dulu.'); return; }
+  var payload=invs.map(function(i){
+    return {no:i.no,cust:i.cust,amt:i.amt,pay:i.pay,picB:i.picB||'',
+      sBA:i.sBA||'',sSrt:i.sSrt||'',sMIR:i.sMIR||'',sNota:i.sNota||'',tgl:i.tgl||'',
+      type:i.type||'',desc:i.desc||''};
+  });
+  setGsStatus('⏳ Push semua data ke Sheets...','#1565c0');
+  Promise.resolve()
+    .then(function(){
+      return postGsAction('push_invs',{invs:payload,updatedAt:new Date().toISOString()});
+    })
+    .then(function(){
+      if(!agTotals.hasData) return null;
+      return postGsAction('push_aging',{agMap:agMap});
+    })
+    .then(function(){
+      if(!logs.length) return null;
+      return postGsAction('sync',{logs:logs});
+    })
+    .then(function(){
+      var updEl=document.getElementById('gs-last-update');
+      if(updEl) updEl.textContent='Terakhir dipush ke Sheets: '+new Date().toLocaleString('id-ID');
+      setGsStatus('✅ Semua data berhasil di-push ke Sheets — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
+      toast('✅ Invoice, aging, dan log berhasil di-push ke Sheets!');
+    })
+    .catch(function(e){
+      setGsStatus('❌ Push semua data gagal: '+e.message,'var(--red)');
+      toast('❌ Push semua data gagal: '+e.message);
+    });
 }
 
 // ── PULL semua data dari Sheets (untuk TIM) ──
