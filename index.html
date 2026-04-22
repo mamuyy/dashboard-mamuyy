@@ -516,7 +516,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
   <div class="card" style="margin-bottom:12px;padding:12px 16px;" id="d-rekon"></div>
 
   <!-- Pipeline -->
-  <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:var(--sub);letter-spacing:.8px;margin-bottom:8px;">🔄 Pipeline Penagihan</div>
+  <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:var(--sub);letter-spacing:.8px;margin-bottom:8px;">🔄 Pipeline Penagihan <span style="font-size:.62rem;font-weight:600;color:#1565c0;background:#e3f2fd;padding:2px 8px;border-radius:10px;margin-left:4px;text-transform:none;">Khusus P2P</span></div>
   <div class="pipe">
     <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p1')" title="Filter: Status BA"><div class="picon">📄</div><div class="plbl">Status BA</div><div class="pnum" id="dp-ba">–</div><div class="pbadge pb-o">Belum Completed</div><div class="psub" id="dp-ba-meta">–</div><div class="psub" id="dp-ba-val">Rp –</div></div>
     <div class="pstep po" style="cursor:pointer;" onclick="goPipeline('p2')" title="Filter: Status Surat Tagihan"><div class="picon">📨</div><div class="plbl">Status Surat Tagihan</div><div class="pnum" id="dp-srt">–</div><div class="pbadge pb-o">Belum Completed</div><div class="psub" id="dp-srt-meta">–</div><div class="psub" id="dp-srt-val">Rp –</div></div>
@@ -1139,19 +1139,20 @@ function getInvoiceProgress(inv){
   const isMigrasi = type==='migrasi';
   const isDirect = type==='nonp2p' || type==='pymad_nonp2p' || isMigrasi;
 
-  if(!isDirect){
-    if(sBA==='Rejected') return pack('ba_rejected','BA Rejected','operasi','ba');
-    if(sBA!=='Completed') return pack('ba_pending','BA Belum Selesai','operasi','ba');
-    if(sSrt==='Rejected') return pack('surat_rejected','Surat Rejected','surat','surat');
-    if(sSrt!=='Completed') return pack('surat_pending','Surat Belum Selesai','surat','surat');
+  if(isDirect){
+    if(hasOverdueJanji) return pack('direct_janji_overdue','Direct FU: Janji Jatuh Tempo','followup','direct');
+    if(!invLogs.length) return pack('direct_no_fu','Direct FU: Belum FU','followup','direct');
+    return pack('direct_active','Direct FU Aktif','followup','direct');
   }
 
-  if(!isMigrasi){
-    if(sNota==='Rejected') return pack('nota_rejected','Nota Dinas Rejected','followup','nota');
-    if(sNota!=='Completed') return pack('nota_pending','Nota Dinas Belum Selesai','followup','nota');
-    if(sMIR==='Rejected') return pack('mir7_rejected','MIR7 Rejected','followup','mir7');
-    if(sMIR!=='Completed') return pack('mir7_pending','MIR7 Belum Selesai','followup','mir7');
-  }
+  if(sBA==='Rejected') return pack('ba_rejected','BA Rejected','operasi','ba');
+  if(sBA!=='Completed') return pack('ba_pending','BA Belum Selesai','operasi','ba');
+  if(sSrt==='Rejected') return pack('surat_rejected','Surat Rejected','surat','surat');
+  if(sSrt!=='Completed') return pack('surat_pending','Surat Belum Selesai','surat','surat');
+  if(sNota==='Rejected') return pack('nota_rejected','Nota Dinas Rejected','followup','nota');
+  if(sNota!=='Completed') return pack('nota_pending','Nota Dinas Belum Selesai','followup','nota');
+  if(sMIR==='Rejected') return pack('mir7_rejected','MIR7 Rejected','followup','mir7');
+  if(sMIR!=='Completed') return pack('mir7_pending','MIR7 Belum Selesai','followup','mir7');
 
   if(hasOverdueJanji) return pack('collection_janji_overdue','Janji Bayar Jatuh Tempo','followup','collection');
   if(!invLogs.length) return pack('collection_no_fu','Siap Ditagih, Belum FU','followup','collection');
@@ -1161,8 +1162,8 @@ function getProgressTone(prog){
   if(!prog) return 'pending';
   if(prog.key==='paid') return 'paid';
   if(prog.key.includes('rejected')) return 'reject';
-  if(prog.key==='collection_janji_overdue') return 'overdue';
-  if(prog.stage==='collection') return 'collection';
+  if(prog.key==='collection_janji_overdue' || prog.key==='direct_janji_overdue') return 'overdue';
+  if(prog.stage==='collection' || prog.stage==='direct') return 'collection';
   return 'pending';
 }
 
@@ -1532,22 +1533,24 @@ function renderDash(){
   }
 
   // Pipeline
-  const baItems=unpaidProgress.filter(function(x){return ['ba_pending','ba_rejected'].includes(x.prog.key);});
-  const notaItems=unpaidProgress.filter(function(x){return ['nota_pending','nota_rejected'].includes(x.prog.key);});
-  const srtItems=unpaidProgress.filter(function(x){return ['surat_pending','surat_rejected'].includes(x.prog.key);});
-  const mirItems=unpaidProgress.filter(function(x){return ['mir7_pending','mir7_rejected'].includes(x.prog.key);});
-  const fuItems=unpaidProgress.filter(function(x){return ['collection_no_fu','collection_active','collection_janji_overdue'].includes(x.prog.key);});
-  const baPendingItems=unpaidProgress.filter(function(x){return x.prog.key==='ba_pending';});
-  const baRejectedItems=unpaidProgress.filter(function(x){return x.prog.key==='ba_rejected';});
-  const notaPendingItems=unpaidProgress.filter(function(x){return x.prog.key==='nota_pending';});
-  const notaRejectedItems=unpaidProgress.filter(function(x){return x.prog.key==='nota_rejected';});
-  const srtPendingItems=unpaidProgress.filter(function(x){return x.prog.key==='surat_pending';});
-  const srtRejectedItems=unpaidProgress.filter(function(x){return x.prog.key==='surat_rejected';});
-  const mirPendingItems=unpaidProgress.filter(function(x){return x.prog.key==='mir7_pending';});
-  const mirRejectedItems=unpaidProgress.filter(function(x){return x.prog.key==='mir7_rejected';});
-  const fuNoItems=unpaidProgress.filter(function(x){return x.prog.key==='collection_no_fu';});
-  const fuActiveItems=unpaidProgress.filter(function(x){return x.prog.key==='collection_active';});
-  const fuOverdueItems=unpaidProgress.filter(function(x){return x.prog.key==='collection_janji_overdue';});
+  const p2pProgress=unpaidProgress.filter(function(x){return x.prog.stage!=='direct';});
+  const directProgress=unpaidProgress.filter(function(x){return x.prog.stage==='direct';});
+  const baItems=p2pProgress.filter(function(x){return ['ba_pending','ba_rejected'].includes(x.prog.key);});
+  const notaItems=p2pProgress.filter(function(x){return ['nota_pending','nota_rejected'].includes(x.prog.key);});
+  const srtItems=p2pProgress.filter(function(x){return ['surat_pending','surat_rejected'].includes(x.prog.key);});
+  const mirItems=p2pProgress.filter(function(x){return ['mir7_pending','mir7_rejected'].includes(x.prog.key);});
+  const fuItems=p2pProgress.filter(function(x){return ['collection_no_fu','collection_active','collection_janji_overdue'].includes(x.prog.key);});
+  const baPendingItems=p2pProgress.filter(function(x){return x.prog.key==='ba_pending';});
+  const baRejectedItems=p2pProgress.filter(function(x){return x.prog.key==='ba_rejected';});
+  const notaPendingItems=p2pProgress.filter(function(x){return x.prog.key==='nota_pending';});
+  const notaRejectedItems=p2pProgress.filter(function(x){return x.prog.key==='nota_rejected';});
+  const srtPendingItems=p2pProgress.filter(function(x){return x.prog.key==='surat_pending';});
+  const srtRejectedItems=p2pProgress.filter(function(x){return x.prog.key==='surat_rejected';});
+  const mirPendingItems=p2pProgress.filter(function(x){return x.prog.key==='mir7_pending';});
+  const mirRejectedItems=p2pProgress.filter(function(x){return x.prog.key==='mir7_rejected';});
+  const fuNoItems=p2pProgress.filter(function(x){return x.prog.key==='collection_no_fu';});
+  const fuActiveItems=p2pProgress.filter(function(x){return x.prog.key==='collection_active';});
+  const fuOverdueItems=p2pProgress.filter(function(x){return x.prog.key==='collection_janji_overdue';});
   const baIPval=baItems.reduce((s,x)=>s+x.inv.amt,0);
   const notaVal=notaItems.reduce((s,x)=>s+x.inv.amt,0);
   const srtBelum=srtItems.length;
@@ -1559,7 +1562,7 @@ function renderDash(){
   const mirKritisVal=mirItems.filter(function(x){return x.inv.amt>50000000;}).reduce((s,x)=>s+x.inv.amt,0);
   const fuCount=fuItems.length;
   const fuVal=fuItems.reduce((s,x)=>s+x.inv.amt,0);
-  const nonP2PItems=unpaid.filter(i=>i.type==='nonp2p'||i.type==='migrasi');
+  const nonP2PItems=directProgress.map(function(x){ return x.inv; });
   const nonP2PVal=nonP2PItems.reduce((s,i)=>s+i.amt,0);
   const paidVal=paid.reduce((s,i)=>s+(Number(i.amt)||0),0);
   window._db_mir7 = {
