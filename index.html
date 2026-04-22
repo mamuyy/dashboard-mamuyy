@@ -1135,7 +1135,7 @@ function getInvoiceProgress(inv){
     };
   }
   function pendingLabel(stageName,statusValue){
-    if(statusValue==='In Progress') return stageName+' In Progress';
+    if(statusValue==='In Progress') return stageName+' Sedang Proses';
     return stageName+' Belum Dibuat';
   }
 
@@ -1422,21 +1422,21 @@ function stagePills(i){
   // P2P normal
   let p='';
   const sBA=normalizeDocStatus(i.sBA), sSrt=normalizeDocStatus(i.sSrt), sNota=normalizeDocStatus(i.sNota), sMIR=normalizeDocStatus(i.sMIR);
-  if(sBA==='In Progress') p+=`<span class="sp sp-ip">BA:Progress</span>`;
+  if(sBA==='In Progress') p+=`<span class="sp sp-ip">BA:Proses</span>`;
   else if(sBA==='Completed') p+=`<span class="sp sp-ok">BA:✓</span>`;
   else if(sBA==='Rejected') p+=`<span class="sp sp-nd">BA:Reject</span>`;
   else p+=`<span class="sp sp-su">BA:Belum</span>`;
   if(sSrt==='Completed') p+=`<span class="sp sp-ok">Surat:✓</span>`;
   else if(sSrt==='Rejected') p+=`<span class="sp sp-nd">Surat:Reject</span>`;
-  else if(sSrt==='In Progress') p+=`<span class="sp sp-ip">Surat:Progress</span>`;
+  else if(sSrt==='In Progress') p+=`<span class="sp sp-ip">Surat:Proses</span>`;
   else if(sBA==='Completed') p+=`<span class="sp sp-su">Surat:Belum</span>`;
   if(sNota==='Completed') p+=`<span class="sp sp-ok">ND:✓</span>`;
   else if(sNota==='Rejected') p+=`<span class="sp sp-nd">ND:Reject</span>`;
-  else if(sNota==='In Progress') p+=`<span class="sp sp-ip">ND:Progress</span>`;
+  else if(sNota==='In Progress') p+=`<span class="sp sp-ip">ND:Proses</span>`;
   else if(sSrt==='Completed') p+=`<span class="sp sp-su">ND:Belum</span>`;
   if(sMIR==='Completed') p+=`<span class="sp sp-ok">MIR7:✓</span>`;
   else if(sMIR==='Rejected') p+=`<span class="sp sp-nd">MIR7:Reject</span>`;
-  else if(sMIR==='In Progress') p+=`<span class="sp sp-ip">MIR7:Progress</span>`;
+  else if(sMIR==='In Progress') p+=`<span class="sp sp-ip">MIR7:Proses</span>`;
   else if(sNota==='Completed') p+=`<span class="sp sp-su">MIR7:Belum</span>`;
   p+=stageBadge;
   p+=`<span class="sp ${normalizePayStatus(i.pay)==='Paid'?'sp-pd':'sp-un'}">${normalizePayStatus(i.pay)}</span>`;
