@@ -178,6 +178,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 .plbl{font-size:.62rem;color:var(--sub);font-weight:700;text-transform:uppercase;}
 .pnum{font-size:1.3rem;font-weight:800;line-height:1.1;}
 .psub{font-size:.6rem;color:#aaa;margin-top:1px;}
+.plink{display:inline-block;margin:2px 2px 0;padding:1px 6px;border-radius:999px;border:1px solid #d6dbe3;background:#fff;color:#455a64;font-size:.58rem;font-weight:700;cursor:pointer}
+.plink:hover{background:#eef4ff;color:#1565c0;border-color:#bbdefb}
 .pbadge{display:inline-block;font-size:.57rem;font-weight:700;padding:1px 6px;border-radius:10px;margin-top:3px;}
 .pb-r{background:#fdecea;color:var(--red);}
 .pb-o{background:#fff3e0;color:var(--orange);}
@@ -1679,6 +1681,24 @@ function renderDash(){
     if(!used.length) return emptyLabel;
     return used.map(function(p){ return p.count+' '+p.label; }).join(' • ');
   }
+  function displayStatusLabel(label){
+    if(label==='In Progress') return 'Sedang Proses';
+    return label;
+  }
+  function metaLinks(filter, parts, emptyLabel){
+    const used=parts.filter(function(p){ return p.count>0; });
+    if(!used.length) return emptyLabel;
+    return used.map(function(p){
+      return '<span class="plink" onclick="event.stopPropagation();goPipelineSub(\''+filter+'\',\''+jsq(p.label)+'\')">'+p.count+' '+displayStatusLabel(p.label)+'</span>';
+    }).join('');
+  }
+  function metaLinksByKey(filter, parts, emptyLabel){
+    const used=parts.filter(function(p){ return p.count>0; });
+    if(!used.length) return emptyLabel;
+    return used.map(function(p){
+      return '<span class="plink" onclick="event.stopPropagation();goPipelineSub(\''+filter+'\',\''+jsq(p.key)+'\')">'+p.count+' '+p.label+'</span>';
+    }).join('');
+  }
   function valLabel(parts){
     const used=parts.filter(function(p){ return p.value>0; });
     if(!used.length) return 'Rp 0';
@@ -1698,26 +1718,26 @@ function renderDash(){
 
   document.getElementById('dp-prn').textContent=notaBelum||'–';
   const notaParts=stageStatusParts(notaItems,'sNota');
-  document.getElementById('dp-prn-meta').textContent=metaLabel(notaParts,'Status Nota Dinas');
+  document.getElementById('dp-prn-meta').innerHTML=metaLinks('p5',notaParts,'Status Nota Dinas');
   document.getElementById('dp-prn-val').textContent=valLabel(notaParts);
   document.getElementById('dp-ba').textContent=baItems.length||'–';
   const baParts=stageStatusParts(baItems,'sBA');
-  document.getElementById('dp-ba-meta').textContent=metaLabel(baParts,'Status BA');
+  document.getElementById('dp-ba-meta').innerHTML=metaLinks('p1',baParts,'Status BA');
   document.getElementById('dp-ba-val').textContent=valLabel(baParts);
   document.getElementById('dp-srt').textContent=srtBelum||'–';
   const srtParts=stageStatusParts(srtItems,'sSrt');
-  document.getElementById('dp-srt-meta').textContent=metaLabel(srtParts,'Status Surat Tagihan');
+  document.getElementById('dp-srt-meta').innerHTML=metaLinks('p2',srtParts,'Status Surat Tagihan');
   document.getElementById('dp-srt-val').textContent=valLabel(srtParts);
   document.getElementById('dp-mir').textContent=mirBelum||'–';
   const mirParts=stageStatusParts(mirItems,'sMIR');
-  document.getElementById('dp-mir-meta').textContent=metaLabel(mirParts,'Status MIR7');
+  document.getElementById('dp-mir-meta').innerHTML=metaLinks('p4',mirParts,'Status MIR7');
   document.getElementById('dp-mir-val').textContent=valLabel(mirParts);
   const nonP2PCount=nonP2PItems.length;
   document.getElementById('dp-fu').textContent=fuCount||'–';
-  document.getElementById('dp-fu-meta').textContent=metaLabel([
-    {count:fuNoItems.length,label:'Belum FU'},
-    {count:fuActiveItems.length,label:'Sudah FU'},
-    {count:fuOverdueItems.length,label:'Janji JT'}
+  document.getElementById('dp-fu-meta').innerHTML=metaLinksByKey('p3',[
+    {count:fuNoItems.length,label:'Belum FU',key:'belum_fu'},
+    {count:fuActiveItems.length,label:'Sudah FU',key:'sudah_fu'},
+    {count:fuOverdueItems.length,label:'Janji JT',key:'janji_jt'}
   ],'Payment Status');
   document.getElementById('dp-fu-val').textContent=valLabel([
     {value:sumInvs(fuNoItems),label:'Belum FU'},
@@ -2210,6 +2230,25 @@ function goToInv(no){
   showPage('queue');
   const srch=document.getElementById('srch');
   if(srch){srch.value=no; setF('a');}
+}
+function goPipelineSub(filter, sub){
+  showPage('queue');
+  const srch=document.getElementById('srch');
+  if(srch) srch.value='';
+  setF(filter);
+  if(sub) setStageSubfilter(sub);
+  const names={
+    'Belum Dibuat':'Belum Dibuat',
+    'In Progress':'Sedang Proses',
+    'Rejected':'Rejected',
+    'belum_fu':'Belum FU',
+    'sudah_fu':'Sudah FU',
+    'janji_jt':'Janji JT',
+    'direct_belum_fu':'Belum FU',
+    'direct_sudah_fu':'Sudah FU',
+    'direct_janji_jt':'Janji JT'
+  };
+  toast('🔍 Filter: '+({'p1':'Status BA','p2':'Status Surat Tagihan','p3':'Payment Status','p4':'Status MIR7','p5':'Status Nota Dinas','np':'Non-P2P + Migrasi'}[filter]||filter)+' • '+(names[sub]||sub||'Semua'));
 }
 function goPipeline(filter){
   showPage('queue');
