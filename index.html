@@ -355,15 +355,15 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
     </div>
     <div id="load-msg" style="margin-top:9px;font-size:.78rem;color:var(--sub);"></div>
     <div id="post-process-actions" style="display:none;margin-top:10px;padding:10px 12px;border-radius:8px;background:#ede7f6;">
-      <div style="font-size:.74rem;font-weight:700;color:#512da8;margin-bottom:8px;">Langkah berikutnya: jika data lokal ini sudah benar, push ke Sheets agar tim lain ikut melihat versi terbaru.</div>
-      <button class="btn btn-sm" style="background:#512da8;color:#fff;font-weight:700;" onclick="pushAllDataToSheets()">🚀 Lanjut Push Semua Data</button>
+      <div style="font-size:.74rem;font-weight:700;color:#512da8;margin-bottom:8px;">Auto-push akan dicoba otomatis setelah proses selesai. Jika sempat terblokir pengaman atau gagal jaringan, Anda bisa ulang manual dari sini.</div>
+      <button class="btn btn-sm" style="background:#512da8;color:#fff;font-weight:700;" onclick="pushAllDataToSheets()">🚀 Push Semua Data Sekarang</button>
     </div>
   </div>
 
   <!-- ══ GOOGLE SHEETS SYNC ══ -->
   <div class="card" id="card-gsheets">
     <h2>☁️ Sinkronisasi Google Sheets</h2>
-    <p style="font-size:.78rem;color:var(--sub);margin-bottom:10px;">Upload file dan <b>Proses & Muat Data</b> hanya mengubah data lokal di browser ini. Agar tim lain ikut menerima data terbaru, admin perlu <b>push ke Sheets</b>.</p>
+    <p style="font-size:.78rem;color:var(--sub);margin-bottom:10px;">Upload file dan <b>Proses & Muat Data</b> akan menyiapkan data lokal lalu mencoba <b>auto-push ke Sheets</b>. Jika ada pengaman jumlah invoice atau gangguan jaringan, admin masih bisa push manual dari panel ini.</p>
     <label class="lbl">URL Google Apps Script</label>
     <input type="text" id="gs-url" placeholder="https://script.google.com/macros/s/.../exec"
       style="font-size:.75rem;" oninput="saveGsUrl(this.value)">
@@ -384,7 +384,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 
     <!-- Tombol untuk ADMIN -->
     <div style="margin-top:8px;background:#f3e5f5;border-radius:8px;padding:10px 12px;">
-      <div style="font-size:.72rem;font-weight:700;color:#6a1b9a;margin-bottom:6px;">🔑 UNTUK ADMIN — Setelah proses data harian, push ke Sheets agar timestamp cloud ikut update:</div>
+      <div style="font-size:.72rem;font-weight:700;color:#6a1b9a;margin-bottom:6px;">🔑 UNTUK ADMIN — Auto-push aktif. Tombol di bawah ini dipakai kalau perlu ulang manual:</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-sm" style="background:#512da8;color:#fff;font-weight:700;" onclick="pushAllDataToSheets()">🚀 Push Semua Data</button>
         <button class="btn btn-sm" style="background:#7b1fa2;color:#fff;" onclick="pushAllToSheets()">☁️ Push Semua Log FU</button>
@@ -660,6 +660,9 @@ function getTimInfo(name){ return TIM[getTimKey(name)]; }
 // ═══ STATE ═══
 let invs=[], bilMap={}, agMap={}, agTotals={b30:0,b60:0,b90:0,b120:0,b150:0,b180:0,b210:0,bOld:0,hasData:false}, logs=[], pic='', cf='a', csub='', hf='a';
 let localDraftMode=false;
+let isPushingToSheets=false;
+const SAFE_PUSH_MIN_INVOICE_COUNT=100;
+const SAFE_PUSH_DROP_RATIO=0.5;
 const TODAY=new Date().toISOString().slice(0,10);
 const raw={};
 let adminPinHash='';
@@ -1059,13 +1062,21 @@ function _doProsesData(){ try{
   const un=invs.filter(i=>i.pay==='Unpaid').length;
   const unNP=invs.filter(i=>i.pay==='Unpaid'&&(i.type==='nonp2p'||i.type==='migrasi')).length;
   localDraftMode=true;
-  document.getElementById('load-msg').textContent=`✅ Data lokal berhasil diproses: ${invs.length} invoice (${un} unpaid, ${unNP} non-P2P/migrasi). Jika ingin tim lain melihat versi ini, lanjutkan dengan push ke Sheets.`;
+  document.getElementById('load-msg').textContent=`✅ Data lokal berhasil diproses: ${invs.length} invoice (${un} unpaid, ${unNP} non-P2P/migrasi). Sistem akan otomatis push ke Sheets jika hasilnya aman.`;
   const postEl=document.getElementById('post-process-actions');
   if(postEl) postEl.style.display='block';
   document.getElementById('data-badge').textContent=`📅 ${TODAY}`;
   document.getElementById('btn-proses').disabled=false;
   renderQ(); renderDash();
   toast('✅ Data dimuat! '+un+' unpaid'+(unNP?' | ⚡'+unNP+' Non-P2P/Migrasi':''));
+  if(gsUrl){
+    setGsStatus('⏳ Data lokal siap. Sistem sedang mencoba auto-push ke Sheets...','#1565c0');
+    setTimeout(function(){
+      pushAllDataToSheets({auto:true}).catch(function(){});
+    }, 250);
+  } else {
+    setGsStatus('ℹ️ URL Sheets belum diisi. Auto-push dilewati.','#ef6c00');
+  }
   showPage('queue');
 } catch(err){
   document.getElementById('btn-proses').disabled=false;
@@ -2484,26 +2495,74 @@ function pushAllToSheets(){
   if(!gsUrl){ toast('⚠️ URL belum diisi!'); return; }
   if(!logs.length){ toast('ℹ️ Belum ada log untuk diupload.'); return; }
   setGsStatus('⏳ Mengupload '+logs.length+' log ke Sheets...','#1565c0');
-  postGsAction('sync',{logs:logs}).then(function(){
+  return postGsAction('sync',{logs:logs}).then(function(){
     setGsStatus('✅ '+logs.length+' log diupload — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
     toast('✅ Semua log diupload ke Sheets!');
-  }).catch(function(e){ setGsStatus('❌ Gagal: '+e.message,'var(--red)'); });
+  }).catch(function(e){ setGsStatus('❌ Gagal: '+e.message,'var(--red)'); throw e; });
 }
 
-// ── Push data invoice ke Sheets ──
-function pushInvsToSheets(){
-  if(!gsUrl){ toast('⚠️ URL belum diisi!'); return; }
-  if(!invs.length){ toast('ℹ️ Belum ada data invoice. Proses data dulu.'); return; }
-  setGsStatus('⏳ Push '+invs.length+' invoice ke Sheets...','#1565c0');
-  var payload=invs.map(function(i){
+function buildInvoicePayload(){
+  return invs.map(function(i){
     return {no:i.no,cust:i.cust,amt:i.amt,pay:i.pay,picB:i.picB||'',
       sBA:i.sBA||'',sSrt:i.sSrt||'',sMIR:i.sMIR||'',sNota:i.sNota||'',tgl:i.tgl||'',
       type:i.type||'',desc:i.desc||''};
   });
-  postGsAction('push_invs',{invs:payload,updatedAt:new Date().toISOString()}).then(function(){
+}
+
+function getCloudInvoiceCount(){
+  if(!gsUrl) return Promise.resolve(0);
+  return fetchJsonWithTimeout(gsUrl+'?action=get_invs&t='+Date.now()).then(function(res){
+    if(res && res.ok && Array.isArray(res.invs)) return res.invs.length;
+    return 0;
+  }).catch(function(){
+    return 0;
+  });
+}
+
+function confirmInvoicePushIfSuspicious(localCount){
+  return getCloudInvoiceCount().then(function(cloudCount){
+    if(!cloudCount || !localCount) return true;
+    const isTinyLocal=localCount<SAFE_PUSH_MIN_INVOICE_COUNT&&cloudCount>=SAFE_PUSH_MIN_INVOICE_COUNT;
+    const dropsTooFar=localCount<Math.floor(cloudCount*SAFE_PUSH_DROP_RATIO);
+    if(!isTinyLocal&&!dropsTooFar) return true;
+    const msg=
+      '⚠️ Pengaman Push Aktif\n\n'+
+      'Data lokal hasil proses: '+localCount+' invoice\n'+
+      'Data cloud yang sedang aktif: '+cloudCount+' invoice\n\n'+
+      'Jumlah lokal turun cukup drastis. Ini bisa berarti file sumber belum lengkap atau ada data yang belum kepilih.\n\n'+
+      'Lanjut push ke Sheets?';
+    return window.confirm(msg);
+  });
+}
+
+// ── Push data invoice ke Sheets ──
+function pushInvsToSheets(opts){
+  opts=opts||{};
+  if(!gsUrl){ toast('⚠️ URL belum diisi!'); return; }
+  if(!invs.length){ toast('ℹ️ Belum ada data invoice. Proses data dulu.'); return; }
+  if(isPushingToSheets&&!opts.allowWhileBusy){
+    toast('ℹ️ Push ke Sheets masih berjalan...');
+    return Promise.resolve(false);
+  }
+  var payload=buildInvoicePayload();
+  return Promise.resolve()
+  .then(function(){
+    if(opts.skipGuard) return true;
+    return confirmInvoicePushIfSuspicious(payload.length);
+  })
+  .then(function(allowed){
+    if(!allowed){
+      setGsStatus('ℹ️ Push invoice dibatalkan oleh admin.','#ef6c00');
+      toast('ℹ️ Push invoice dibatalkan.');
+      return false;
+    }
+    setGsStatus('⏳ Push '+invs.length+' invoice ke Sheets...','#1565c0');
+    return postGsAction('push_invs',{invs:payload,updatedAt:new Date().toISOString()}).then(function(){
     setGsStatus('✅ '+invs.length+' invoice di-push — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
     toast('✅ Data invoice di-push ke Sheets!');
-  }).catch(function(e){ setGsStatus('❌ Gagal: '+e.message,'var(--red)'); });
+    return true;
+    });
+  }).catch(function(e){ setGsStatus('❌ Gagal: '+e.message,'var(--red)'); throw e; });
 }
 
 // ── Push data aging ke Sheets ──
@@ -2511,34 +2570,38 @@ function pushAgingToSheets(){
   if(!gsUrl){ toast('⚠️ URL belum diisi!'); return; }
   if(!agTotals.hasData){ toast('ℹ️ Belum ada data aging. Upload File 3 dulu.'); return; }
   setGsStatus('⏳ Push aging ke Sheets...','#1565c0');
-  postGsAction('push_aging',{agMap:agMap}).then(function(){
+  return postGsAction('push_aging',{agMap:agMap}).then(function(){
     setGsStatus('✅ Aging di-push — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
     toast('✅ Data aging di-push ke Sheets!');
-  }).catch(function(e){ setGsStatus('❌ Gagal: '+e.message,'var(--red)'); });
+  }).catch(function(e){ setGsStatus('❌ Gagal: '+e.message,'var(--red)'); throw e; });
 }
 
-function pushAllDataToSheets(){
+function pushAllDataToSheets(opts){
+  opts=opts||{};
   if(!gsUrl){ toast('⚠️ URL belum diisi!'); return; }
   if(!invs.length){ toast('ℹ️ Belum ada data invoice. Proses data dulu.'); return; }
-  var payload=invs.map(function(i){
-    return {no:i.no,cust:i.cust,amt:i.amt,pay:i.pay,picB:i.picB||'',
-      sBA:i.sBA||'',sSrt:i.sSrt||'',sMIR:i.sMIR||'',sNota:i.sNota||'',tgl:i.tgl||'',
-      type:i.type||'',desc:i.desc||''};
-  });
+  if(isPushingToSheets&&!opts.allowWhileBusy){
+    toast('ℹ️ Push ke Sheets masih berjalan...');
+    return Promise.resolve(false);
+  }
+  isPushingToSheets=true;
   setGsStatus('⏳ Push semua data ke Sheets...','#1565c0');
-  Promise.resolve()
+  return Promise.resolve()
     .then(function(){
-      return postGsAction('push_invs',{invs:payload,updatedAt:new Date().toISOString()});
+      return pushInvsToSheets({skipGuard:!!opts.skipGuard,allowWhileBusy:true});
     })
-    .then(function(){
+    .then(function(ok){
+      if(ok===false) return false;
       if(!agTotals.hasData) return null;
       return postGsAction('push_aging',{agMap:agMap});
     })
-    .then(function(){
+    .then(function(prev){
+      if(prev===false) return false;
       if(!logs.length) return null;
       return postGsAction('sync',{logs:logs});
     })
-    .then(function(){
+    .then(function(prev){
+      if(prev===false) return false;
       var updEl=document.getElementById('gs-last-update');
       if(updEl) updEl.textContent='Terakhir dipush ke Sheets: '+new Date().toLocaleString('id-ID');
       localDraftMode=false;
@@ -2547,12 +2610,17 @@ function pushAllDataToSheets(){
       setGsStatus('✅ Semua data berhasil di-push ke Sheets — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
       updateAutoSyncBadge('Data cloud baru saja diperbarui admin.');
       toast('✅ Invoice, aging, dan log berhasil di-push ke Sheets!');
+      return true;
     })
     .catch(function(e){
       lastAutoSyncState='error';
       setGsStatus('❌ Push semua data gagal: '+e.message,'var(--red)');
       updateAutoSyncBadge('Push terakhir gagal.');
       toast('❌ Push semua data gagal: '+e.message);
+      throw e;
+    })
+    .finally(function(){
+      isPushingToSheets=false;
     });
 }
 
