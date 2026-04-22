@@ -359,7 +359,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
   <!-- ══ GOOGLE SHEETS SYNC ══ -->
   <div class="card" id="card-gsheets">
     <h2>☁️ Sinkronisasi Google Sheets</h2>
-    <p style="font-size:.78rem;color:var(--sub);margin-bottom:10px;">Admin upload 3 file Excel → data otomatis naik ke Sheets. Tim lain cukup klik <b>Tarik Data</b> — tidak perlu upload file apapun.</p>
+    <p style="font-size:.78rem;color:var(--sub);margin-bottom:10px;">Upload file dan <b>Proses & Muat Data</b> hanya mengubah data lokal di browser ini. Agar tim lain ikut menerima data terbaru, admin perlu <b>push ke Sheets</b>.</p>
     <label class="lbl">URL Google Apps Script</label>
     <input type="text" id="gs-url" placeholder="https://script.google.com/macros/s/.../exec"
       style="font-size:.75rem;" oninput="saveGsUrl(this.value)">
@@ -379,7 +379,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 
     <!-- Tombol untuk ADMIN -->
     <div style="margin-top:8px;background:#f3e5f5;border-radius:8px;padding:10px 12px;">
-      <div style="font-size:.72rem;font-weight:700;color:#6a1b9a;margin-bottom:6px;">🔑 UNTUK ADMIN — Setelah proses data harian:</div>
+      <div style="font-size:.72rem;font-weight:700;color:#6a1b9a;margin-bottom:6px;">🔑 UNTUK ADMIN — Setelah proses data harian, push ke Sheets agar timestamp cloud ikut update:</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-sm" style="background:#7b1fa2;color:#fff;" onclick="pushAllToSheets()">☁️ Push Semua Log FU</button>
         <button class="btn btn-sm" style="background:#1565c0;color:#fff;" onclick="pushInvsToSheets()">📋 Push Data Invoice</button>
@@ -1051,7 +1051,7 @@ function _doProsesData(){ try{
 
   const un=invs.filter(i=>i.pay==='Unpaid').length;
   const unNP=invs.filter(i=>i.pay==='Unpaid'&&(i.type==='nonp2p'||i.type==='migrasi')).length;
-  document.getElementById('load-msg').textContent=`✅ ${invs.length} invoice dimuat (${un} unpaid, ${unNP} non-P2P/migrasi).`;
+  document.getElementById('load-msg').textContent=`✅ Data lokal berhasil diproses: ${invs.length} invoice (${un} unpaid, ${unNP} non-P2P/migrasi). Jika ingin tim lain melihat versi ini, lanjutkan dengan push ke Sheets.`;
   document.getElementById('data-badge').textContent=`📅 ${TODAY}`;
   document.getElementById('btn-proses').disabled=false;
   renderQ(); renderDash();
@@ -2485,7 +2485,7 @@ function pullAllFromSheets(silent=false){
           type:String(i.type||''),desc:String(i.desc||'')};
       });
       var updEl=document.getElementById('gs-last-update');
-      if(updEl&&rInvs.updatedAt) updEl.textContent='Data terakhir diupload: '+new Date(rInvs.updatedAt).toLocaleString('id-ID');
+      if(updEl&&rInvs.updatedAt) updEl.textContent='Terakhir dipush ke Sheets: '+new Date(rInvs.updatedAt).toLocaleString('id-ID');
     } else ok=false;
 
     // Aging
@@ -2508,7 +2508,7 @@ function pullAllFromSheets(silent=false){
 
     if(ok){
       document.getElementById('data-badge').textContent='☁️ '+TODAY;
-      setGsStatus('✅ Semua data berhasil ditarik — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
+      setGsStatus('✅ Data Sheets berhasil ditarik ke browser ini — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
       renderQ(); renderH(); renderDash();
       if(!silent) toast('✅ Data lengkap! '+invs.length+' invoice, '+Object.keys(agMap).length+' customer aging, '+logs.length+' log FU');
       if(!silent) showPage('dash');
