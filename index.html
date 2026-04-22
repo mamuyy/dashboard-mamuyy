@@ -2304,6 +2304,9 @@ function saveLogs(){
 
 // ═══ GOOGLE SHEETS SYNC ═══
 let autoSyncTimer=null;
+let autoSyncBadgeTimer=null;
+let lastAutoSyncAt=0;
+let lastAutoSyncState='idle';
 const AUTO_SYNC_MS = 20000;
 
 function updateAutoSyncBadge(extra){
@@ -2311,16 +2314,32 @@ function updateAutoSyncBadge(extra){
   if(!el) return;
   if(!gsUrl){
     el.textContent='Auto sync nonaktif: URL Sheets belum diisi.';
-    el.style.color='var(--sub)';
+    el.style.color='var(--red)';
     return;
   }
-  const base='Auto sync aktif: cek ulang tiap '+Math.round(AUTO_SYNC_MS/1000)+' detik saat tab terbuka.';
-  el.textContent=extra ? base+' '+extra : base;
-  el.style.color='#2e7d32';
+  const secs=Math.round(AUTO_SYNC_MS/1000);
+  const ageSec=lastAutoSyncAt?Math.floor((Date.now()-lastAutoSyncAt)/1000):null;
+  let color='#2e7d32';
+  let status='Auto sync aktif';
+  if(lastAutoSyncState==='error'){
+    color='var(--red)';
+    status='Auto sync bermasalah';
+  } else if(ageSec!==null && ageSec>60){
+    color='var(--orange)';
+    status='Auto sync terlambat';
+  }
+  let detail='cek ulang tiap '+secs+' detik saat tab terbuka.';
+  if(lastAutoSyncAt){
+    detail+=' Sinkron terakhir '+new Date(lastAutoSyncAt).toLocaleTimeString('id-ID')+'.';
+  }
+  if(extra) detail+=' '+extra;
+  el.textContent=status+': '+detail;
+  el.style.color=color;
 }
 
 function startAutoSync(){
   if(autoSyncTimer) clearInterval(autoSyncTimer);
+  if(autoSyncBadgeTimer) clearInterval(autoSyncBadgeTimer);
   if(!gsUrl) return;
   updateAutoSyncBadge();
 
@@ -2329,6 +2348,9 @@ function startAutoSync(){
       pullAllFromSheets(true);
     }
   }, AUTO_SYNC_MS);
+  autoSyncBadgeTimer = setInterval(function(){
+    updateAutoSyncBadge();
+  }, 1000);
 }
 
 window.addEventListener('focus', function(){
@@ -2352,6 +2374,10 @@ function saveGsUrl(v){
   } else if(autoSyncTimer){
     clearInterval(autoSyncTimer);
     autoSyncTimer=null;
+    if(autoSyncBadgeTimer){
+      clearInterval(autoSyncBadgeTimer);
+      autoSyncBadgeTimer=null;
+    }
   }
   updateAutoSyncBadge();
 }
@@ -2507,11 +2533,16 @@ function pushAllDataToSheets(){
     .then(function(){
       var updEl=document.getElementById('gs-last-update');
       if(updEl) updEl.textContent='Terakhir dipush ke Sheets: '+new Date().toLocaleString('id-ID');
+      lastAutoSyncAt=Date.now();
+      lastAutoSyncState='ok';
       setGsStatus('✅ Semua data berhasil di-push ke Sheets — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
+      updateAutoSyncBadge('Data cloud baru saja diperbarui admin.');
       toast('✅ Invoice, aging, dan log berhasil di-push ke Sheets!');
     })
     .catch(function(e){
+      lastAutoSyncState='error';
       setGsStatus('❌ Push semua data gagal: '+e.message,'var(--red)');
+      updateAutoSyncBadge('Push terakhir gagal.');
       toast('❌ Push semua data gagal: '+e.message);
     });
 }
@@ -2542,7 +2573,9 @@ function pullAllFromSheets(silent=false){
       });
       var updEl=document.getElementById('gs-last-update');
       if(updEl&&rInvs.updatedAt) updEl.textContent='Terakhir dipush ke Sheets: '+new Date(rInvs.updatedAt).toLocaleString('id-ID');
-      updateAutoSyncBadge('Sinkron terakhir ke browser ini: '+new Date().toLocaleTimeString('id-ID')+'.');
+      lastAutoSyncAt=Date.now();
+      lastAutoSyncState='ok';
+      updateAutoSyncBadge();
     } else ok=false;
 
     // Aging
@@ -2570,10 +2603,14 @@ function pullAllFromSheets(silent=false){
       if(!silent) toast('✅ Data lengkap! '+invs.length+' invoice, '+Object.keys(agMap).length+' customer aging, '+logs.length+' log FU');
       if(!silent) showPage('dash');
     } else {
+      lastAutoSyncState='error';
+      updateAutoSyncBadge('Data invoice belum tersedia di Sheets.');
       if(!silent) setGsStatus('⚠️ Data invoice belum ada di Sheets. Minta admin push data dulu.','var(--orange)');
       if(!silent) toast('⚠️ Data invoice belum tersedia di Sheets');
     }
   }).catch(function(e){
+    lastAutoSyncState='error';
+    updateAutoSyncBadge('Gagal sinkron: '+e.message);
     if(!silent) setGsStatus('❌ Gagal: '+e.message,'var(--red)');
     if(!silent) toast('❌ Gagal tarik data: '+e.message);
   });
