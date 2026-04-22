@@ -1089,6 +1089,8 @@ function normalizeDocStatus(value){
 function normalizePayStatus(value){
   const raw=s(value);
   const low=raw.toLowerCase();
+  if(low.includes('unpaid')||low.includes('belum bayar')||low.includes('outstanding')) return 'Unpaid';
+  if(low.includes('partial')||low.includes('sebagian')) return 'Unpaid';
   if(low.includes('paid')||low.includes('lunas')) return 'Paid';
   return 'Unpaid';
 }
