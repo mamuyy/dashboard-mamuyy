@@ -354,6 +354,10 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
       <button class="btn btn-outline" onclick="resetData()">↺ Reset</button>
     </div>
     <div id="load-msg" style="margin-top:9px;font-size:.78rem;color:var(--sub);"></div>
+    <div id="post-process-actions" style="display:none;margin-top:10px;padding:10px 12px;border-radius:8px;background:#ede7f6;">
+      <div style="font-size:.74rem;font-weight:700;color:#512da8;margin-bottom:8px;">Langkah berikutnya: jika data lokal ini sudah benar, push ke Sheets agar tim lain ikut melihat versi terbaru.</div>
+      <button class="btn btn-sm" style="background:#512da8;color:#fff;font-weight:700;" onclick="pushAllDataToSheets()">🚀 Lanjut Push Semua Data</button>
+    </div>
   </div>
 
   <!-- ══ GOOGLE SHEETS SYNC ══ -->
@@ -1053,13 +1057,13 @@ function _doProsesData(){ try{
   const un=invs.filter(i=>i.pay==='Unpaid').length;
   const unNP=invs.filter(i=>i.pay==='Unpaid'&&(i.type==='nonp2p'||i.type==='migrasi')).length;
   document.getElementById('load-msg').textContent=`✅ Data lokal berhasil diproses: ${invs.length} invoice (${un} unpaid, ${unNP} non-P2P/migrasi). Jika ingin tim lain melihat versi ini, lanjutkan dengan push ke Sheets.`;
+  const postEl=document.getElementById('post-process-actions');
+  if(postEl) postEl.style.display='block';
   document.getElementById('data-badge').textContent=`📅 ${TODAY}`;
   document.getElementById('btn-proses').disabled=false;
   renderQ(); renderDash();
   toast('✅ Data dimuat! '+un+' unpaid'+(unNP?' | ⚡'+unNP+' Non-P2P/Migrasi':''));
   showPage('queue');
-  // Auto-push ke Google Sheets — delay agar UI tidak terasa lambat
-  if(gsUrl) setTimeout(function(){ autoPushAfterProcess(); }, 1000);
 } catch(err){
   document.getElementById('btn-proses').disabled=false;
   document.getElementById('load-msg').textContent='❌ Error: '+err.message;
@@ -1076,6 +1080,8 @@ function resetData(){
     const inp=document.getElementById('f'+n); if(inp) inp.value='';});
   document.getElementById('btn-proses').disabled=true;
   document.getElementById('load-msg').textContent='';
+  const postEl=document.getElementById('post-process-actions');
+  if(postEl) postEl.style.display='none';
   document.getElementById('data-badge').textContent='Belum ada data';
   renderQ(); toast('Data direset');
 }
@@ -2557,21 +2563,6 @@ function pullAllFromSheets(silent=false){
 }
 
 // ── Auto push setelah proses data (admin) ──
-function autoPushAfterProcess(){
-  if(!gsUrl) return;
-  // Push invoice — sertakan type secara native setelah backend diperbarui
-  var payload=invs.map(function(i){
-    return {no:i.no,cust:i.cust,amt:i.amt,pay:i.pay,picB:i.picB||'',
-      sBA:i.sBA||'',sSrt:i.sSrt||'',sMIR:i.sMIR||'',sNota:i.sNota||'',
-      tgl:i.tgl||'',type:i.type||'',desc:i.desc||''};
-  });
-  postGsAction('push_invs',{invs:payload,updatedAt:new Date().toISOString()}).catch(function(){});
-  // Push aging jika ada
-  if(agTotals.hasData){
-    postGsAction('push_aging',{agMap:agMap}).catch(function(){});
-  }
-  setGsStatus('☁️ Data otomatis di-push ke Sheets — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
-}
 function showPage(p){
   document.querySelectorAll('.page').forEach(e=>e.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(e=>e.classList.remove('active'));
