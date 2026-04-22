@@ -1100,8 +1100,23 @@ function getInvoiceProgress(inv){
   const lastJanji=invLogs.find(function(l){ return l.hasil==='Janji Bayar'&&l.jt; })||null;
   const hasOverdueJanji=!!(lastJanji&&lastJanji.jt<TODAY&&pay!=='Paid');
 
+  function ownerLabel(teamKey){
+    if(teamKey==='done') return 'Selesai';
+    const t=TIM[teamKey];
+    return t ? t.label : 'Belum Ditentukan';
+  }
+  function ownerPerson(teamKey){
+    if(teamKey==='surat') return s(inv.picB)||'Belum Diassign';
+    if(teamKey==='followup' && lastLog && s(lastLog.pic)) return s(lastLog.pic);
+    if(teamKey==='followup') return s(inv.picB)||'Tim Follow Up';
+    return ownerLabel(teamKey);
+  }
   function pack(key,label,team,stage){
-    return {key,label,team,stage,pay,sBA,sSrt,sNota,sMIR,lastLog,lastJanji,hasOverdueJanji};
+    return {
+      key,label,team,stage,pay,sBA,sSrt,sNota,sMIR,lastLog,lastJanji,hasOverdueJanji,
+      ownerTeam: ownerLabel(team),
+      ownerPerson: ownerPerson(team)
+    };
   }
 
   if(pay==='Paid') return pack('paid','Paid','done','done');
@@ -1225,7 +1240,7 @@ function renderQ(append=false){
   const mapped = list.map(i => {
     const p = fastPrio(i);
     const score = {c:4,h:3,m:2,l:1}[p] || 1;
-    return { inv: i, p: p, score: score, fu: fastFuStat(i.no) };
+    return { inv: i, prog:getInvoiceProgress(i), p: p, score: score, fu: fastFuStat(i.no) };
   });
 
   mapped.sort((a,b) => b.score - a.score);
@@ -1248,9 +1263,9 @@ function renderQ(append=false){
   const slice=mapped.slice(start, start+limit);
 
   const html = slice.map(item => {
-    const i = item.inv, pr = item.p, fu = item.fu, ac=i.amt>100000000?'amt-big':i.amt>30000000?'amt-med':'';
+    const i = item.inv, prog=item.prog, pr = item.p, fu = item.fu, ac=i.amt>100000000?'amt-big':i.amt>30000000?'amt-med':'';
     const done=getLogs(i.no).find(l=>l.hasil==='Paid');
-    const invNoEsc=esc(i.no), picBEsc=esc(i.picB||'—'), custEsc=esc(i.cust), descEsc=esc(i.desc);
+    const invNoEsc=esc(i.no), picBEsc=esc(prog.ownerPerson||i.picB||'—'), custEsc=esc(i.cust), descEsc=esc(i.desc);
     return`<div class="inv-card p${pr}${done?' done':''}" onclick="openM('${jsq(i.no)}')">
       <div class="inv-head"><div><div class="inv-no">${invNoEsc}</div><div class="inv-pic-sub">${picBEsc}</div></div><div class="inv-amt ${ac}">${fmt(i.amt)}</div></div>
       <div class="inv-cust">${custEsc}</div>
@@ -1314,6 +1329,9 @@ function openM(no){
   document.getElementById('m-info').innerHTML=`
     <div class="irow"><span class="ilbl">Customer</span><span class="ival">${esc(i.cust)}</span></div>
     <div class="irow"><span class="ilbl">Jumlah</span><span class="ival" style="color:var(--red);font-size:.95rem;">${fmt(i.amt)}</span></div>
+    <div class="irow"><span class="ilbl">Bottleneck</span><span class="ival">${esc(prog.label)}</span></div>
+    <div class="irow"><span class="ilbl">Penanggung Jawab</span><span class="ival">${esc(prog.ownerPerson)}</span></div>
+    <div class="irow"><span class="ilbl">Tim</span><span class="ival">${esc(prog.ownerTeam)}</span></div>
     <div class="irow"><span class="ilbl">PIC Billing</span><span class="ival">${esc(i.picB||'—')}</span></div>
     <div class="irow"><span class="ilbl">Payment</span><span class="ival">${esc(i.pay)}</span></div>
     <div class="irow"><span class="ilbl">Deskripsi</span><span class="ival" style="font-size:.72rem;">${esc(i.desc.slice(0,70))}${i.desc.length>70?'...':''}</span></div>`;
@@ -1732,7 +1750,7 @@ function renderDash(){
       const srtByPIC={};
       srtPool.forEach(function(i){var p=(i.picB||'Belum Diassign');srtByPIC[p]=(srtByPIC[p]||[]);srtByPIC[p].push(i);});
       html+='<div class="tim-section">'+mkTimHeader('surat');
-      html+='<div class="tim-hd" style="border-left-color:#6a1b9a;"><span>📋 Total antrian: <strong style="color:#6a1b9a;">'+srtPool.length+' invoice BA sudah selesai, surat belum dibuat</strong></span><span class="tim-hd-info">Klik kartu untuk expand detail</span></div>';
+      html+='<div class="tim-hd" style="border-left-color:#6a1b9a;"><span>📋 Total antrian: <strong style="color:#6a1b9a;">'+srtPool.length+' invoice bottleneck di Surat</strong></span><span class="tim-hd-info">Klik kartu untuk expand detail</span></div>';
       html+='<div class="tim-cards">';
       // Tampilkan Tim Surat yang terdaftar + siapa pun yang picB-nya masuk tim ini dari data
       const srtShown=new Set(TIM.surat.members);
@@ -1796,7 +1814,7 @@ function renderDash(){
       if(unassignedInvs.length){
         html+='<div class="pic-card" style="background:#fff8e1;border:2px dashed #f9a825;border-radius:9px;margin-bottom:8px;" onclick="this.classList.toggle(\'open\')">'
           +'<div class="pic-card-hd"><span style="font-weight:700;font-size:.83rem;color:#e65100;">🆕 Belum Ditugaskan ('+unassignedInvs.length+' invoice)</span><span class="pic-card-arr">▼</span></div>'
-          +'<div style="font-size:.72rem;color:#6d4c41;margin-bottom:5px;">Invoice sudah siap ditagih tapi belum ada log FU. Segera assign ke anggota tim!</div>'
+          +'<div style="font-size:.72rem;color:#6d4c41;margin-bottom:5px;">Invoice sudah masuk collection tapi belum ada log FU. Segera assign ke anggota tim!</div>'
           +'<div class="pic-card-detail">'
           +'<table class="pic-dtbl"><thead><tr><th>No Invoice</th><th>Customer</th><th>Nilai</th><th>Aksi</th></tr></thead><tbody>';
         unassignedInvs.sort(function(a,b){return b.amt-a.amt;}).slice(0,50).forEach(function(inv){
