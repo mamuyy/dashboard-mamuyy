@@ -427,6 +427,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
     <button class="fbtn" id="fp4" onclick="setF('p4')">💳 Status MIR7</button>
     <button class="fbtn" id="fnp" onclick="setF('np')" style="background:#f3e5f5;color:#6a1b9a;border-color:#ce93d8;">⚡ Non-P2P + Migrasi</button>
   </div>
+  <div class="fbar" id="stage-subfilters" style="margin-top:4px;padding-top:4px;border-top:1px dashed #ececec;display:none;"></div>
   <div id="qlist"><div style="text-align:center;padding:40px;color:var(--sub);">📂 Upload data dulu di tab Data</div></div>
 </div>
 
@@ -649,7 +650,7 @@ function getTimKey(name){
 function getTimInfo(name){ return TIM[getTimKey(name)]; }
 
 // ═══ STATE ═══
-let invs=[], bilMap={}, agMap={}, agTotals={b30:0,b60:0,b90:0,b120:0,b150:0,b180:0,b210:0,bOld:0,hasData:false}, logs=[], pic='', cf='a', hf='a';
+let invs=[], bilMap={}, agMap={}, agTotals={b30:0,b60:0,b90:0,b120:0,b150:0,b180:0,b210:0,bOld:0,hasData:false}, logs=[], pic='', cf='a', csub='', hf='a';
 const TODAY=new Date().toISOString().slice(0,10);
 const raw={};
 let adminPinHash='';
@@ -1202,8 +1203,54 @@ function fuStat(no){
   if(d<=3) return{t:d+'hr lalu',w:false,d:false};
   return{t:d+'hr lalu ⚠',w:d>7,d:d>7};
 }
-function setF(f){ cf=f; pageQ=1; document.querySelectorAll('#page-queue .fbtn').forEach(b=>b.classList.remove('active'));
-  const btn=document.getElementById('f'+f); if(btn)btn.classList.add('active'); renderQ(); }
+function getStageSubfilters(filter){
+  if(['p1','p2','p5','p4'].includes(filter)) return [
+    {key:'Belum Dibuat', label:'Belum Dibuat'},
+    {key:'In Progress', label:'In Progress'},
+    {key:'Rejected', label:'Rejected'}
+  ];
+  if(filter==='p3') return [
+    {key:'belum_fu', label:'Belum FU'},
+    {key:'sudah_fu', label:'Sudah FU'},
+    {key:'janji_jt', label:'Janji JT'}
+  ];
+  if(filter==='np') return [
+    {key:'direct_belum_fu', label:'Belum FU'},
+    {key:'direct_sudah_fu', label:'Sudah FU'},
+    {key:'direct_janji_jt', label:'Janji JT'}
+  ];
+  return [];
+}
+function renderStageSubfilters(){
+  const host=document.getElementById('stage-subfilters');
+  if(!host) return;
+  const items=getStageSubfilters(cf);
+  if(!items.length){
+    host.style.display='none';
+    host.innerHTML='';
+    return;
+  }
+  host.style.display='flex';
+  host.innerHTML='<span style="font-size:.63rem;color:var(--sub);font-weight:700;padding:4px 2px;white-space:nowrap;">Substatus:</span>'
+    + '<button class="fbtn'+(!csub?' active':'')+'" onclick="setStageSubfilter(\'\')">Semua</button>'
+    + items.map(function(item){
+      return '<button class="fbtn'+(csub===item.key?' active':'')+'" onclick="setStageSubfilter(\''+jsq(item.key)+'\')">'+item.label+'</button>';
+    }).join('');
+}
+function setStageSubfilter(sub){
+  csub=sub||'';
+  pageQ=1;
+  renderQ();
+}
+function setF(f){
+  cf=f;
+  csub='';
+  pageQ=1;
+  document.querySelectorAll('#page-queue .fbtn').forEach(b=>b.classList.remove('active'));
+  const btn=document.getElementById('f'+f);
+  if(btn) btn.classList.add('active');
+  renderQ();
+}
 function renderQ(append=false){
   if(!invs.length){
     if(!append){
@@ -1248,6 +1295,25 @@ function renderQ(append=false){
     if(d<=3) return{t:d+'hr lalu',w:false,d:false};
     return{t:d+'hr lalu ⚠',w:d>7,d:d>7};
   }
+  function matchStageSubfilter(inv){
+    if(!csub) return true;
+    const prog=getInvoiceProgress(inv);
+    if(cf==='p1') return prog.sBA===csub;
+    if(cf==='p2') return prog.sSrt===csub;
+    if(cf==='p5') return prog.sNota===csub;
+    if(cf==='p4') return prog.sMIR===csub;
+    if(cf==='p3'){
+      if(csub==='belum_fu') return prog.key==='collection_no_fu';
+      if(csub==='sudah_fu') return prog.key==='collection_active';
+      if(csub==='janji_jt') return prog.key==='collection_janji_overdue';
+    }
+    if(cf==='np'){
+      if(csub==='direct_belum_fu') return prog.key==='direct_no_fu';
+      if(csub==='direct_sudah_fu') return prog.key==='direct_active';
+      if(csub==='direct_janji_jt') return prog.key==='direct_janji_overdue';
+    }
+    return true;
+  }
 
   let list=invs.filter(i=>i.pay==='Unpaid');
   if(cf==='b') list=list.filter(i=>getLogs(i.no).length===0);
@@ -1259,6 +1325,7 @@ function renderQ(append=false){
   if(cf==='np') list=list.filter(i=>i.type==='nonp2p'||i.type==='migrasi');
   if(cf==='p4') list=list.filter(i=>['mir7_pending','mir7_rejected'].includes(getInvoiceProgress(i).key));
   if(cf==='p5') list=list.filter(i=>['nota_pending','nota_rejected'].includes(getInvoiceProgress(i).key));
+  if(csub) list=list.filter(matchStageSubfilter);
   if(q) list=list.filter(i=>i.no.toLowerCase().includes(q)||i.cust.toLowerCase().includes(q)||i.desc.toLowerCase().includes(q));
 
   const mapped = list.map(i => {
@@ -1270,6 +1337,7 @@ function renderQ(append=false){
   mapped.sort((a,b) => b.score - a.score);
   
   if(!append) {
+    renderStageSubfilters();
     const all=invs.filter(i=>i.pay==='Unpaid');
     document.getElementById('sq-tot').textContent=all.length;
     document.getElementById('sq-bfu').textContent=all.filter(i=>getLogs(i.no).length===0).length;
