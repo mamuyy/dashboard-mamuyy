@@ -1051,6 +1051,7 @@ function _doProsesData(){ try{
 
 function resetData(){
   invs=[];bilMap={};agMap={};
+  agTotals={b0:0,b30:0,b60:0,b90:0,b120:0,b150:0,b180:0,b210:0,bOld:0,hasData:false};
   [1,2,3].forEach(n=>{delete raw[n];
     document.getElementById('fn'+n).textContent=n===1?'Belum dipilih':'Belum dipilih (opsional)';
     document.getElementById('fn'+n).className='fname wait';
@@ -1099,7 +1100,19 @@ function fuStat(no){
 function setF(f){ cf=f; pageQ=1; document.querySelectorAll('#page-queue .fbtn').forEach(b=>b.classList.remove('active'));
   const btn=document.getElementById('f'+f); if(btn)btn.classList.add('active'); renderQ(); }
 function renderQ(append=false){
-  if(!invs.length) return;
+  if(!invs.length){
+    if(!append){
+      const el=document.getElementById('qlist');
+      if(el) el.innerHTML='<div style="text-align:center;padding:40px;color:var(--sub);">📂 Upload data dulu di tab Data</div>';
+      const sqTot=document.getElementById('sq-tot');
+      const sqBfu=document.getElementById('sq-bfu');
+      const sqTdy=document.getElementById('sq-tdy');
+      if(sqTot) sqTot.textContent='0';
+      if(sqBfu) sqBfu.textContent='0';
+      if(sqTdy) sqTdy.textContent='0';
+    }
+    return;
+  }
   if(!append) pageQ=1;
   const q=document.getElementById('srch').value.toLowerCase();
   
@@ -2128,8 +2141,11 @@ function pullAllFromSheets(silent=false){
 
     // Aging
     if(rAging.ok && rAging.agMap){
-      Object.assign(agMap, rAging.agMap);
-      if(rAging.agTotals) Object.assign(agTotals, rAging.agTotals);
+      agMap=rAging.agMap || {};
+      agTotals=rAging.agTotals || {b0:0,b30:0,b60:0,b90:0,b120:0,b150:0,b180:0,b210:0,bOld:0,hasData:Object.keys(agMap).length>0};
+    } else {
+      agMap={};
+      agTotals={b0:0,b30:0,b60:0,b90:0,b120:0,b150:0,b180:0,b210:0,bOld:0,hasData:false};
     }
 
     // Logs — merge dengan lokal
