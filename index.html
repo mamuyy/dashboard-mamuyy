@@ -518,13 +518,13 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
   <!-- Pipeline -->
   <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:var(--sub);letter-spacing:.8px;margin-bottom:8px;">🔄 Pipeline Penagihan</div>
   <div class="pipe">
-    <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p5')" title="Filter: Nota Dinas Pending"><div class="picon">📝</div><div class="plbl">Nota Dinas</div><div class="pnum" id="dp-prn">–</div><div class="pbadge pb-b">Approval</div></div>
+    <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p5')" title="Filter: Nota Dinas Pending"><div class="picon">📝</div><div class="plbl">Nota Dinas</div><div class="pnum" id="dp-prn">–</div><div class="pbadge pb-b" id="dp-prn-val">Approval</div></div>
     <div class="pstep po" style="cursor:pointer;" onclick="goPipeline('p1')" title="Filter: BA Pending"><div class="picon">📄</div><div class="plbl">BA Pending</div><div class="pnum" id="dp-ba">–</div><div class="pbadge pb-o" id="dp-ba-val">–</div></div>
-    <div class="pstep po" style="cursor:pointer;" onclick="goPipeline('p2')" title="Filter: Surat Pending"><div class="picon">📨</div><div class="plbl">Surat Pending</div><div class="pnum" id="dp-srt">–</div><div class="pbadge pb-o">Tim Billing</div></div>
-    <div class="pstep pr" style="cursor:pointer;" onclick="goPipeline('p4')" title="Filter: MIR7 Pending"><div class="picon">💳</div><div class="plbl">MIR7 Pending</div><div class="pnum" id="dp-mir">–</div><div class="pbadge pb-r" id="dp-mir-kritis">–</div></div>
-    <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p3')" title="Filter: Tahap Collection"><div class="picon">📬</div><div class="plbl">Collection</div><div class="pnum" id="dp-fu">–</div><div class="pbadge pb-b">Tim Collection</div></div>
-    <div class="pstep" style="cursor:pointer;background:#f3e5f5;border-left:3px solid #7b1fa2;" onclick="goPipeline('np')" title="Filter: Non-P2P + Migrasi — langsung FU"><div class="picon">⚡</div><div class="plbl" style="color:#6a1b9a;">Non-P2P + Migrasi</div><div class="pnum" id="dp-nonp2p" style="color:#6a1b9a;">–</div><div class="pbadge" style="background:#e1bee7;color:#4a148c;">Langsung FU</div></div>
-    <div class="pstep pg" style="cursor:pointer;" onclick="goPipeline('a')" title="Lihat semua invoice"><div class="picon">✅</div><div class="plbl">Paid</div><div class="pnum" id="dp-paid">–</div><div class="pbadge pb-g">Lunas</div></div>
+    <div class="pstep po" style="cursor:pointer;" onclick="goPipeline('p2')" title="Filter: Surat Pending"><div class="picon">📨</div><div class="plbl">Surat Pending</div><div class="pnum" id="dp-srt">–</div><div class="pbadge pb-o" id="dp-srt-val">Tim Billing</div></div>
+    <div class="pstep pr" style="cursor:pointer;" onclick="goPipeline('p4')" title="Filter: MIR7 Pending"><div class="picon">💳</div><div class="plbl">MIR7 Pending</div><div class="pnum" id="dp-mir">–</div><div class="pbadge pb-r" id="dp-mir-kritis">–</div><div class="psub" id="dp-mir-val">Rp –</div></div>
+    <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p3')" title="Filter: Tahap Collection"><div class="picon">📬</div><div class="plbl">Collection</div><div class="pnum" id="dp-fu">–</div><div class="pbadge pb-b" id="dp-fu-val">Tim Collection</div></div>
+    <div class="pstep" style="cursor:pointer;background:#f3e5f5;border-left:3px solid #7b1fa2;" onclick="goPipeline('np')" title="Filter: Non-P2P + Migrasi — langsung FU"><div class="picon">⚡</div><div class="plbl" style="color:#6a1b9a;">Non-P2P + Migrasi</div><div class="pnum" id="dp-nonp2p" style="color:#6a1b9a;">–</div><div class="pbadge" style="background:#e1bee7;color:#4a148c;" id="dp-nonp2p-val">Langsung FU</div></div>
+    <div class="pstep pg" style="cursor:pointer;" onclick="goPipeline('a')" title="Lihat semua invoice"><div class="picon">✅</div><div class="plbl">Paid</div><div class="pnum" id="dp-paid">–</div><div class="pbadge pb-g" id="dp-paid-val">Lunas</div></div>
   </div>
 
   <!-- KPI Grid -->
@@ -1538,23 +1538,36 @@ function renderDash(){
   const mirItems=unpaidProgress.filter(function(x){return ['mir7_pending','mir7_rejected'].includes(x.prog.key);});
   const fuItems=unpaidProgress.filter(function(x){return ['collection_no_fu','collection_active','collection_janji_overdue'].includes(x.prog.key);});
   const baIPval=baItems.reduce((s,x)=>s+x.inv.amt,0);
+  const notaVal=notaItems.reduce((s,x)=>s+x.inv.amt,0);
   const srtBelum=srtItems.length;
+  const srtVal=srtItems.reduce((s,x)=>s+x.inv.amt,0);
   const notaBelum=notaItems.length;
   const mirBelum=mirItems.length;
+  const mirVal=mirItems.reduce((s,x)=>s+x.inv.amt,0);
   const mirKritis=mirItems.filter(function(x){return x.inv.amt>50000000;}).length;
   const mirKritisVal=mirItems.filter(function(x){return x.inv.amt>50000000;}).reduce((s,x)=>s+x.inv.amt,0);
   const fuCount=fuItems.length;
+  const fuVal=fuItems.reduce((s,x)=>s+x.inv.amt,0);
+  const nonP2PItems=unpaid.filter(i=>i.type==='nonp2p'||i.type==='migrasi');
+  const nonP2PVal=nonP2PItems.reduce((s,i)=>s+i.amt,0);
+  const paidVal=paid.reduce((s,i)=>s+(Number(i.amt)||0),0);
 
   document.getElementById('dp-prn').textContent=notaBelum||'–';
+  document.getElementById('dp-prn-val').textContent=notaBelum?fmt(notaVal):'Rp 0';
   document.getElementById('dp-ba').textContent=baItems.length||'–';
   document.getElementById('dp-ba-val').textContent=baItems.length?fmt(baIPval):'–';
   document.getElementById('dp-srt').textContent=srtBelum||'–';
+  document.getElementById('dp-srt-val').textContent=srtBelum?fmt(srtVal):'Rp 0';
   document.getElementById('dp-mir').textContent=mirBelum||'–';
   document.getElementById('dp-mir-kritis').textContent=mirKritis?mirKritis+' kritis':'–';
-  const nonP2PCount=unpaid.filter(i=>i.type==='nonp2p'||i.type==='migrasi').length;
+  document.getElementById('dp-mir-val').textContent=mirBelum?fmt(mirVal):'Rp 0';
+  const nonP2PCount=nonP2PItems.length;
   document.getElementById('dp-fu').textContent=fuCount||'–';
+  document.getElementById('dp-fu-val').textContent=fuCount?fmt(fuVal):'Rp 0';
   document.getElementById('dp-nonp2p').textContent=nonP2PCount||'–';
+  document.getElementById('dp-nonp2p-val').textContent=nonP2PCount?fmt(nonP2PVal):'Rp 0';
   document.getElementById('dp-paid').textContent=paid.length||'–';
+  document.getElementById('dp-paid-val').textContent=paid.length?fmt(paidVal):'Rp 0';
 
   // KPIs
   const belumFU=unpaidProgress.filter(function(x){return x.prog.key==='collection_no_fu';}).length;
