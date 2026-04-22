@@ -1577,51 +1577,51 @@ function renderDash(){
 
   document.getElementById('dp-prn').textContent=notaBelum||'–';
   document.getElementById('dp-prn-meta').textContent=metaLabel([
-    {count:notaPendingItems.length,label:'pending'},
-    {count:notaRejectedItems.length,label:'reject'}
-  ],'Approval');
+    {count:notaPendingItems.length,label:'Belum Dibuat'},
+    {count:notaRejectedItems.length,label:'Rejected'}
+  ],'Status Nota Dinas');
   document.getElementById('dp-prn-val').textContent=valLabel([
-    {value:sumInvs(notaPendingItems),label:'pending'},
-    {value:sumInvs(notaRejectedItems),label:'reject'}
+    {value:sumInvs(notaPendingItems),label:'Belum Dibuat'},
+    {value:sumInvs(notaRejectedItems),label:'Rejected'}
   ]);
   document.getElementById('dp-ba').textContent=baItems.length||'–';
   document.getElementById('dp-ba-meta').textContent=metaLabel([
-    {count:baPendingItems.length,label:'pending'},
-    {count:baRejectedItems.length,label:'reject'}
+    {count:baPendingItems.length,label:'In Progress'},
+    {count:baRejectedItems.length,label:'Rejected'}
   ],'–');
   document.getElementById('dp-ba-val').textContent=valLabel([
-    {value:sumInvs(baPendingItems),label:'pending'},
-    {value:sumInvs(baRejectedItems),label:'reject'}
+    {value:sumInvs(baPendingItems),label:'In Progress'},
+    {value:sumInvs(baRejectedItems),label:'Rejected'}
   ]);
   document.getElementById('dp-srt').textContent=srtBelum||'–';
   document.getElementById('dp-srt-meta').textContent=metaLabel([
-    {count:srtPendingItems.length,label:'pending'},
-    {count:srtRejectedItems.length,label:'reject'}
-  ],'Tim Billing');
+    {count:srtPendingItems.length,label:'Belum Dibuat'},
+    {count:srtRejectedItems.length,label:'Rejected'}
+  ],'Status Surat Tagihan');
   document.getElementById('dp-srt-val').textContent=valLabel([
-    {value:sumInvs(srtPendingItems),label:'pending'},
-    {value:sumInvs(srtRejectedItems),label:'reject'}
+    {value:sumInvs(srtPendingItems),label:'Belum Dibuat'},
+    {value:sumInvs(srtRejectedItems),label:'Rejected'}
   ]);
   document.getElementById('dp-mir').textContent=mirBelum||'–';
   document.getElementById('dp-mir-meta').textContent=metaLabel([
-    {count:mirPendingItems.length,label:'pending'},
-    {count:mirRejectedItems.length,label:'reject'}
+    {count:mirPendingItems.length,label:'Belum Dibuat'},
+    {count:mirRejectedItems.length,label:'Rejected'}
   ],'–');
   document.getElementById('dp-mir-val').textContent=valLabel([
-    {value:sumInvs(mirPendingItems),label:'pending'},
-    {value:sumInvs(mirRejectedItems),label:'reject'}
+    {value:sumInvs(mirPendingItems),label:'Belum Dibuat'},
+    {value:sumInvs(mirRejectedItems),label:'Rejected'}
   ]);
   const nonP2PCount=nonP2PItems.length;
   document.getElementById('dp-fu').textContent=fuCount||'–';
   document.getElementById('dp-fu-meta').textContent=metaLabel([
-    {count:fuNoItems.length,label:'belum FU'},
-    {count:fuActiveItems.length,label:'aktif'},
-    {count:fuOverdueItems.length,label:'overdue'}
-  ],'Tim Collection');
+    {count:fuNoItems.length,label:'Unpaid Belum FU'},
+    {count:fuActiveItems.length,label:'Unpaid Proses'},
+    {count:fuOverdueItems.length,label:'Janji JT'}
+  ],'Payment Status');
   document.getElementById('dp-fu-val').textContent=valLabel([
-    {value:sumInvs(fuNoItems),label:'belum FU'},
-    {value:sumInvs(fuActiveItems),label:'aktif'},
-    {value:sumInvs(fuOverdueItems),label:'overdue'}
+    {value:sumInvs(fuNoItems),label:'Belum FU'},
+    {value:sumInvs(fuActiveItems),label:'Proses'},
+    {value:sumInvs(fuOverdueItems),label:'Janji JT'}
   ]);
   document.getElementById('dp-nonp2p').textContent=nonP2PCount||'–';
   document.getElementById('dp-nonp2p-val').textContent=nonP2PCount?fmt(nonP2PVal):'Rp 0';
