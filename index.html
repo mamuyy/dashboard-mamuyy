@@ -425,7 +425,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
     <button class="fbtn" id="fp1" onclick="setF('p1')">🏗️ Status BA</button>
     <button class="fbtn" id="fp2" onclick="setF('p2')">📨 Status Surat Tagihan</button>
     <button class="fbtn" id="fp5" onclick="setF('p5')">📝 Status Nota Dinas</button>
-    <button class="fbtn" id="fp3" onclick="setF('p3')">📞 Payment Status</button>
+    <button class="fbtn" id="fp3" onclick="setF('p3')">📞 Unpaid Pasca MIR7</button>
     <button class="fbtn" id="fp4" onclick="setF('p4')">💳 Status MIR7</button>
     <button class="fbtn" id="fnp" onclick="setF('np')" style="background:#f3e5f5;color:#6a1b9a;border-color:#ce93d8;">⚡ Non-P2P + Migrasi</button>
   </div>
@@ -525,7 +525,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
     <div class="pstep po" style="cursor:pointer;" onclick="goPipeline('p2')" title="Filter: Status Surat Tagihan"><div class="picon">📨</div><div class="plbl">Status Surat Tagihan</div><div class="pnum" id="dp-srt">–</div><div class="pbadge pb-o">Belum Completed</div><div class="psub" id="dp-srt-meta">–</div><div class="psub" id="dp-srt-val">Rp –</div></div>
     <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p5')" title="Filter: Status Nota Dinas"><div class="picon">📝</div><div class="plbl">Status Nota Dinas</div><div class="pnum" id="dp-prn">–</div><div class="pbadge pb-b">Belum Completed</div><div class="psub" id="dp-prn-meta">–</div><div class="psub" id="dp-prn-val">Rp –</div></div>
     <div class="pstep pr" style="cursor:pointer;" onclick="showRekonViewer('mir7')" title="Klik untuk lihat detail Status MIR7"><div class="picon">💳</div><div class="plbl">Status MIR7</div><div class="pnum" id="dp-mir">–</div><div class="pbadge pb-r">Belum Completed</div><div class="psub" id="dp-mir-meta">–</div><div class="psub" id="dp-mir-val">Rp –</div></div>
-    <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p3')" title="Filter: Payment Status"><div class="picon">💰</div><div class="plbl">Payment Status</div><div class="pnum" id="dp-fu">–</div><div class="pbadge pb-b">Total Unpaid</div><div class="psub" id="dp-fu-meta">–</div><div class="psub" id="dp-fu-val">Rp –</div></div>
+    <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p3')" title="Filter: Unpaid Pasca MIR7"><div class="picon">💰</div><div class="plbl">Unpaid Pasca MIR7</div><div class="pnum" id="dp-fu">–</div><div class="pbadge pb-b">MIR7 Completed</div><div class="psub" id="dp-fu-meta">–</div><div class="psub" id="dp-fu-val">Rp –</div></div>
     <div class="pstep" style="cursor:pointer;background:#f3e5f5;border-left:3px solid #7b1fa2;" onclick="goPipeline('np')" title="Filter: Non-P2P + Migrasi — langsung FU"><div class="picon">⚡</div><div class="plbl" style="color:#6a1b9a;">Non-P2P + Migrasi</div><div class="pnum" id="dp-nonp2p" style="color:#6a1b9a;">–</div><div class="pbadge" style="background:#e1bee7;color:#4a148c;" id="dp-nonp2p-val">Langsung FU</div></div>
     <div class="pstep pg" style="cursor:pointer;" onclick="goPipeline('a')" title="Lihat semua invoice"><div class="picon">✅</div><div class="plbl">Paid</div><div class="pnum" id="dp-paid">–</div><div class="pbadge pb-g" id="dp-paid-val">Lunas</div></div>
   </div>
@@ -1161,9 +1161,9 @@ function getInvoiceProgress(inv){
   if(sMIR==='Rejected') return pack('mir7_rejected','MIR7 Rejected','followup','mir7');
   if(sMIR!=='Completed') return pack('mir7_pending',pendingLabel('MIR7',sMIR),'followup','mir7');
 
-  if(hasOverdueJanji) return pack('collection_janji_overdue','Janji Bayar Jatuh Tempo','followup','collection');
-  if(!invLogs.length) return pack('collection_no_fu','Siap Ditagih, Belum FU','followup','collection');
-  return pack('collection_active','Collection Aktif','followup','collection');
+  if(hasOverdueJanji) return pack('collection_janji_overdue','Unpaid Pasca MIR7: Janji Jatuh Tempo','followup','collection');
+  if(!invLogs.length) return pack('collection_no_fu','Unpaid Pasca MIR7: Belum FU','followup','collection');
+  return pack('collection_active','Unpaid Pasca MIR7: Sudah FU','followup','collection');
 }
 function getProgressTone(prog){
   if(!prog) return 'pending';
@@ -1738,7 +1738,7 @@ function renderDash(){
     {count:fuNoItems.length,label:'Belum FU',key:'belum_fu'},
     {count:fuActiveItems.length,label:'Sudah FU',key:'sudah_fu'},
     {count:fuOverdueItems.length,label:'Janji JT',key:'janji_jt'}
-  ],'Payment Status');
+  ],'Unpaid Pasca MIR7');
   document.getElementById('dp-fu-val').textContent=valLabel([
     {value:sumInvs(fuNoItems),label:'Belum FU'},
     {value:sumInvs(fuActiveItems),label:'Proses'},
@@ -2248,14 +2248,14 @@ function goPipelineSub(filter, sub){
     'direct_sudah_fu':'Sudah FU',
     'direct_janji_jt':'Janji JT'
   };
-  toast('🔍 Filter: '+({'p1':'Status BA','p2':'Status Surat Tagihan','p3':'Payment Status','p4':'Status MIR7','p5':'Status Nota Dinas','np':'Non-P2P + Migrasi'}[filter]||filter)+' • '+(names[sub]||sub||'Semua'));
+  toast('🔍 Filter: '+({'p1':'Status BA','p2':'Status Surat Tagihan','p3':'Unpaid Pasca MIR7','p4':'Status MIR7','p5':'Status Nota Dinas','np':'Non-P2P + Migrasi'}[filter]||filter)+' • '+(names[sub]||sub||'Semua'));
 }
 function goPipeline(filter){
   showPage('queue');
   const srch=document.getElementById('srch');
   if(srch) srch.value='';
   setF(filter);
-  toast('🔍 Filter: '+({'a':'Semua','p1':'Status BA','p2':'Status Surat Tagihan','p3':'Payment Status','p4':'Status MIR7','p5':'Status Nota Dinas','np':'Non-P2P + Migrasi'}[filter]||filter));
+  toast('🔍 Filter: '+({'a':'Semua','p1':'Status BA','p2':'Status Surat Tagihan','p3':'Unpaid Pasca MIR7','p4':'Status MIR7','p5':'Status Nota Dinas','np':'Non-P2P + Migrasi'}[filter]||filter));
 }
 
 // ═══ EXPORT ═══
