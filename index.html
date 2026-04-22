@@ -420,11 +420,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
   </div>
   <div class="fbar" style="margin-top:4px;padding-top:4px;border-top:1px solid #e8e8e8;">
     <span style="font-size:.63rem;color:var(--sub);font-weight:700;padding:4px 2px;white-space:nowrap;">Tahap:</span>
-    <button class="fbtn" id="fp1" onclick="setF('p1')">🏗️ BA Pending</button>
-    <button class="fbtn" id="fp2" onclick="setF('p2')">📨 Surat Pending</button>
-    <button class="fbtn" id="fp5" onclick="setF('p5')">📝 Nota Dinas</button>
-    <button class="fbtn" id="fp3" onclick="setF('p3')">📞 Collection</button>
-    <button class="fbtn" id="fp4" onclick="setF('p4')">💳 MIR7 Pending</button>
+    <button class="fbtn" id="fp1" onclick="setF('p1')">🏗️ Status BA</button>
+    <button class="fbtn" id="fp2" onclick="setF('p2')">📨 Status Surat Tagihan</button>
+    <button class="fbtn" id="fp5" onclick="setF('p5')">📝 Status Nota Dinas</button>
+    <button class="fbtn" id="fp3" onclick="setF('p3')">📞 Payment Status</button>
+    <button class="fbtn" id="fp4" onclick="setF('p4')">💳 Status MIR7</button>
     <button class="fbtn" id="fnp" onclick="setF('np')" style="background:#f3e5f5;color:#6a1b9a;border-color:#ce93d8;">⚡ Non-P2P + Migrasi</button>
   </div>
   <div id="qlist"><div style="text-align:center;padding:40px;color:var(--sub);">📂 Upload data dulu di tab Data</div></div>
@@ -518,11 +518,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
   <!-- Pipeline -->
   <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:var(--sub);letter-spacing:.8px;margin-bottom:8px;">🔄 Pipeline Penagihan</div>
   <div class="pipe">
-    <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p5')" title="Filter: Nota Dinas Pending"><div class="picon">📝</div><div class="plbl">Nota Dinas</div><div class="pnum" id="dp-prn">–</div><div class="pbadge pb-b" id="dp-prn-meta">Approval</div><div class="psub" id="dp-prn-val">Rp –</div></div>
-    <div class="pstep po" style="cursor:pointer;" onclick="goPipeline('p1')" title="Filter: BA Pending"><div class="picon">📄</div><div class="plbl">BA Pending</div><div class="pnum" id="dp-ba">–</div><div class="pbadge pb-o" id="dp-ba-meta">–</div><div class="psub" id="dp-ba-val">Rp –</div></div>
-    <div class="pstep po" style="cursor:pointer;" onclick="goPipeline('p2')" title="Filter: Surat Pending"><div class="picon">📨</div><div class="plbl">Surat Pending</div><div class="pnum" id="dp-srt">–</div><div class="pbadge pb-o" id="dp-srt-meta">Tim Billing</div><div class="psub" id="dp-srt-val">Rp –</div></div>
-    <div class="pstep pr" style="cursor:pointer;" onclick="goPipeline('p4')" title="Filter: MIR7 Pending"><div class="picon">💳</div><div class="plbl">MIR7 Pending</div><div class="pnum" id="dp-mir">–</div><div class="pbadge pb-r" id="dp-mir-meta">–</div><div class="psub" id="dp-mir-val">Rp –</div></div>
-    <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p3')" title="Filter: Tahap Collection"><div class="picon">📬</div><div class="plbl">Collection</div><div class="pnum" id="dp-fu">–</div><div class="pbadge pb-b" id="dp-fu-meta">Tim Collection</div><div class="psub" id="dp-fu-val">Rp –</div></div>
+    <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p1')" title="Filter: Status BA"><div class="picon">📄</div><div class="plbl">Status BA</div><div class="pnum" id="dp-ba">–</div><div class="pbadge pb-o" id="dp-ba-meta">–</div><div class="psub" id="dp-ba-val">Rp –</div></div>
+    <div class="pstep po" style="cursor:pointer;" onclick="goPipeline('p2')" title="Filter: Status Surat Tagihan"><div class="picon">📨</div><div class="plbl">Status Surat Tagihan</div><div class="pnum" id="dp-srt">–</div><div class="pbadge pb-o" id="dp-srt-meta">Tim Billing</div><div class="psub" id="dp-srt-val">Rp –</div></div>
+    <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p5')" title="Filter: Status Nota Dinas"><div class="picon">📝</div><div class="plbl">Status Nota Dinas</div><div class="pnum" id="dp-prn">–</div><div class="pbadge pb-b" id="dp-prn-meta">Approval</div><div class="psub" id="dp-prn-val">Rp –</div></div>
+    <div class="pstep pr" style="cursor:pointer;" onclick="goPipeline('p4')" title="Filter: Status MIR7"><div class="picon">💳</div><div class="plbl">Status MIR7</div><div class="pnum" id="dp-mir">–</div><div class="pbadge pb-r" id="dp-mir-meta">–</div><div class="psub" id="dp-mir-val">Rp –</div></div>
+    <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p3')" title="Filter: Payment Status"><div class="picon">💰</div><div class="plbl">Payment Status</div><div class="pnum" id="dp-fu">–</div><div class="pbadge pb-b" id="dp-fu-meta">Tim Collection</div><div class="psub" id="dp-fu-val">Rp –</div></div>
     <div class="pstep" style="cursor:pointer;background:#f3e5f5;border-left:3px solid #7b1fa2;" onclick="goPipeline('np')" title="Filter: Non-P2P + Migrasi — langsung FU"><div class="picon">⚡</div><div class="plbl" style="color:#6a1b9a;">Non-P2P + Migrasi</div><div class="pnum" id="dp-nonp2p" style="color:#6a1b9a;">–</div><div class="pbadge" style="background:#e1bee7;color:#4a148c;" id="dp-nonp2p-val">Langsung FU</div></div>
     <div class="pstep pg" style="cursor:pointer;" onclick="goPipeline('a')" title="Lihat semua invoice"><div class="picon">✅</div><div class="plbl">Paid</div><div class="pnum" id="dp-paid">–</div><div class="pbadge pb-g" id="dp-paid-val">Lunas</div></div>
   </div>
@@ -2115,7 +2115,7 @@ function goPipeline(filter){
   const srch=document.getElementById('srch');
   if(srch) srch.value='';
   setF(filter);
-  toast('🔍 Filter: '+({'a':'Semua','p1':'BA Pending','p2':'Surat Pending','p3':'Tahap Collection','p4':'MIR7 Pending','p5':'Nota Dinas Pending','np':'Non-P2P + Migrasi'}[filter]||filter));
+  toast('🔍 Filter: '+({'a':'Semua','p1':'Status BA','p2':'Status Surat Tagihan','p3':'Payment Status','p4':'Status MIR7','p5':'Status Nota Dinas','np':'Non-P2P + Migrasi'}[filter]||filter));
 }
 
 // ═══ EXPORT ═══
