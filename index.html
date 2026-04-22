@@ -518,11 +518,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
   <!-- Pipeline -->
   <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:var(--sub);letter-spacing:.8px;margin-bottom:8px;">🔄 Pipeline Penagihan</div>
   <div class="pipe">
-    <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p1')" title="Filter: Status BA"><div class="picon">📄</div><div class="plbl">Status BA</div><div class="pnum" id="dp-ba">–</div><div class="pbadge pb-o" id="dp-ba-meta">–</div><div class="psub" id="dp-ba-val">Rp –</div></div>
-    <div class="pstep po" style="cursor:pointer;" onclick="goPipeline('p2')" title="Filter: Status Surat Tagihan"><div class="picon">📨</div><div class="plbl">Status Surat Tagihan</div><div class="pnum" id="dp-srt">–</div><div class="pbadge pb-o" id="dp-srt-meta">Tim Billing</div><div class="psub" id="dp-srt-val">Rp –</div></div>
-    <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p5')" title="Filter: Status Nota Dinas"><div class="picon">📝</div><div class="plbl">Status Nota Dinas</div><div class="pnum" id="dp-prn">–</div><div class="pbadge pb-b" id="dp-prn-meta">Approval</div><div class="psub" id="dp-prn-val">Rp –</div></div>
-    <div class="pstep pr" style="cursor:pointer;" onclick="showRekonViewer('mir7')" title="Klik untuk lihat detail Status MIR7"><div class="picon">💳</div><div class="plbl">Status MIR7</div><div class="pnum" id="dp-mir">–</div><div class="pbadge pb-r" id="dp-mir-meta">–</div><div class="psub" id="dp-mir-val">Rp –</div></div>
-    <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p3')" title="Filter: Payment Status"><div class="picon">💰</div><div class="plbl">Payment Status</div><div class="pnum" id="dp-fu">–</div><div class="pbadge pb-b" id="dp-fu-meta">Tim Collection</div><div class="psub" id="dp-fu-val">Rp –</div></div>
+    <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p1')" title="Filter: Status BA"><div class="picon">📄</div><div class="plbl">Status BA</div><div class="pnum" id="dp-ba">–</div><div class="pbadge pb-o">Belum Completed</div><div class="psub" id="dp-ba-meta">–</div><div class="psub" id="dp-ba-val">Rp –</div></div>
+    <div class="pstep po" style="cursor:pointer;" onclick="goPipeline('p2')" title="Filter: Status Surat Tagihan"><div class="picon">📨</div><div class="plbl">Status Surat Tagihan</div><div class="pnum" id="dp-srt">–</div><div class="pbadge pb-o">Belum Completed</div><div class="psub" id="dp-srt-meta">–</div><div class="psub" id="dp-srt-val">Rp –</div></div>
+    <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p5')" title="Filter: Status Nota Dinas"><div class="picon">📝</div><div class="plbl">Status Nota Dinas</div><div class="pnum" id="dp-prn">–</div><div class="pbadge pb-b">Belum Completed</div><div class="psub" id="dp-prn-meta">–</div><div class="psub" id="dp-prn-val">Rp –</div></div>
+    <div class="pstep pr" style="cursor:pointer;" onclick="showRekonViewer('mir7')" title="Klik untuk lihat detail Status MIR7"><div class="picon">💳</div><div class="plbl">Status MIR7</div><div class="pnum" id="dp-mir">–</div><div class="pbadge pb-r">Belum Completed</div><div class="psub" id="dp-mir-meta">–</div><div class="psub" id="dp-mir-val">Rp –</div></div>
+    <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p3')" title="Filter: Payment Status"><div class="picon">💰</div><div class="plbl">Payment Status</div><div class="pnum" id="dp-fu">–</div><div class="pbadge pb-b">Total Unpaid</div><div class="psub" id="dp-fu-meta">–</div><div class="psub" id="dp-fu-val">Rp –</div></div>
     <div class="pstep" style="cursor:pointer;background:#f3e5f5;border-left:3px solid #7b1fa2;" onclick="goPipeline('np')" title="Filter: Non-P2P + Migrasi — langsung FU"><div class="picon">⚡</div><div class="plbl" style="color:#6a1b9a;">Non-P2P + Migrasi</div><div class="pnum" id="dp-nonp2p" style="color:#6a1b9a;">–</div><div class="pbadge" style="background:#e1bee7;color:#4a148c;" id="dp-nonp2p-val">Langsung FU</div></div>
     <div class="pstep pg" style="cursor:pointer;" onclick="goPipeline('a')" title="Lihat semua invoice"><div class="picon">✅</div><div class="plbl">Paid</div><div class="pnum" id="dp-paid">–</div><div class="pbadge pb-g" id="dp-paid-val">Lunas</div></div>
   </div>
@@ -1579,48 +1579,39 @@ function renderDash(){
     if(!used.length) return 'Rp 0';
     return used.map(function(p){ return fmt(p.value)+' '+p.label; }).join(' • ');
   }
+  function stageStatusParts(items, fieldName){
+    const labels=['Belum Dibuat','In Progress','Rejected'];
+    return labels.map(function(label){
+      const matches=items.filter(function(x){ return x.prog[fieldName]===label; });
+      return {
+        label: label,
+        count: matches.length,
+        value: sumInvs(matches)
+      };
+    });
+  }
 
   document.getElementById('dp-prn').textContent=notaBelum||'–';
-  document.getElementById('dp-prn-meta').textContent=metaLabel([
-    {count:notaPendingItems.length,label:'Belum Dibuat'},
-    {count:notaRejectedItems.length,label:'Rejected'}
-  ],'Status Nota Dinas');
-  document.getElementById('dp-prn-val').textContent=valLabel([
-    {value:sumInvs(notaPendingItems),label:'Belum Dibuat'},
-    {value:sumInvs(notaRejectedItems),label:'Rejected'}
-  ]);
+  const notaParts=stageStatusParts(notaItems,'sNota');
+  document.getElementById('dp-prn-meta').textContent=metaLabel(notaParts,'Status Nota Dinas');
+  document.getElementById('dp-prn-val').textContent=valLabel(notaParts);
   document.getElementById('dp-ba').textContent=baItems.length||'–';
-  document.getElementById('dp-ba-meta').textContent=metaLabel([
-    {count:baPendingItems.length,label:'In Progress'},
-    {count:baRejectedItems.length,label:'Rejected'}
-  ],'–');
-  document.getElementById('dp-ba-val').textContent=valLabel([
-    {value:sumInvs(baPendingItems),label:'In Progress'},
-    {value:sumInvs(baRejectedItems),label:'Rejected'}
-  ]);
+  const baParts=stageStatusParts(baItems,'sBA');
+  document.getElementById('dp-ba-meta').textContent=metaLabel(baParts,'Status BA');
+  document.getElementById('dp-ba-val').textContent=valLabel(baParts);
   document.getElementById('dp-srt').textContent=srtBelum||'–';
-  document.getElementById('dp-srt-meta').textContent=metaLabel([
-    {count:srtPendingItems.length,label:'Belum Dibuat'},
-    {count:srtRejectedItems.length,label:'Rejected'}
-  ],'Status Surat Tagihan');
-  document.getElementById('dp-srt-val').textContent=valLabel([
-    {value:sumInvs(srtPendingItems),label:'Belum Dibuat'},
-    {value:sumInvs(srtRejectedItems),label:'Rejected'}
-  ]);
+  const srtParts=stageStatusParts(srtItems,'sSrt');
+  document.getElementById('dp-srt-meta').textContent=metaLabel(srtParts,'Status Surat Tagihan');
+  document.getElementById('dp-srt-val').textContent=valLabel(srtParts);
   document.getElementById('dp-mir').textContent=mirBelum||'–';
-  document.getElementById('dp-mir-meta').textContent=metaLabel([
-    {count:mirPendingItems.length,label:'Belum Dibuat'},
-    {count:mirRejectedItems.length,label:'Rejected'}
-  ],'–');
-  document.getElementById('dp-mir-val').textContent=valLabel([
-    {value:sumInvs(mirPendingItems),label:'Belum Dibuat'},
-    {value:sumInvs(mirRejectedItems),label:'Rejected'}
-  ]);
+  const mirParts=stageStatusParts(mirItems,'sMIR');
+  document.getElementById('dp-mir-meta').textContent=metaLabel(mirParts,'Status MIR7');
+  document.getElementById('dp-mir-val').textContent=valLabel(mirParts);
   const nonP2PCount=nonP2PItems.length;
   document.getElementById('dp-fu').textContent=fuCount||'–';
   document.getElementById('dp-fu-meta').textContent=metaLabel([
-    {count:fuNoItems.length,label:'Unpaid Belum FU'},
-    {count:fuActiveItems.length,label:'Unpaid Proses'},
+    {count:fuNoItems.length,label:'Belum FU'},
+    {count:fuActiveItems.length,label:'Sudah FU'},
     {count:fuOverdueItems.length,label:'Janji JT'}
   ],'Payment Status');
   document.getElementById('dp-fu-val').textContent=valLabel([
