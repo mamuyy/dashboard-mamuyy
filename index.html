@@ -409,9 +409,10 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
   </div>
   <div class="fbar" style="margin-top:4px;padding-top:4px;border-top:1px solid #e8e8e8;">
     <span style="font-size:.63rem;color:var(--sub);font-weight:700;padding:4px 2px;white-space:nowrap;">Tahap:</span>
-    <button class="fbtn" id="fp1" onclick="setF('p1')">🏗️ BA Jalan</button>
+    <button class="fbtn" id="fp1" onclick="setF('p1')">🏗️ BA Pending</button>
     <button class="fbtn" id="fp2" onclick="setF('p2')">📨 Surat Pending</button>
-    <button class="fbtn" id="fp3" onclick="setF('p3')">📞 Siap Tagih P2P</button>
+    <button class="fbtn" id="fp5" onclick="setF('p5')">📝 Nota Dinas</button>
+    <button class="fbtn" id="fp3" onclick="setF('p3')">📞 Collection</button>
     <button class="fbtn" id="fp4" onclick="setF('p4')">💳 MIR7 Pending</button>
     <button class="fbtn" id="fnp" onclick="setF('np')" style="background:#f3e5f5;color:#6a1b9a;border-color:#ce93d8;">⚡ Non-P2P + Migrasi</button>
   </div>
@@ -506,11 +507,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
   <!-- Pipeline -->
   <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:var(--sub);letter-spacing:.8px;margin-bottom:8px;">🔄 Pipeline Penagihan</div>
   <div class="pipe">
-    <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('a')" title="Lihat semua invoice"><div class="picon">📋</div><div class="plbl">PRN Overdue</div><div class="pnum" id="dp-prn">–</div><div class="pbadge pb-r">SLA &gt;2hr</div></div>
-    <div class="pstep po" style="cursor:pointer;" onclick="goPipeline('p1')" title="Filter: BA In Progress"><div class="picon">📄</div><div class="plbl">BA In Progress</div><div class="pnum" id="dp-ba">–</div><div class="pbadge pb-o" id="dp-ba-val">–</div></div>
-    <div class="pstep po" style="cursor:pointer;" onclick="goPipeline('p2')" title="Filter: Surat Belum Dibuat"><div class="picon">📨</div><div class="plbl">Surat Belum</div><div class="pnum" id="dp-srt">–</div><div class="pbadge pb-o">Tim Billing</div></div>
-    <div class="pstep pr" style="cursor:pointer;" onclick="goPipeline('p4')" title="Filter: MIR7 Pending"><div class="picon">💳</div><div class="plbl">MIR7 Belum</div><div class="pnum" id="dp-mir">–</div><div class="pbadge pb-r" id="dp-mir-kritis">–</div></div>
-    <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p3')" title="Filter: Siap Tagih / Follow Up (P2P)"><div class="picon">📬</div><div class="plbl">Follow Up P2P</div><div class="pnum" id="dp-fu">–</div><div class="pbadge pb-b">Tim Collection</div></div>
+    <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p5')" title="Filter: Nota Dinas Pending"><div class="picon">📝</div><div class="plbl">Nota Dinas</div><div class="pnum" id="dp-prn">–</div><div class="pbadge pb-b">Approval</div></div>
+    <div class="pstep po" style="cursor:pointer;" onclick="goPipeline('p1')" title="Filter: BA Pending"><div class="picon">📄</div><div class="plbl">BA Pending</div><div class="pnum" id="dp-ba">–</div><div class="pbadge pb-o" id="dp-ba-val">–</div></div>
+    <div class="pstep po" style="cursor:pointer;" onclick="goPipeline('p2')" title="Filter: Surat Pending"><div class="picon">📨</div><div class="plbl">Surat Pending</div><div class="pnum" id="dp-srt">–</div><div class="pbadge pb-o">Tim Billing</div></div>
+    <div class="pstep pr" style="cursor:pointer;" onclick="goPipeline('p4')" title="Filter: MIR7 Pending"><div class="picon">💳</div><div class="plbl">MIR7 Pending</div><div class="pnum" id="dp-mir">–</div><div class="pbadge pb-r" id="dp-mir-kritis">–</div></div>
+    <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p3')" title="Filter: Tahap Collection"><div class="picon">📬</div><div class="plbl">Collection</div><div class="pnum" id="dp-fu">–</div><div class="pbadge pb-b">Tim Collection</div></div>
     <div class="pstep" style="cursor:pointer;background:#f3e5f5;border-left:3px solid #7b1fa2;" onclick="goPipeline('np')" title="Filter: Non-P2P + Migrasi — langsung FU"><div class="picon">⚡</div><div class="plbl" style="color:#6a1b9a;">Non-P2P + Migrasi</div><div class="pnum" id="dp-nonp2p" style="color:#6a1b9a;">–</div><div class="pbadge" style="background:#e1bee7;color:#4a148c;">Langsung FU</div></div>
     <div class="pstep pg" style="cursor:pointer;" onclick="goPipeline('a')" title="Lihat semua invoice"><div class="picon">✅</div><div class="plbl">Paid</div><div class="pnum" id="dp-paid">–</div><div class="pbadge pb-g">Lunas</div></div>
   </div>
@@ -1062,6 +1063,71 @@ function resetData(){
   renderQ(); toast('Data direset');
 }
 
+function normalizeDocStatus(value){
+  const raw=s(value);
+  const low=raw.toLowerCase();
+  if(!raw||low==='n/a'||low==='-'||low==='na') return 'Belum Dibuat';
+  if(low.includes('reject')||low.includes('tolak')) return 'Rejected';
+  if(low.includes('complete')||low.includes('selesai')||low.includes('done')) return 'Completed';
+  if(low.includes('progress')||low.includes('proses')||low.includes('draft')||low.includes('open')) return 'In Progress';
+  if(low.includes('belum')||low.includes('not yet')||low.includes('pending')||low.includes('baru')) return 'Belum Dibuat';
+  return raw;
+}
+function normalizePayStatus(value){
+  const raw=s(value);
+  const low=raw.toLowerCase();
+  if(low.includes('paid')||low.includes('lunas')) return 'Paid';
+  return 'Unpaid';
+}
+function getInvoiceLogs(invNo){
+  return logs
+    .filter(function(l){ return l.inv===invNo; })
+    .sort(function(a,b){
+      const ta=(a.ts||a.date||'');
+      const tb=(b.ts||b.date||'');
+      return tb.localeCompare(ta);
+    });
+}
+function getInvoiceProgress(inv){
+  const type=s(inv.type).toLowerCase();
+  const pay=normalizePayStatus(inv.pay);
+  const sBA=normalizeDocStatus(inv.sBA);
+  const sSrt=normalizeDocStatus(inv.sSrt);
+  const sNota=normalizeDocStatus(inv.sNota);
+  const sMIR=normalizeDocStatus(inv.sMIR);
+  const invLogs=getInvoiceLogs(inv.no);
+  const lastLog=invLogs[0]||null;
+  const lastJanji=invLogs.find(function(l){ return l.hasil==='Janji Bayar'&&l.jt; })||null;
+  const hasOverdueJanji=!!(lastJanji&&lastJanji.jt<TODAY&&pay!=='Paid');
+
+  function pack(key,label,team,stage){
+    return {key,label,team,stage,pay,sBA,sSrt,sNota,sMIR,lastLog,lastJanji,hasOverdueJanji};
+  }
+
+  if(pay==='Paid') return pack('paid','Paid','done','done');
+
+  const isMigrasi = type==='migrasi';
+  const isDirect = type==='nonp2p' || type==='pymad_nonp2p' || isMigrasi;
+
+  if(!isDirect){
+    if(sBA==='Rejected') return pack('ba_rejected','BA Rejected','operasi','ba');
+    if(sBA!=='Completed') return pack('ba_pending','BA Belum Selesai','operasi','ba');
+    if(sSrt==='Rejected') return pack('surat_rejected','Surat Rejected','surat','surat');
+    if(sSrt!=='Completed') return pack('surat_pending','Surat Belum Selesai','surat','surat');
+  }
+
+  if(!isMigrasi){
+    if(sNota==='Rejected') return pack('nota_rejected','Nota Dinas Rejected','followup','nota');
+    if(sNota!=='Completed') return pack('nota_pending','Nota Dinas Belum Selesai','followup','nota');
+    if(sMIR==='Rejected') return pack('mir7_rejected','MIR7 Rejected','followup','mir7');
+    if(sMIR!=='Completed') return pack('mir7_pending','MIR7 Belum Selesai','followup','mir7');
+  }
+
+  if(hasOverdueJanji) return pack('collection_janji_overdue','Janji Bayar Jatuh Tempo','followup','collection');
+  if(!invLogs.length) return pack('collection_no_fu','Siap Ditagih, Belum FU','followup','collection');
+  return pack('collection_active','Collection Aktif','followup','collection');
+}
+
 // ═══ QUEUE ═══
 let pageQ = 1;
 function getAgingByInvoice(inv){
@@ -1148,11 +1214,12 @@ function renderQ(append=false){
   if(cf==='b') list=list.filter(i=>getLogs(i.no).length===0);
   if(cf==='c') list=list.filter(i=>fastPrio(i)==='c');
   if(cf==='j'){ const js=new Set(logs.filter(l=>l.hasil==='Janji Bayar').map(l=>l.inv)); list=list.filter(i=>js.has(i.no)); }
-  if(cf==='p1') list=list.filter(i=>i.sBA==='In Progress'||i.sBA==='Belum Dibuat');
-  if(cf==='p2') list=list.filter(i=>i.sBA==='Completed'&&i.sSrt!=='Completed');
-  if(cf==='p3') list=list.filter(i=>i.sSrt==='Completed'&&(!i.type||i.type==='p2p'));
+  if(cf==='p1') list=list.filter(i=>['ba_pending','ba_rejected'].includes(getInvoiceProgress(i).key));
+  if(cf==='p2') list=list.filter(i=>['surat_pending','surat_rejected'].includes(getInvoiceProgress(i).key));
+  if(cf==='p3') list=list.filter(i=>['collection_no_fu','collection_active','collection_janji_overdue'].includes(getInvoiceProgress(i).key));
   if(cf==='np') list=list.filter(i=>i.type==='nonp2p'||i.type==='migrasi');
-  if(cf==='p4') list=list.filter(i=>i.sNota==='Completed'&&i.sMIR==='Belum Dibuat');
+  if(cf==='p4') list=list.filter(i=>['mir7_pending','mir7_rejected'].includes(getInvoiceProgress(i).key));
+  if(cf==='p5') list=list.filter(i=>['nota_pending','nota_rejected'].includes(getInvoiceProgress(i).key));
   if(q) list=list.filter(i=>i.no.toLowerCase().includes(q)||i.cust.toLowerCase().includes(q)||i.desc.toLowerCase().includes(q));
 
   const mapped = list.map(i => {
@@ -1205,25 +1272,37 @@ function renderQ(append=false){
   }
 }
 function stagePills(i){
+  const prog=getInvoiceProgress(i);
+  const stageBadge='<span class="sp" style="background:#eceff1;color:#37474f;">'+esc(prog.label)+'</span>';
   // Non-P2P: langsung FU, tidak ada tahap BA/Surat/MIR7
-  if(i.type==='nonp2p') return `<span class="sp" style="background:#6a1b9a;color:#fff;font-size:.58rem;padding:2px 6px;">⚡ Non-P2P</span><span class="sp" style="background:#1565c0;color:#fff;font-size:.58rem;">→ FU Langsung</span><span class="sp ${i.pay==='Paid'?'sp-pd':'sp-un'}">${i.pay||'Unpaid'}</span>`;
+  if(i.type==='nonp2p') return `<span class="sp" style="background:#6a1b9a;color:#fff;font-size:.58rem;padding:2px 6px;">⚡ Non-P2P</span>${stageBadge}<span class="sp ${normalizePayStatus(i.pay)==='Paid'?'sp-pd':'sp-un'}">${normalizePayStatus(i.pay)}</span>`;
   // Piutang Migrasi: saldo lama SAP sebelum TANOS
-  if(i.type==='migrasi') return `<span class="sp" style="background:#4e342e;color:#fff;font-size:.58rem;padding:2px 6px;">🗂 Migrasi SAP</span><span class="sp" style="background:#1565c0;color:#fff;font-size:.58rem;">→ FU Langsung</span><span class="sp sp-un">Unpaid</span>`;
+  if(i.type==='migrasi') return `<span class="sp" style="background:#4e342e;color:#fff;font-size:.58rem;padding:2px 6px;">🗂 Migrasi SAP</span>${stageBadge}<span class="sp sp-un">Unpaid</span>`;
   // P2P normal
   let p='';
-  if(i.sBA==='In Progress') p+=`<span class="sp sp-ip">BA:In Progress</span>`;
-  else if(i.sBA==='Completed') p+=`<span class="sp sp-ok">BA:✓</span>`;
-  else if(i.sBA==='Rejected') p+=`<span class="sp sp-nd">BA:Rejected</span>`;
-  if(i.sSrt==='Belum Dibuat') p+=`<span class="sp sp-su">Surat:Belum</span>`;
-  else if(i.sSrt==='Completed') p+=`<span class="sp sp-ok">Surat:✓</span>`;
-  if(i.sMIR==='Belum Dibuat') p+=`<span class="sp sp-nd">MIR7:Belum</span>`;
-  p+=`<span class="sp ${i.pay==='Paid'?'sp-pd':'sp-un'}">${i.pay||'?'}</span>`;
+  const sBA=normalizeDocStatus(i.sBA), sSrt=normalizeDocStatus(i.sSrt), sNota=normalizeDocStatus(i.sNota), sMIR=normalizeDocStatus(i.sMIR);
+  if(sBA==='In Progress') p+=`<span class="sp sp-ip">BA:Progress</span>`;
+  else if(sBA==='Completed') p+=`<span class="sp sp-ok">BA:✓</span>`;
+  else if(sBA==='Rejected') p+=`<span class="sp sp-nd">BA:Reject</span>`;
+  else p+=`<span class="sp sp-su">BA:Belum</span>`;
+  if(sSrt==='Completed') p+=`<span class="sp sp-ok">Surat:✓</span>`;
+  else if(sSrt==='Rejected') p+=`<span class="sp sp-nd">Surat:Reject</span>`;
+  else if(sBA==='Completed') p+=`<span class="sp sp-su">Surat:Belum</span>`;
+  if(sNota==='Completed') p+=`<span class="sp sp-ok">ND:✓</span>`;
+  else if(sNota==='Rejected') p+=`<span class="sp sp-nd">ND:Reject</span>`;
+  else if(sSrt==='Completed') p+=`<span class="sp sp-ip">ND:Belum</span>`;
+  if(sMIR==='Completed') p+=`<span class="sp sp-ok">MIR7:✓</span>`;
+  else if(sMIR==='Rejected') p+=`<span class="sp sp-nd">MIR7:Reject</span>`;
+  else if(sNota==='Completed') p+=`<span class="sp sp-nd">MIR7:Belum</span>`;
+  p+=stageBadge;
+  p+=`<span class="sp ${normalizePayStatus(i.pay)==='Paid'?'sp-pd':'sp-un'}">${normalizePayStatus(i.pay)}</span>`;
   return p;
 }
 
 // ═══ MODAL ═══
 function openM(no){
   const i=invs.find(x=>x.no===no); if(!i) return;
+  const prog=getInvoiceProgress(i);
   document.getElementById('m-title').textContent=no;
   document.getElementById('m-inv').value=no;
   document.getElementById('m-date').value=TODAY;
@@ -1238,7 +1317,7 @@ function openM(no){
     <div class="irow"><span class="ilbl">PIC Billing</span><span class="ival">${esc(i.picB||'—')}</span></div>
     <div class="irow"><span class="ilbl">Payment</span><span class="ival">${esc(i.pay)}</span></div>
     <div class="irow"><span class="ilbl">Deskripsi</span><span class="ival" style="font-size:.72rem;">${esc(i.desc.slice(0,70))}${i.desc.length>70?'...':''}</span></div>`;
-  const st=[{n:'BA/BAST',v:i.sBA},{n:'Surat',v:i.sSrt},{n:'Nota Dinas',v:i.sNota},{n:'MIR7/SAP',v:i.sMIR},{n:'Payment',v:i.pay}];
+  const st=[{n:'BA/BAST',v:prog.sBA},{n:'Surat',v:prog.sSrt},{n:'Nota Dinas',v:prog.sNota},{n:'MIR7/SAP',v:prog.sMIR},{n:'Payment',v:prog.pay}];
   document.getElementById('m-stages').innerHTML=st.map(x=>{
     const c=x.v==='Completed'||x.v==='Paid'?'ok':x.v.includes('Progress')?'ip':x.v==='Belum Dibuat'||x.v==='Rejected'?'bl':'na';
     return`<div class="sdot ${c}">${c==='ok'?'✓':c==='ip'?'⏳':c==='bl'?'✗':'?'}<br>${x.n}</div>`;}).join('');
@@ -1348,6 +1427,7 @@ function renderDash(){
   const todayLogs=logs.filter(l => (l.date || (l.ts?l.ts.slice(0,10):'')) === today);
   const unpaid=invs.filter(i=>i.pay==='Unpaid');
   const paid=invs.filter(i=>i.pay==='Paid');
+  const unpaidProgress=unpaid.map(function(i){ return {inv:i, prog:getInvoiceProgress(i)}; });
 
   // Summary - Pemisahan Piutang Sah vs PYMAD
   let agGrandTotal=0, ar90=0;
@@ -1407,18 +1487,22 @@ function renderDash(){
   }
 
   // Pipeline
-  const baIP=unpaid.filter(i=>i.sBA==='In Progress').length;
-  const baIPval=unpaid.filter(i=>i.sBA==='In Progress').reduce((s,i)=>s+i.amt,0);
-  const srtBelum=unpaid.filter(i=>i.sSrt==='Belum Dibuat'&&i.sBA==='Completed').length;
-  // MIR7 hanya relevan setelah ND (Nota Dinas) Completed
-  const mirBelum=unpaid.filter(i=>i.sNota==='Completed'&&i.sMIR==='Belum Dibuat').length;
-  const mirKritis=unpaid.filter(i=>i.sNota==='Completed'&&i.sMIR==='Belum Dibuat'&&i.amt>50000000).length;
-  const mirKritisVal=unpaid.filter(i=>i.sNota==='Completed'&&i.sMIR==='Belum Dibuat'&&i.amt>50000000).reduce((s,i)=>s+i.amt,0);
-  const fuCount=unpaid.filter(i=>i.sSrt==='Completed'||i.type==='nonp2p'||i.type==='migrasi').length;
+  const baItems=unpaidProgress.filter(function(x){return ['ba_pending','ba_rejected'].includes(x.prog.key);});
+  const notaItems=unpaidProgress.filter(function(x){return ['nota_pending','nota_rejected'].includes(x.prog.key);});
+  const srtItems=unpaidProgress.filter(function(x){return ['surat_pending','surat_rejected'].includes(x.prog.key);});
+  const mirItems=unpaidProgress.filter(function(x){return ['mir7_pending','mir7_rejected'].includes(x.prog.key);});
+  const fuItems=unpaidProgress.filter(function(x){return ['collection_no_fu','collection_active','collection_janji_overdue'].includes(x.prog.key);});
+  const baIPval=baItems.reduce((s,x)=>s+x.inv.amt,0);
+  const srtBelum=srtItems.length;
+  const notaBelum=notaItems.length;
+  const mirBelum=mirItems.length;
+  const mirKritis=mirItems.filter(function(x){return x.inv.amt>50000000;}).length;
+  const mirKritisVal=mirItems.filter(function(x){return x.inv.amt>50000000;}).reduce((s,x)=>s+x.inv.amt,0);
+  const fuCount=fuItems.length;
 
-  document.getElementById('dp-prn').textContent='–';
-  document.getElementById('dp-ba').textContent=baIP||'–';
-  document.getElementById('dp-ba-val').textContent=baIP?fmt(baIPval):'–';
+  document.getElementById('dp-prn').textContent=notaBelum||'–';
+  document.getElementById('dp-ba').textContent=baItems.length||'–';
+  document.getElementById('dp-ba-val').textContent=baItems.length?fmt(baIPval):'–';
   document.getElementById('dp-srt').textContent=srtBelum||'–';
   document.getElementById('dp-mir').textContent=mirBelum||'–';
   document.getElementById('dp-mir-kritis').textContent=mirKritis?mirKritis+' kritis':'–';
@@ -1428,7 +1512,7 @@ function renderDash(){
   document.getElementById('dp-paid').textContent=paid.length||'–';
 
   // KPIs
-  const belumFU=unpaid.filter(i=>!logs.find(l=>l.inv===i.no)).length;
+  const belumFU=unpaidProgress.filter(function(x){return x.prog.key==='collection_no_fu';}).length;
   const janjiOD=logs.filter(l=>l.hasil==='Janji Bayar'&&l.jt&&l.jt<TODAY).length;
   const totalAmt=unpaid.reduce((s,i)=>s+(Number(i.amt)||0),0);
   // Gunakan total aging (FBL5N) sebagai basis persentase AR>90 — lebih akurat
@@ -1437,7 +1521,7 @@ function renderDash(){
   document.getElementById('dk-ar90pct').textContent=ar90pct;
   document.getElementById('dk-mir7k').textContent=mirKritis||'–';
   document.getElementById('dk-mir7k-val').textContent=mirKritis?fmt(mirKritisVal):'–';
-  document.getElementById('dk-srt').textContent=srtBelum||'–';
+  document.getElementById('dk-srt').textContent=(srtBelum+notaBelum)||'–';
   document.getElementById('dk-bfu').textContent=belumFU||'–';
   document.getElementById('dk-janji').textContent=janjiOD||'0';
   document.getElementById('dk-fuhari').textContent=todayLogs.length||'0';
@@ -1524,8 +1608,9 @@ function renderDash(){
   setPbar('pk-fu',(todayLogs.length/fuTarget)*100);
   setPbar('pk-srt',srtBelum?Math.min((srtBelum/10)*100,100):0);
   setPbar('pk-bfu',belumFU?Math.min((belumFU/20)*100,100):0);
-  if(srtBelum>0) alerts.push({c:'ao',icon:'🟡',title:`Surat Tagihan Belum Dibuat: ${srtBelum} invoice`,body:'Klik untuk lihat per-PIC Billing.',type:'srt'});
-  if(belumFU>0) alerts.push({c:'ab',icon:'🔵',title:`${belumFU} invoice belum pernah di-follow-up`,body:'Klik untuk lihat per-PIC. Target: 0 invoice tanpa FU >7 hari.',type:'bfu'});
+  if(srtBelum>0) alerts.push({c:'ao',icon:'🟡',title:`Surat Tagihan Pending: ${srtBelum} invoice`,body:'Klik untuk lihat bottleneck tahap surat.',type:'srt'});
+  if(notaBelum>0) alerts.push({c:'ao',icon:'🟡',title:`Nota Dinas Pending: ${notaBelum} invoice`,body:'Klik untuk lihat bottleneck tahap Nota Dinas.',type:'nota'});
+  if(belumFU>0) alerts.push({c:'ab',icon:'🔵',title:`${belumFU} invoice siap tagih tapi belum di-follow-up`,body:'Klik untuk lihat per-PIC. Target: 0 invoice siap tagih tanpa FU.',type:'bfu'});
   if(janjiOD>0) alerts.push({c:'ao',icon:'🟡',title:`${janjiOD} janji bayar sudah jatuh tempo`,body:'Klik untuk lihat per-PIC. Konfirmasi realisasi hari ini.',type:'janji'});
   if(todayLogs.length===0) alerts.push({c:'ab',icon:'🔵',title:'Belum ada log FU hari ini',body:'Klik untuk lihat status FU per-PIC.',type:'nolog'});
   if(alerts.length===0) alerts.push({c:'ag',icon:'🟢',title:'Semua indikator dalam batas normal',body:'Lanjutkan monitoring harian.',type:''});
@@ -1619,7 +1704,7 @@ function renderDash(){
       // ── TIM OPERASI ──
       // picB bukan Tim Operasi → tidak ada per-PIC di data.
       // Tampilkan antrian tim (sBA belum selesai) + kartu per anggota dari log.
-      const opTeamInvs=unpaid.filter(i=>i.sBA!=='Completed');
+      const opTeamInvs=baItems.map(function(x){return x.inv;});
       html+='<div style="width:100%;margin-bottom:14px;">'+mkTimHeader('operasi');
       html+='<div style="font-size:.72rem;color:var(--sub);margin-bottom:7px;">📋 Antrian tim: <strong style="color:#1565c0;">'+opTeamInvs.length+' invoice BA belum selesai</strong>'
         +' · Total: <strong style="color:#1565c0;">'+fmt(opTeamInvs.reduce(function(s,i){return s+i.amt;},0))+'</strong></div>';
@@ -1643,7 +1728,7 @@ function renderDash(){
 
       // ── TIM SURAT ──
       // picB = Tim Surat → grouping per picB untuk invoice sBA=Completed & sSrt≠Completed
-      const srtPool=unpaid.filter(i=>i.sBA==='Completed'&&i.sSrt!=='Completed');
+      const srtPool=srtItems.map(function(x){return x.inv;});
       const srtByPIC={};
       srtPool.forEach(function(i){var p=(i.picB||'Belum Diassign');srtByPIC[p]=(srtByPIC[p]||[]);srtByPIC[p].push(i);});
       html+='<div class="tim-section">'+mkTimHeader('surat');
@@ -1692,7 +1777,7 @@ function renderDash(){
 
       // ── TIM FOLLOW UP ──
       // Tidak ada picB untuk tahap ini. Gunakan logs[].pic untuk Tim FU.
-      const fuPool=unpaid.filter(i=>i.sSrt==='Completed');
+      const fuPool=fuItems.map(function(x){return x.inv;});
       // Mapping: invoice → siapa Tim FU yang terakhir FU (dari logs)
       const fuByPIC={};
       fuPool.forEach(function(i){
@@ -1704,7 +1789,7 @@ function renderDash(){
         fuByPIC[p]=(fuByPIC[p]||[]);fuByPIC[p].push(i);
       });
       html+='<div class="tim-section">'+mkTimHeader('followup');
-      html+='<div class="tim-hd" style="border-left-color:#2e7d32;"><span>📋 Total antrian: <strong style="color:#2e7d32;">'+fuPool.length+' invoice siap ditagih (surat sudah selesai)</strong></span><span class="tim-hd-info">Klik kartu untuk expand detail</span></div>';
+      html+='<div class="tim-hd" style="border-left-color:#2e7d32;"><span>📋 Total antrian: <strong style="color:#2e7d32;">'+fuPool.length+' invoice di tahap collection</strong></span><span class="tim-hd-info">Klik kartu untuk expand detail</span></div>';
 
       // Pool unassigned — invoice belum pernah di-FU oleh siapapun
       var unassignedInvs=fuByPIC['unassigned']||[];
@@ -1821,14 +1906,22 @@ function buildAlertDetail(type){
     return '<span style="font-size:.62rem;background:'+t.bg+';color:'+t.color+';border:1px solid '+t.color+'55;border-radius:4px;padding:1px 5px;white-space:nowrap;">'+t.icon+' '+t.label+'</span>';
   }
   if(type==='mir7'){
-    // MIR7 kritis → ND sudah Completed, MIR7 belum diproses, nilai besar
-    const list=unpaid.filter(i=>i.sNota==='Completed'&&i.sMIR==='Belum Dibuat'&&i.amt>50000000);
+    const list=unpaid.filter(i=>['mir7_pending','mir7_rejected'].includes(getInvoiceProgress(i).key)&&i.amt>50000000);
     const byP={};
     list.forEach(i=>{const p=i.picB||'—';if(!byP[p])byP[p]=[];byP[p].push(i);});
     const rows=Object.entries(byP).sort((a,b)=>b[1].reduce((s,i)=>s+i.amt,0)-a[1].reduce((s,i)=>s+i.amt,0))
       .map(([p,arr])=>'<tr><td><strong>'+p+'</strong><br>'+timBadge(p)+'</td><td>'+arr.length+'</td><td>'+fmt(arr.reduce((s,i)=>s+i.amt,0))+'</td>'
         +'<td style="color:#666;font-size:.68rem;">'+arr.slice(0,4).map(i=>i.no).join(', ')+(arr.length>4?' <em>+lainnya</em>':'')+'</td></tr>');
     return buildPICTable(['PIC / Tim','Jml','Nilai','No Invoice'],rows,'Tidak ada MIR7 kritis.');
+  }
+  if(type==='nota'){
+    const list=unpaid.filter(i=>['nota_pending','nota_rejected'].includes(getInvoiceProgress(i).key));
+    const byP={};
+    list.forEach(i=>{const p=i.picB||'—';if(!byP[p])byP[p]=[];byP[p].push(i);});
+    const rows=Object.entries(byP).sort((a,b)=>b[1].length-a[1].length)
+      .map(([p,arr])=>'<tr><td><strong>'+esc(p)+'</strong><br>'+timBadge(p)+'</td><td>'+arr.length+'</td><td>'+fmt(arr.reduce((s,i)=>s+i.amt,0))+'</td>'
+        +'<td style="color:#666;font-size:.68rem;">'+arr.slice(0,4).map(i=>esc(i.no)).join(', ')+(arr.length>4?' <em>+lainnya</em>':'')+'</td></tr>');
+    return buildPICTable(['PIC / Tim','ND Pending','Nilai','No Invoice'],rows,'Tidak ada Nota Dinas pending.');
   }
   if(type==='ar90'){
     const entries=Object.entries(agMap).filter(function(e){return e[1].o90>0;}).sort((a,b)=>b[1].o90-a[1].o90).slice(0,10);
@@ -1842,8 +1935,7 @@ function buildAlertDetail(type){
     return buildPICTable(['Customer','AR >90 Hari','% Total','Dihandle'],rows,'');
   }
   if(type==='srt'){
-    // Surat belum → tanggung jawab Tim Surat
-    const list=unpaid.filter(i=>i.sSrt==='Belum Dibuat'&&i.sBA==='Completed');
+    const list=unpaid.filter(i=>['surat_pending','surat_rejected'].includes(getInvoiceProgress(i).key));
     const byP={};
     list.forEach(i=>{const p=i.picB||'—';if(!byP[p])byP[p]=[];byP[p].push(i);});
     const rows=Object.entries(byP).sort((a,b)=>b[1].length-a[1].length)
@@ -1852,7 +1944,7 @@ function buildAlertDetail(type){
     return buildPICTable(['PIC / Tim','Surat Belum','Nilai','No Invoice'],rows,'Tidak ada surat pending.');
   }
   if(type==='bfu'){
-    const list=unpaid.filter(i=>!logs.find(l=>l.inv===i.no));
+    const list=unpaid.filter(i=>getInvoiceProgress(i).key==='collection_no_fu');
     const byP={};
     list.forEach(i=>{const p=i.picB||'—';if(!byP[p])byP[p]=[];byP[p].push(i);});
     const rows=Object.entries(byP).sort((a,b)=>b[1].reduce((s,i)=>s+i.amt,0)-a[1].reduce((s,i)=>s+i.amt,0))
@@ -1906,7 +1998,7 @@ function goPipeline(filter){
   const srch=document.getElementById('srch');
   if(srch) srch.value='';
   setF(filter);
-  toast('🔍 Filter: '+({'a':'Semua','p1':'BA In Progress','p2':'Surat Pending','p3':'Follow Up P2P','p4':'MIR7 Pending','np':'Non-P2P + Migrasi'}[filter]||filter));
+  toast('🔍 Filter: '+({'a':'Semua','p1':'BA Pending','p2':'Surat Pending','p3':'Tahap Collection','p4':'MIR7 Pending','p5':'Nota Dinas Pending','np':'Non-P2P + Migrasi'}[filter]||filter));
 }
 
 // ═══ EXPORT ═══
