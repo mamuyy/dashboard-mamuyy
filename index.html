@@ -653,6 +653,7 @@ let invs=[], bilMap={}, agMap={}, agTotals={b30:0,b60:0,b90:0,b120:0,b150:0,b180
 const TODAY=new Date().toISOString().slice(0,10);
 const raw={};
 let adminPinHash='';
+const DEFAULT_GS_URL='https://script.google.com/macros/s/AKfycbxceyaegqXKadL-7V_hqBJmGXR3b96lwREQnaRcVDMiMYkc2zzBtTB65YxCkCMeCCOUfw/exec';
 
 // ═══ INIT ═══
 let gsUrl='';
@@ -667,9 +668,10 @@ window.onload=()=>{
     if(sp){ pic=sp; updPIC(); }
 
     const su=localStorage.getItem('gs_url');
-    if(su){
-      gsUrl=su;
-      document.getElementById('gs-url').value=su;
+    gsUrl=(su||DEFAULT_GS_URL).trim();
+    if(gsUrl){
+      if(!su) localStorage.setItem('gs_url',gsUrl);
+      document.getElementById('gs-url').value=gsUrl;
       const cb=document.getElementById('cloud-badge');
       if(cb) cb.style.display='block';
       pullAllFromSheets(true);
