@@ -20,6 +20,9 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:#212121;
 .topbar .right{display:flex;align-items:center;gap:8px;}
 .pic-badge{background:rgba(255,255,255,.15);padding:4px 12px;border-radius:20px;font-size:.73rem;cursor:pointer;white-space:nowrap;}
 .data-badge{font-size:.68rem;opacity:.6;}
+.icon-link{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;font-size:1.1rem;margin-right:8px;transition:opacity .2s;opacity:.85;}
+.icon-link:hover{opacity:1;}
+.icon-link.disabled{opacity:.35;cursor:not-allowed;pointer-events:none;}
 
 /* ── TABS ── */
 .tabs{display:flex;background:#fff;border-bottom:2px solid #e0e0e0;overflow-x:auto;scrollbar-width:none;}
@@ -264,8 +267,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 <div class="topbar">
   <h1>📬 Penagihan – PT Pelindo Daya Sejahtera</h1>
   <div class="right">
-    <a href="app_financial.html" title="Cek Laba Rugi (P&L)" style="text-decoration:none;font-size:1.1rem;margin-right:8px;transition:0.2s;opacity:0.85;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.85'">📊</a>
-    <a href="Panduan_Aplikasi_Penagihan_Tim.docx" download title="Download Panduan Aplikasi" style="text-decoration:none;font-size:1.1rem;margin-right:4px;transition:0.2s;opacity:0.85;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.85'">📖</a>
+    <span class="icon-link disabled" title="Modul P&L belum dipublish di repo ini" aria-disabled="true">📊</span>
+    <a class="icon-link" href="Panduan_Aplikasi_Penagihan_Tim.docx" download title="Download Panduan Aplikasi" style="margin-right:4px;">📖</a>
     <div class="data-badge" id="data-badge">Belum ada data</div>
     <div id="cloud-badge" style="display:none;font-size:.68rem;opacity:.75;cursor:pointer;" onclick="showPage('setup')" title="Klik untuk ke pengaturan sync">☁️</div>
     <div class="pic-badge" onclick="showPage('setup')" id="pic-display">👤 Pilih PIC</div>
@@ -373,7 +376,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 
     <div id="gs-status" style="margin-top:7px;font-size:.75rem;color:var(--sub);"></div>
     <div style="margin-top:8px;background:#e8f5e9;border-radius:6px;padding:8px 10px;font-size:.73rem;color:#2e7d32;">
-      💡 Belum punya URL? Ikuti panduan setup di file <b>LogFU_Backend.gs</b> yang ada di folder yang sama.
+      💡 Belum punya URL? Minta admin membagikan endpoint Google Apps Script yang aktif, lalu tempelkan URL-nya di kolom atas.
     </div>
   </div>
 
