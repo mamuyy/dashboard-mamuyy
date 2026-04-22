@@ -521,7 +521,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
     <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p1')" title="Filter: Status BA"><div class="picon">📄</div><div class="plbl">Status BA</div><div class="pnum" id="dp-ba">–</div><div class="pbadge pb-o" id="dp-ba-meta">–</div><div class="psub" id="dp-ba-val">Rp –</div></div>
     <div class="pstep po" style="cursor:pointer;" onclick="goPipeline('p2')" title="Filter: Status Surat Tagihan"><div class="picon">📨</div><div class="plbl">Status Surat Tagihan</div><div class="pnum" id="dp-srt">–</div><div class="pbadge pb-o" id="dp-srt-meta">Tim Billing</div><div class="psub" id="dp-srt-val">Rp –</div></div>
     <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p5')" title="Filter: Status Nota Dinas"><div class="picon">📝</div><div class="plbl">Status Nota Dinas</div><div class="pnum" id="dp-prn">–</div><div class="pbadge pb-b" id="dp-prn-meta">Approval</div><div class="psub" id="dp-prn-val">Rp –</div></div>
-    <div class="pstep pr" style="cursor:pointer;" onclick="goPipeline('p4')" title="Filter: Status MIR7"><div class="picon">💳</div><div class="plbl">Status MIR7</div><div class="pnum" id="dp-mir">–</div><div class="pbadge pb-r" id="dp-mir-meta">–</div><div class="psub" id="dp-mir-val">Rp –</div></div>
+    <div class="pstep pr" style="cursor:pointer;" onclick="showRekonViewer('mir7')" title="Klik untuk lihat detail Status MIR7"><div class="picon">💳</div><div class="plbl">Status MIR7</div><div class="pnum" id="dp-mir">–</div><div class="pbadge pb-r" id="dp-mir-meta">–</div><div class="psub" id="dp-mir-val">Rp –</div></div>
     <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p3')" title="Filter: Payment Status"><div class="picon">💰</div><div class="plbl">Payment Status</div><div class="pnum" id="dp-fu">–</div><div class="pbadge pb-b" id="dp-fu-meta">Tim Collection</div><div class="psub" id="dp-fu-val">Rp –</div></div>
     <div class="pstep" style="cursor:pointer;background:#f3e5f5;border-left:3px solid #7b1fa2;" onclick="goPipeline('np')" title="Filter: Non-P2P + Migrasi — langsung FU"><div class="picon">⚡</div><div class="plbl" style="color:#6a1b9a;">Non-P2P + Migrasi</div><div class="pnum" id="dp-nonp2p" style="color:#6a1b9a;">–</div><div class="pbadge" style="background:#e1bee7;color:#4a148c;" id="dp-nonp2p-val">Langsung FU</div></div>
     <div class="pstep pg" style="cursor:pointer;" onclick="goPipeline('a')" title="Lihat semua invoice"><div class="picon">✅</div><div class="plbl">Paid</div><div class="pnum" id="dp-paid">–</div><div class="pbadge pb-g" id="dp-paid-val">Lunas</div></div>
@@ -1562,6 +1562,11 @@ function renderDash(){
   const nonP2PItems=unpaid.filter(i=>i.type==='nonp2p'||i.type==='migrasi');
   const nonP2PVal=nonP2PItems.reduce((s,i)=>s+i.amt,0);
   const paidVal=paid.reduce((s,i)=>s+(Number(i.amt)||0),0);
+  window._db_mir7 = {
+    all: mirItems.map(function(x){ return x.inv; }),
+    belum: mirPendingItems.map(function(x){ return x.inv; }),
+    reject: mirRejectedItems.map(function(x){ return x.inv; })
+  };
 
   function sumInvs(arr){ return arr.reduce((s,x)=>s+((x.inv&&x.inv.amt)||0),0); }
   function metaLabel(parts, emptyLabel){
@@ -2413,6 +2418,24 @@ function showRekonViewer(type) {
   if(type==='pymad') { title='⚠ PYMAD (Pendapatan Belum Billed)'; data=window._db_pymad||[]; }
   if(type==='np') { title='⚡ Non-P2P Teragih'; data=window._db_np||[]; }
   if(type==='mig') { title='🗂 Piutang Migrasi SAP'; data=window._db_mig||[]; }
+  if(type==='mir7') {
+     const src=window._db_mir7||{all:[],belum:[],reject:[]};
+     title='💳 Detail Status MIR7';
+     const makeSection=function(label,items,color){
+        const total=items.reduce((s,d)=>s+(Number(d.amt)||0),0);
+        if(!items.length){
+          return `<div style="margin-bottom:16px;"><div style="font-weight:800;color:${color};margin-bottom:8px;">${label} · 0 inv · Rp 0</div><div style="color:#888;">Tidak ada data.</div></div>`;
+        }
+        let out=`<div style="margin-bottom:18px;"><div style="font-weight:800;color:${color};margin-bottom:8px;">${label} · ${items.length} inv · ${fmt(total)}</div>`;
+        out+=`<table class="pic-dtbl" style="width:100%;text-align:left;"><thead><tr><th>No Dokumen</th><th>Customer</th><th>PIC</th><th>Status MIR7</th><th style="text-align:right">Nilai Tagihan</th></tr></thead><tbody>`;
+        out+=items.slice().sort((a,b)=>(Number(b.amt)||0)-(Number(a.amt)||0)).map(d=>`<tr style="border-bottom:1px solid #eee"><td style="font-weight:bold;padding:6px 5px">${esc(safeDisplayValue(d.no,'no'))}</td><td style="padding:6px 5px">${esc(safeDisplayValue(d.cust,'cust'))}</td><td style="padding:6px 5px">${esc(safeDisplayValue(d.picB,'picB'))}</td><td style="padding:6px 5px">${esc(safeDisplayValue(d.sMIR,'sMIR'))}</td><td style="text-align:right;padding:6px 5px;font-family:monospace;font-size:.85rem">${fmt(d.amt)}</td></tr>`).join('');
+        out+=`</tbody></table></div>`;
+        return out;
+     };
+     html += `<div style="font-size:0.75rem;margin-bottom:10px;color:#666;font-weight:bold">Menampilkan ${(src.all||[]).length} baris yang sudah Completed di BA, Surat Tagihan, dan Nota Dinas, tetapi Status MIR7 belum Completed.</div>`;
+     html += makeSection('Belum Dibuat / In Progress', src.belum||[], '#ef6c00');
+     html += makeSection('Rejected', src.reject||[], '#c62828');
+  }
   if(type==='selisih') {
      title='🕵️ Investigasi Selisih FBL5N';
      data=window._db_selisih||[];
@@ -2424,12 +2447,12 @@ function showRekonViewer(type) {
      }
   }
 
-  if(type!=='selisih' && data.length) {
+  if(type!=='selisih' && type!=='mir7' && data.length) {
      html+=`<div style="font-size:0.75rem;margin-bottom:10px;color:#666;font-weight:bold">Menampilkan ${data.length} baris</div>`;
      html+=`<table class="pic-dtbl" style="width:100%;text-align:left;"><thead><tr><th>No Dokumen</th><th>Customer</th><th style="text-align:right">Nilai Tagihan</th></tr></thead><tbody>`;
      html+=data.map(d=>`<tr style="border-bottom:1px solid #eee"><td style="font-weight:bold;padding:6px 5px">${esc(safeDisplayValue(d.no,'no'))}</td><td style="padding:6px 5px">${esc(safeDisplayValue(d.cust,'cust'))}</td><td style="text-align:right;padding:6px 5px;font-family:monospace;font-size:.85rem">${fmt(d.amt)}</td></tr>`).join('');
      html+=`</tbody></table>`;
-  } else if (type!=='selisih') {
+  } else if (type!=='selisih' && type!=='mir7') {
      html='<div style="text-align:center;padding:40px;color:#888;">Tidak ada data untuk kategori ini.</div>';
   }
 
