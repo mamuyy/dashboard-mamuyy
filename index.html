@@ -1212,8 +1212,15 @@ function getInvoiceLogs(invNo){
       return tb.localeCompare(ta);
     });
 }
+function getInvoiceBusinessClass(inv){
+  const type=s(inv&&inv.type).toLowerCase();
+  if(type==='migrasi') return 'nonp2p_migrasi';
+  if(type==='nonp2p' || type==='pymad_nonp2p') return 'nonp2p_manual';
+  return 'p2p';
+}
 function getInvoiceProgress(inv){
   const type=s(inv.type).toLowerCase();
+  const bizClass=getInvoiceBusinessClass(inv);
   const pay=normalizePayStatus(inv.pay);
   const sBA=normalizeDocStatus(inv.sBA);
   const sSrt=normalizeDocStatus(inv.sSrt);
@@ -1249,10 +1256,16 @@ function getInvoiceProgress(inv){
 
   if(pay==='Paid') return pack('paid','Paid','done','done');
 
-  const isMigrasi = type==='migrasi';
-  const isDirect = type==='nonp2p' || type==='pymad_nonp2p' || isMigrasi;
-
+  const isDirect = bizClass==='nonp2p_migrasi';
   if(isDirect){
+    if(hasOverdueJanji) return pack('direct_janji_overdue','Direct FU: Janji Jatuh Tempo','followup','direct');
+    if(!invLogs.length) return pack('direct_no_fu','Direct FU: Belum FU','followup','direct');
+    return pack('direct_active','Direct FU Aktif','followup','direct');
+  }
+
+  if(bizClass==='nonp2p_manual'){
+    if(sSrt==='Rejected') return pack('surat_rejected','Surat Rejected','surat','surat');
+    if(sSrt!=='Completed') return pack('surat_pending',pendingLabel('Surat',sSrt),'surat','surat');
     if(hasOverdueJanji) return pack('direct_janji_overdue','Direct FU: Janji Jatuh Tempo','followup','direct');
     if(!invLogs.length) return pack('direct_no_fu','Direct FU: Belum FU','followup','direct');
     return pack('direct_active','Direct FU Aktif','followup','direct');
@@ -1647,7 +1660,7 @@ const MODAL_MODE_OPTIONS={
 };
 function detectModalMode(inv,prog){
   if(!inv || !prog) return 'followup';
-  const srtStatus=normalizeDocStatus(inv.sSrt);
+  const bizClass=getInvoiceBusinessClass(inv);
   const ownerTeamLabel=s(prog.ownerTeam).toLowerCase();
   const bottleneckLabel=s(prog.label).toLowerCase();
   const stageKey=s(prog.stage).toLowerCase();
@@ -1663,8 +1676,9 @@ function detectModalMode(inv,prog){
     bottleneckLabel.includes('mir7') ||
     bottleneckLabel.includes('payment');
   if(isFollowUpOwner || isFollowUpBottleneck) return 'followup';
-  const isSuratOwner=prog.team==='surat' || stageKey==='surat' || ownerTeamLabel.includes('surat');
-  if(isSuratOwner || srtStatus==='Belum Dibuat') return 'surat';
+  const isSuratOwner=prog.team==='surat' || stageKey==='surat' || ownerTeamLabel.includes('surat') || bottleneckLabel.includes('surat');
+  if(isSuratOwner) return 'surat';
+  if(bizClass==='nonp2p_migrasi') return 'followup';
   return 'followup';
 }
 function renderModalChoices(rowId,inputId,items,kind){
