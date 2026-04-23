@@ -722,7 +722,7 @@ function loadF(n,inp){
   const r=new FileReader();
   r.onload=e=>{
     try{
-      raw[n]=XLSX.read(e.target.result,{type:'array',cellDates:true});
+      raw[n]=XLSX.read(e.target.result,{type:'array',cellDates:false});
       el.textContent='✅ '+f.name; el.className='fname ok';
       if(raw[1]) document.getElementById('btn-proses').disabled=false;
       document.getElementById('load-msg').textContent=n===1?'✅ File utama siap. Klik Proses.':'';
@@ -2785,7 +2785,11 @@ function fmt(n){ if(!n)return'Rp 0'; if(n>=1e9)return'Rp '+(n/1e9).toFixed(1)+' 
 function rawTextValue(value,emptyFallback='-'){
   if(value===null||value===undefined) return emptyFallback;
   if(value==='') return emptyFallback;
-  return String(value);
+  if(value instanceof Date) return emptyFallback;
+  const str=String(value).trim();
+  // Cegah nilai ID dokumen berubah jadi string Date verbose (mis. "Sun Nov 06 2022 ...").
+  if(/^(mon|tue|wed|thu|fri|sat|sun)\s/i.test(str) && /gmt/i.test(str)) return emptyFallback;
+  return str||emptyFallback;
 }
 function isRealDateField(fieldName){
   const f=String(fieldName||'').trim().toLowerCase();
