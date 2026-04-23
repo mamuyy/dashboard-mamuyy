@@ -1623,7 +1623,21 @@ function detectModalMode(inv,prog){
   if(!inv || !prog) return 'followup';
   const srtStatus=normalizeDocStatus(inv.sSrt);
   const ownerTeamLabel=s(prog.ownerTeam).toLowerCase();
-  const isSuratOwner=prog.team==='surat' || prog.stage==='surat' || ownerTeamLabel.includes('surat');
+  const bottleneckLabel=s(prog.label).toLowerCase();
+  const stageKey=s(prog.stage).toLowerCase();
+  const isFollowUpOwner=prog.team==='followup' || ownerTeamLabel.includes('follow up');
+  const isFollowUpBottleneck=
+    stageKey==='direct' ||
+    stageKey==='collection' ||
+    stageKey==='nota' ||
+    stageKey==='mir7' ||
+    bottleneckLabel.includes('direct fu') ||
+    bottleneckLabel.includes('collection') ||
+    bottleneckLabel.includes('nota dinas') ||
+    bottleneckLabel.includes('mir7') ||
+    bottleneckLabel.includes('payment');
+  if(isFollowUpOwner || isFollowUpBottleneck) return 'followup';
+  const isSuratOwner=prog.team==='surat' || stageKey==='surat' || ownerTeamLabel.includes('surat');
   if(isSuratOwner || srtStatus==='Belum Dibuat') return 'surat';
   return 'followup';
 }
