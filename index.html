@@ -266,6 +266,21 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 /* KPI progress */
 .kpi-prog{height:4px;border-radius:2px;background:#e0e0e0;margin-top:8px;overflow:hidden;}
 .kpi-prog-fill{height:4px;border-radius:2px;transition:width .6s;}
+
+/* KPI per PIC */
+.kpi-pic-meta{font-size:.72rem;color:var(--sub);line-height:1.45;margin-bottom:10px;}
+.kpi-pic-wrap{overflow-x:auto;}
+.kpi-pic-tbl{width:100%;border-collapse:collapse;font-size:.73rem;min-width:760px;}
+.kpi-pic-tbl th{padding:7px 8px;background:#f5f7fb;color:#455a64;font-size:.62rem;text-transform:uppercase;letter-spacing:.35px;text-align:left;border-bottom:1px solid #e3e8ef;}
+.kpi-pic-tbl td{padding:7px 8px;border-bottom:1px solid #f0f3f7;vertical-align:middle;}
+.kpi-pic-tbl tr:hover td{background:#fafcff;}
+.kpi-pic-pic{font-weight:700;color:var(--dark);}
+.kpi-pic-score{font-weight:800;font-size:.95rem;}
+.kpi-badge{display:inline-block;padding:2px 7px;border-radius:999px;font-size:.58rem;font-weight:700;}
+.kpi-badge.good{background:#e8f5e9;color:#2e7d32;}
+.kpi-badge.mid{background:#fff3e0;color:#e65100;}
+.kpi-badge.low{background:#ffebee;color:#c62828;}
+
 /* Tim section header */
 .tim-section{width:100%;margin-bottom:16px;}
 .tim-hd{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:8px;margin-bottom:8px;border-left:4px solid;}
@@ -547,6 +562,14 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
     <div class="kpi kb"><div class="kpi-ico">🔵</div><div class="kpi-lbl">FU Hari Ini</div><div class="kpi-val" id="dk-fuhari">–</div><div class="kpi-sub">Target ≥ 5/PIC</div><div class="kpi-prog"><div class="kpi-prog-fill" id="pk-fu" style="width:0%;background:#43a047;"></div></div></div>
   </div>
 
+  <div class="card" style="margin-top:2px;margin-bottom:14px;">
+    <h3>👥 KPI per PIC</h3>
+    <div class="kpi-pic-meta">Skor adil berbasis <strong>hasil + proses + kualitas</strong>. Nilai saat ini memakai data log yang ada, dan otomatis fallback ke dummy jika data per PIC belum cukup.</div>
+    <div class="kpi-pic-wrap" id="d-kpi-pic">
+      <div style="color:var(--sub);font-size:.78rem;padding:6px 0;">Memuat KPI per PIC…</div>
+    </div>
+  </div>
+
   <!-- Charts -->
   <div class="card" style="margin-bottom:14px;">
     <h3 id="ch-aging-title">Aging Piutang — Upload File 3 untuk data real</h3>
@@ -664,6 +687,14 @@ let isPushingToSheets=false;
 const SAFE_PUSH_MIN_INVOICE_COUNT=100;
 const SAFE_PUSH_DROP_RATIO=0.5;
 const TODAY=new Date().toISOString().slice(0,10);
+const KPI_PIC_WEIGHTS={collectionResult:0.30,followUpDiscipline:0.25,overdueReduction:0.20,pipelineMovement:0.15,dataQuality:0.10};
+const KPI_PIC_DUMMY={
+  RIZAL:{collectionResult:78,followUpDiscipline:84,overdueReduction:73,pipelineMovement:80,dataQuality:88},
+  ACHMAD:{collectionResult:75,followUpDiscipline:82,overdueReduction:70,pipelineMovement:77,dataQuality:85},
+  TYAS:{collectionResult:72,followUpDiscipline:79,overdueReduction:74,pipelineMovement:75,dataQuality:83},
+  AFIS:{collectionResult:70,followUpDiscipline:77,overdueReduction:71,pipelineMovement:72,dataQuality:81},
+  MASELLA:{collectionResult:74,followUpDiscipline:80,overdueReduction:76,pipelineMovement:78,dataQuality:86}
+};
 const raw={};
 let adminPinHash='';
 const DEFAULT_GS_URL='https://script.google.com/macros/s/AKfycbxceyaegqXKadL-7V_hqBJmGXR3b96lwREQnaRcVDMiMYkc2zzBtTB65YxCkCMeCCOUfw/exec';
@@ -1594,11 +1625,83 @@ function renderH(){
 
 // ═══ DASHBOARD ═══
 let chAging=null, chTeam=null;
+function clampScore(v){ return Math.max(0,Math.min(100,Number(v)||0)); }
+function calcTotalKpiScore(s){
+  return (
+    clampScore(s.collectionResult)*KPI_PIC_WEIGHTS.collectionResult+
+    clampScore(s.followUpDiscipline)*KPI_PIC_WEIGHTS.followUpDiscipline+
+    clampScore(s.overdueReduction)*KPI_PIC_WEIGHTS.overdueReduction+
+    clampScore(s.pipelineMovement)*KPI_PIC_WEIGHTS.pipelineMovement+
+    clampScore(s.dataQuality)*KPI_PIC_WEIGHTS.dataQuality
+  );
+}
+function getKpiBand(score){
+  if(score>=85) return {label:'Excellent',cls:'good'};
+  if(score>=70) return {label:'On Track',cls:'mid'};
+  return {label:'Needs Focus',cls:'low'};
+}
+function getDummyKpiMetrics(picName){
+  return KPI_PIC_DUMMY[picName]||{collectionResult:72,followUpDiscipline:78,overdueReduction:70,pipelineMovement:74,dataQuality:82};
+}
+function computeKpiByPic(picName,unpaid,paid){
+  const dummy=getDummyKpiMetrics(picName);
+  const picLogs=logs.filter(function(l){ return (l.pic||'').toLowerCase().includes(picName.toLowerCase()); });
+  const todayPicLogs=picLogs.filter(function(l){ return (l.date||(l.ts?l.ts.slice(0,10):''))===TODAY; });
+  const paidByPic=picLogs.filter(function(l){ return l.hasil==='Paid'; }).reduce(function(s,l){ return s+(Number(l.amt)||0); },0);
+  const totalPaid=paid.reduce(function(s,i){ return s+(Number(i.amt)||0); },0);
+  const collectionResult=totalPaid>0?clampScore((paidByPic/totalPaid)*100):dummy.collectionResult;
+  const followUpDiscipline=picLogs.length?clampScore(Math.min(100,(todayPicLogs.length/5)*100)):dummy.followUpDiscipline;
+  const touchedInv=new Set(picLogs.map(function(l){ return l.inv; }).filter(Boolean));
+  const overdueInv=unpaid.filter(function(i){ const ag=getAgingByInvoice(i); return ag&&ag.o90>0; });
+  const overdueTouched=overdueInv.filter(function(i){ return touchedInv.has(i.no); }).length;
+  const overdueReduction=overdueInv.length?clampScore((overdueTouched/overdueInv.length)*100):dummy.overdueReduction;
+  const pipelineMovement=picLogs.length?clampScore((picLogs.filter(function(l){ return ['Contacted','Janji Bayar','Paid'].includes(l.hasil); }).length/picLogs.length)*100):dummy.pipelineMovement;
+  const qualityHits=picLogs.filter(function(l){ return l.ch&&l.note&&String(l.note).trim().length>=6&&((l.hasil!=='Janji Bayar')||l.jt); }).length;
+  const dataQuality=picLogs.length?clampScore((qualityHits/picLogs.length)*100):dummy.dataQuality;
+  const metrics={collectionResult,followUpDiscipline,overdueReduction,pipelineMovement,dataQuality};
+  return {
+    pic:picName,
+    ...metrics,
+    totalScore:calcTotalKpiScore(metrics),
+    source:picLogs.length?'real+rule':'dummy',
+    raw:{logCount:picLogs.length,todayLogCount:todayPicLogs.length,paidByPic,totalPaid,overdueTouched,overduePool:overdueInv.length,qualityHits}
+  };
+}
+function renderKpiPerPic(unpaid,paid){
+  const host=document.getElementById('d-kpi-pic');
+  if(!host) return;
+  const followupNames=TIM.followup.members.map(function(m){ return m.toUpperCase(); });
+  const logNames=Array.from(new Set(logs.map(function(l){ return (l.pic||'').trim().toUpperCase(); }).filter(Boolean)));
+  const picNames=Array.from(new Set([].concat(followupNames,logNames))).slice(0,12);
+  const rows=picNames.map(function(name){ return computeKpiByPic(name,unpaid,paid); }).sort(function(a,b){ return b.totalScore-a.totalScore; });
+  if(!rows.length){
+    host.innerHTML='<div style="color:var(--sub);font-size:.78rem;padding:6px 0;">Belum ada data PIC.</div>';
+    return;
+  }
+  host.innerHTML='<table class="kpi-pic-tbl"><thead><tr>'
+    +'<th>PIC</th><th>Collection Result</th><th>Follow Up Discipline</th><th>Overdue Reduction</th><th>Pipeline Movement</th><th>Data Quality</th><th>Total Score</th><th>Sumber</th>'
+    +'</tr></thead><tbody>'
+    +rows.map(function(r){
+      const band=getKpiBand(r.totalScore);
+      return '<tr>'
+        +'<td class="kpi-pic-pic">'+esc(r.pic)+'</td>'
+        +'<td>'+r.collectionResult.toFixed(1)+'</td>'
+        +'<td>'+r.followUpDiscipline.toFixed(1)+'</td>'
+        +'<td>'+r.overdueReduction.toFixed(1)+'</td>'
+        +'<td>'+r.pipelineMovement.toFixed(1)+'</td>'
+        +'<td>'+r.dataQuality.toFixed(1)+'</td>'
+        +'<td class="kpi-pic-score">'+r.totalScore.toFixed(1)+' <span class="kpi-badge '+band.cls+'">'+band.label+'</span></td>'
+        +'<td style="text-transform:uppercase;font-size:.62rem;color:#607d8b;">'+r.source+'</td>'
+        +'</tr>';
+    }).join('')
+    +'</tbody></table>';
+}
 function renderDash(){
   const today=TODAY;
   const todayLogs=logs.filter(l => (l.date || (l.ts?l.ts.slice(0,10):'')) === today);
   const unpaid=invs.filter(i=>i.pay==='Unpaid');
   const paid=invs.filter(i=>i.pay==='Paid');
+  renderKpiPerPic(unpaid,paid);
   const unpaidProgress=unpaid.map(function(i){ return {inv:i, prog:getInvoiceProgress(i)}; });
 
   // Summary - Pemisahan Piutang Sah vs PYMAD
