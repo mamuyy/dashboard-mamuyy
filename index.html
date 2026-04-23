@@ -1004,13 +1004,13 @@ function _doProsesData(){ try{
       }
       if(rowAmt===0) return;
       // === Simpan per-dokumen untuk deteksi migrasi & override ===
-      const rowDocNo=docNoColIdx>=0?rawTextValue(rText[docNoColIdx]!==undefined?rText[docNoColIdx]:r[docNoColIdx], ''):'';
-      const rowRefNo=refColIdx>=0?rawTextValue(rText[refColIdx]!==undefined?rText[refColIdx]:r[refColIdx], ''):'';
+      const rowDocNo=docNoColIdx>=0?normalizeIdentifierLikeValue(rawTextValue(rText[docNoColIdx]!==undefined?rText[docNoColIdx]:r[docNoColIdx], '')):'';
+      const rowRefNo=refColIdx>=0?normalizeIdentifierLikeValue(rawTextValue(rText[refColIdx]!==undefined?rText[refColIdx]:r[refColIdx], '')):'';
       let dKey = rowDocNo || rowRefNo;
       if(!dKey) { blankIdx++; dKey = 'M-BLANK-'+custCode+'-'+blankIdx; }
       
       if(!window.fbl5nDocsMap[dKey]) {
-         window.fbl5nDocsMap[dKey] = {docNo:(rowDocNo||dKey), refNo:rowRefNo, custName, custCode, amt:0, tgl:''};
+         window.fbl5nDocsMap[dKey] = {docNo:normalizeIdentifierLikeValue(rowDocNo||dKey), refNo:normalizeIdentifierLikeValue(rowRefNo), custName, custCode, amt:0, tgl:''};
       }
       window.fbl5nDocsMap[dKey].amt += rowAmt; // Akumulasi jika ada Document Number kembar di file FBL5N
 
@@ -2883,7 +2883,7 @@ function pushAllToSheets(){
 
 function buildInvoicePayload(){
   return invs.map(function(i){
-    return {no:i.no,cust:i.cust,amt:i.amt,pay:i.pay,picB:i.picB||'',
+    return {no:normalizeIdentifierLikeValue(i.no),cust:i.cust,amt:i.amt,pay:i.pay,picB:i.picB||'',
       sBA:i.sBA||'',sSrt:i.sSrt||'',sMIR:i.sMIR||'',sNota:i.sNota||'',tgl:i.tgl||'',
       type:i.type||'',desc:i.desc||''};
   });
@@ -3030,7 +3030,8 @@ function pullAllFromSheets(silent=false){
     // Invoice
     if(rInvs.ok && rInvs.invs && rInvs.invs.length){
       invs=rInvs.invs.map(function(i){
-        return {no:String(i.no||''),cust:String(i.cust||''),amt:Number(i.amt||0),
+        const safeNo=normalizeIdentifierLikeValue(i.no||'');
+        return {no:safeNo,cust:String(i.cust||''),amt:Number(i.amt||0),
           pay:String(i.pay||''),picB:String(i.picB||''),
           sBA:String(i.sBA||''),sSrt:String(i.sSrt||''),
           sMIR:String(i.sMIR||''),sNota:String(i.sNota||''),tgl:String(i.tgl||''),
@@ -3165,11 +3166,40 @@ function fmt(n){ if(!n)return'Rp 0'; if(n>=1e9)return'Rp '+(n/1e9).toFixed(1)+' 
 function rawTextValue(value,emptyFallback='-'){
   if(value===null||value===undefined) return emptyFallback;
   if(value==='') return emptyFallback;
+  if(typeof value==='string'){
+    const normalized=normalizeIdentifierLikeValue(value);
+    if(normalized) return normalized;
+  }
   if(value instanceof Date){
     const serial=Math.round((value.getTime()/(86400*1000))+25569);
     if(isFinite(serial)&&serial>0) return String(serial);
   }
   return String(value);
+}
+function isVerboseJsDateString(value){
+  const raw=String(value||'').trim();
+  return /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat)\s[A-Za-z]{3}\s\d{2}\s\d{4}\s\d{2}:\d{2}:\d{2}\sGMT[+-]\d{4}/.test(raw);
+}
+function normalizeIdentifierLikeValue(value){
+  if(value===null||value===undefined) return '';
+  if(value instanceof Date){
+    const serial=Math.round((value.getTime()/(86400*1000))+25569);
+    return isFinite(serial)&&serial>0?String(serial):String(value);
+  }
+  const raw=String(value).trim();
+  if(!raw) return '';
+  if(isVerboseJsDateString(raw)){
+    const parsed=new Date(raw);
+    if(!isNaN(parsed.getTime())){
+      const serial=Math.round((parsed.getTime()/(86400*1000))+25569);
+      if(isFinite(serial)&&serial>0) return String(serial);
+    }
+  }
+  return raw;
+}
+function isIdentifierLikeField(fieldName){
+  const f=String(fieldName||'').trim().toLowerCase();
+  return /(^|_|\s)(no|nomor|doc|document|assignment|reference|referensi|invoice|inv)(_|$|\s)/.test(f);
 }
 function isRealDateField(fieldName){
   const f=String(fieldName||'').trim().toLowerCase();
@@ -3204,6 +3234,10 @@ function formatExcelSerialDate(value){
 function safeDisplayValue(value,fieldName){
   if(value===null||value===undefined) return '-';
   if(typeof value==='string'&&value.trim()==='') return '-';
+  if(isIdentifierLikeField(fieldName)&&!isRealDateField(fieldName)){
+    const idSafe=normalizeIdentifierLikeValue(value);
+    return idSafe||'-';
+  }
   if(isRealDateField(fieldName)){
     const fmtDate=formatExcelSerialDate(value);
     if(fmtDate) return fmtDate;
