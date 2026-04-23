@@ -407,6 +407,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
         <button class="btn btn-sm" style="background:#7b1fa2;color:#fff;" onclick="pushAllToSheets()">☁️ Push Semua Log FU</button>
         <button class="btn btn-sm" style="background:#1565c0;color:#fff;" onclick="pushInvsToSheets()">📋 Push Data Invoice</button>
         <button class="btn btn-sm" style="background:#2e7d32;color:#fff;" onclick="pushAgingToSheets()">📊 Push Data Aging</button>
+        <button class="btn btn-sm" style="background:#00897b;color:#fff;" onclick="runOneTimeInvoiceCleanupPush()">🧹 Audit + Cleanup Invoice</button>
       </div>
     </div>
 
@@ -2906,8 +2907,116 @@ function pushAllToSheets(){
 function buildInvoicePayload(){
   return invs.map(function(i){
     return {no:normalizeIdentifierLikeValue(i.no),cust:i.cust,amt:i.amt,pay:i.pay,picB:i.picB||'',
-      sBA:i.sBA||'',sSrt:i.sSrt||'',sMIR:i.sMIR||'',sNota:i.sNota||'',tgl:i.tgl||'',
-      type:i.type||'',desc:i.desc||''};
+      sBA:i.sBA||'',sSrt:i.sSrt||'',sMIR:i.sMIR||'',sNota:normalizeIdentifierLikeValue(i.sNota||''),tgl:i.tgl||'',
+      type:i.type||'',desc:i.desc||'',noBA:normalizeIdentifierLikeValue(i.noBA||''),noSrt:normalizeIdentifierLikeValue(i.noSrt||''),noMIR:normalizeIdentifierLikeValue(i.noMIR||'')};
+  });
+}
+
+function getInvoiceIdentifierFields(){
+  return ['no','sNota','noBA','noSrt','noMIR'];
+}
+
+function auditPersistedInvoiceIdentifierRows(rows){
+  const issues=[];
+  let fallbackCount=0;
+  let legacyCorruptedCount=0;
+  let normalizedCount=0;
+  const idFields=getInvoiceIdentifierFields();
+  (rows||[]).forEach(function(row,idx){
+    idFields.forEach(function(field){
+      const original=row&&row[field]!==undefined&&row[field]!==null?String(row[field]).trim():'';
+      if(!original) return;
+      const normalized=normalizeIdentifierLikeValue(original);
+      if(isControlledFallbackLabel(original)){
+        fallbackCount++;
+      }
+      if(isVerboseJsDateString(original)){
+        legacyCorruptedCount++;
+      }
+      if(normalized!==original){
+        normalizedCount++;
+      }
+      if(isControlledFallbackLabel(original)||isVerboseJsDateString(original)||normalized!==original){
+        issues.push({
+          rowNumber:idx+1,
+          invoiceNo:row&&row.no!==undefined?String(row.no):'',
+          field:field,
+          originalValue:original,
+          normalizedValue:normalized
+        });
+      }
+    });
+  });
+  return {
+    totalRows:(rows||[]).length,
+    affectedRows:new Set(issues.map(function(x){ return x.rowNumber; })).size,
+    issueCount:issues.length,
+    fallbackCount:fallbackCount,
+    legacyCorruptedCount:legacyCorruptedCount,
+    normalizedCount:normalizedCount,
+    issues:issues
+  };
+}
+
+function downloadJsonAuditFile(filename,payload){
+  try{
+    const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); },1000);
+  }catch(err){
+    console.warn('downloadJsonAuditFile gagal:', err);
+  }
+}
+
+function runOneTimeInvoiceCleanupPush(){
+  if(!gsUrl){ toast('⚠️ URL belum diisi!'); return; }
+  setGsStatus('⏳ Audit invoice tersimpan di Sheets...','#1565c0');
+  return fetchJsonWithTimeout(gsUrl+'?action=get_invs&t='+Date.now()).then(function(res){
+    if(!res||!res.ok||!Array.isArray(res.invs)||!res.invs.length){
+      throw new Error('Data invoice di Sheets tidak ditemukan.');
+    }
+    const rawRows=res.invs;
+    const cleanedRows=rawRows.map(sanitizePersistedInvoiceRow);
+    const beforeAudit=auditPersistedInvoiceIdentifierRows(rawRows);
+    const afterAudit=auditPersistedInvoiceIdentifierRows(cleanedRows);
+    const cleanupTs=new Date().toISOString();
+    const backupKey='invoice_cleanup_backup_'+cleanupTs.replace(/[:.]/g,'-');
+    const backupPayload={createdAt:cleanupTs,beforeAudit:beforeAudit,afterAudit:afterAudit,rawRows:rawRows};
+    localStorage.setItem(backupKey,JSON.stringify(backupPayload));
+    const summaryMsg=
+      'Audit selesai.\n\n'+
+      'Total row invoice: '+beforeAudit.totalRows+'\n'+
+      'Row terdampak: '+beforeAudit.affectedRows+'\n'+
+      'Issue identifier terdeteksi: '+beforeAudit.issueCount+'\n'+
+      '- fallback label: '+beforeAudit.fallbackCount+'\n'+
+      '- legacy corrupted (verbose date): '+beforeAudit.legacyCorruptedCount+'\n'+
+      '- nilai perlu normalisasi: '+beforeAudit.normalizedCount+'\n\n'+
+      'Backup lokal dibuat: '+backupKey+'\n\n'+
+      'Lanjutkan one-time cleanup push ke Sheets?';
+    if(!window.confirm(summaryMsg)){
+      setGsStatus('ℹ️ Cleanup dibatalkan. Backup audit tetap tersimpan lokal.','#ef6c00');
+      return false;
+    }
+    setGsStatus('⏳ Menulis ulang invoice bersih ke Sheets...','#1565c0');
+    return postGsAction('push_invs',{invs:cleanedRows,updatedAt:new Date().toISOString()}).then(function(){
+      const reportName='invoice-cleanup-audit-'+cleanupTs.replace(/[:.]/g,'-')+'.json';
+      downloadJsonAuditFile(reportName,backupPayload);
+      invs=cleanedRows.slice();
+      renderQ(); renderH(); renderDash();
+      setGsStatus('✅ One-time cleanup selesai. Data invoice tersimpan konsisten — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
+      toast('✅ Cleanup invoice selesai. Audit JSON terunduh.');
+      return true;
+    });
+  }).catch(function(err){
+    setGsStatus('❌ Cleanup gagal: '+err.message,'var(--red)');
+    toast('❌ Cleanup gagal: '+err.message);
+    throw err;
   });
 }
 
