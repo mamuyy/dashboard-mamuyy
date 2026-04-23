@@ -780,7 +780,10 @@ function loadF(n,inp){
   const r=new FileReader();
   r.onload=e=>{
     try{
-      raw[n]=XLSX.read(e.target.result,{type:'array',cellDates:true});
+      // Pakai cellDates:false agar kolom identifier SAP (Assignment/Reference/Doc No)
+      // tidak otomatis dipromosikan jadi Date object oleh parser XLSX.
+      // Field tanggal asli tetap bisa diformat dari serial number di safeDisplayValue().
+      raw[n]=XLSX.read(e.target.result,{type:'array',cellDates:false});
       el.textContent='✅ '+f.name; el.className='fname ok';
       if(raw[1]) document.getElementById('btn-proses').disabled=false;
       document.getElementById('load-msg').textContent=n===1?'✅ File utama siap. Klik Proses.':'';
@@ -3162,6 +3165,10 @@ function fmt(n){ if(!n)return'Rp 0'; if(n>=1e9)return'Rp '+(n/1e9).toFixed(1)+' 
 function rawTextValue(value,emptyFallback='-'){
   if(value===null||value===undefined) return emptyFallback;
   if(value==='') return emptyFallback;
+  if(value instanceof Date){
+    const serial=Math.round((value.getTime()/(86400*1000))+25569);
+    if(isFinite(serial)&&serial>0) return String(serial);
+  }
   return String(value);
 }
 function isRealDateField(fieldName){
