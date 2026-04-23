@@ -1761,6 +1761,16 @@ function canonicalPicDisplay(name){
     return w.charAt(0)+w.slice(1).toLowerCase();
   }).join(' ');
 }
+function resolveTeamMemberKey(rawName, teamKey){
+  const normalized=canonicalPicKey(rawName);
+  if(!normalized) return '';
+  const team=TIM[teamKey]||{members:[]};
+  const members=Array.from(new Set((team.members||[]).map(function(m){ return canonicalPicKey(m); })));
+  const exact=members.find(function(m){ return normalized===m; });
+  if(exact) return exact;
+  const fuzzy=members.find(function(m){ return isPicMatch(normalized,m); });
+  return fuzzy||normalized;
+}
 function isPicMatch(rawName,targetName){
   const raw=s(rawName).toLowerCase();
   const target=s(targetName).toLowerCase();
@@ -2314,7 +2324,7 @@ function renderDash(){
       const srtPool=srtItems.map(function(x){return x.inv;});
       const srtByPIC={};
       srtPool.forEach(function(i){
-        var p=canonicalPicKey(i.picB||'');
+        var p=resolveTeamMemberKey(i.picB||'','surat');
         if(!p) p='belum diassign';
         srtByPIC[p]=(srtByPIC[p]||[]);
         srtByPIC[p].push(i);
@@ -2524,9 +2534,13 @@ function buildAlertDetail(type){
   if(type==='srt'){
     const list=unpaid.filter(i=>['surat_pending','surat_rejected'].includes(getInvoiceProgress(i).key));
     const byP={};
-    list.forEach(i=>{const p=i.picB||'—';if(!byP[p])byP[p]=[];byP[p].push(i);});
+    list.forEach(i=>{
+      const p=resolveTeamMemberKey(i.picB||'','surat')||'belum diassign';
+      if(!byP[p]) byP[p]=[];
+      byP[p].push(i);
+    });
     const rows=Object.entries(byP).sort((a,b)=>b[1].length-a[1].length)
-      .map(([p,arr])=>'<tr><td><strong>'+esc(p)+'</strong><br>'+timBadge(p)+'</td><td>'+arr.length+'</td><td>'+fmt(arr.reduce((s,i)=>s+i.amt,0))+'</td>'
+      .map(([p,arr])=>'<tr><td><strong>'+esc(canonicalPicDisplay(p))+'</strong><br>'+timBadge(p)+'</td><td>'+arr.length+'</td><td>'+fmt(arr.reduce((s,i)=>s+i.amt,0))+'</td>'
         +'<td style="color:#666;font-size:.68rem;">'+arr.slice(0,4).map(i=>esc(i.no)).join(', ')+(arr.length>4?' <em>+lainnya</em>':'')+'</td></tr>');
     return buildPICTable(['PIC / Tim','Surat Belum','Nilai','No Invoice'],rows,'Tidak ada surat pending.');
   }
