@@ -664,7 +664,7 @@ const TIM={
   surat:{
     label:'Tim Pembuat Surat',icon:'📨',color:'#6a1b9a',bg:'#f3e5f5',
     tugas:'Surat Tagihan — setelah BA Completed',
-    members:['risty','nabila','farah','aulia','laras']
+    members:['risty','nabila','farah','aulya','aulia','laras']
   },
   followup:{
     label:'Tim Follow Up',icon:'📞',color:'#2e7d32',bg:'#e8f5e9',
@@ -689,6 +689,8 @@ const SAFE_PUSH_MIN_INVOICE_COUNT=100;
 const SAFE_PUSH_DROP_RATIO=0.5;
 const TODAY=new Date().toISOString().slice(0,10);
 const KPI_PIC_WEIGHTS={collectionResult:0.22,followUpDiscipline:0.24,overdueReduction:0.20,pipelineMovement:0.22,dataQuality:0.12};
+const KPI_SURAT_WEIGHTS={slaSpeed:0.30,backlogControl:0.25,outputProductivity:0.20,documentAccuracy:0.15,updateDiscipline:0.10};
+const KPI_SURAT_TARGETS={dailyLog:2,outputDone:10};
 const KPI_PIC_DUMMY={
   RIZAL:{collectionResult:78,followUpDiscipline:84,overdueReduction:73,pipelineMovement:80,dataQuality:88},
   ACHMAD:{collectionResult:75,followUpDiscipline:82,overdueReduction:70,pipelineMovement:77,dataQuality:85},
@@ -696,6 +698,14 @@ const KPI_PIC_DUMMY={
   AFIS:{collectionResult:70,followUpDiscipline:77,overdueReduction:71,pipelineMovement:72,dataQuality:81},
   MASELLA:{collectionResult:74,followUpDiscipline:80,overdueReduction:76,pipelineMovement:78,dataQuality:86}
 };
+const KPI_SURAT_DUMMY={
+  RISTY:{slaSpeed:77,backlogControl:74,outputProductivity:72,documentAccuracy:86,updateDiscipline:80},
+  NABILA:{slaSpeed:75,backlogControl:73,outputProductivity:71,documentAccuracy:85,updateDiscipline:79},
+  FARAH:{slaSpeed:74,backlogControl:72,outputProductivity:70,documentAccuracy:84,updateDiscipline:78},
+  AULYA:{slaSpeed:76,backlogControl:74,outputProductivity:73,documentAccuracy:85,updateDiscipline:80},
+  LARAS:{slaSpeed:73,backlogControl:71,outputProductivity:69,documentAccuracy:84,updateDiscipline:77}
+};
+const PIC_ALIAS_MAP={AULIA:'AULYA'};
 const raw={};
 let adminPinHash='';
 const DEFAULT_GS_URL='https://script.google.com/macros/s/AKfycbxceyaegqXKadL-7V_hqBJmGXR3b96lwREQnaRcVDMiMYkc2zzBtTB65YxCkCMeCCOUfw/exec';
@@ -1627,7 +1637,25 @@ function renderH(){
 // ═══ DASHBOARD ═══
 let chAging=null, chTeam=null;
 function clampScore(v){ return Math.max(0,Math.min(100,Number(v)||0)); }
-function calcTotalKpiScore(s){
+function canonicalPicName(name){
+  const up=(name||'').trim().toUpperCase();
+  return PIC_ALIAS_MAP[up]||up;
+}
+function isPicMatch(rawName,targetName){
+  const raw=s(rawName).toLowerCase();
+  const target=s(targetName).toLowerCase();
+  if(!raw||!target) return false;
+  const rawCanon=canonicalPicName(rawName);
+  const targetCanon=canonicalPicName(targetName);
+  return rawCanon===targetCanon || raw.includes(target) || target.includes(raw);
+}
+function calcTotalKpiScore(s,weights){
+  const activeWeights=weights||KPI_PIC_WEIGHTS;
+  return Object.keys(activeWeights).reduce(function(sum,key){
+    return sum+(clampScore(s[key])*activeWeights[key]);
+  },0);
+}
+function calcFollowupTotalKpiScore(s){
   return (
     clampScore(s.collectionResult)*KPI_PIC_WEIGHTS.collectionResult+
     clampScore(s.followUpDiscipline)*KPI_PIC_WEIGHTS.followUpDiscipline+
@@ -1645,6 +1673,9 @@ function getKpiBand(score){
 function getDummyKpiMetrics(picName){
   return KPI_PIC_DUMMY[picName]||{collectionResult:72,followUpDiscipline:78,overdueReduction:70,pipelineMovement:74,dataQuality:82};
 }
+function getDummySuratKpiMetrics(picName){
+  return KPI_SURAT_DUMMY[picName]||{slaSpeed:74,backlogControl:72,outputProductivity:70,documentAccuracy:84,updateDiscipline:78};
+}
 function calcPercentileRank(values,current){
   if(!values.length) return 50;
   const sorted=[...values].sort(function(a,b){ return a-b; });
@@ -1654,7 +1685,7 @@ function calcPercentileRank(values,current){
 }
 function computeKpiByPic(picName,unpaid,paid,ctx){
   const dummy=getDummyKpiMetrics(picName);
-  const picLogs=logs.filter(function(l){ return (l.pic||'').toLowerCase().includes(picName.toLowerCase()); });
+  const picLogs=logs.filter(function(l){ return isPicMatch(l.pic,picName); });
   const todayPicLogs=picLogs.filter(function(l){ return (l.date||(l.ts?l.ts.slice(0,10):''))===TODAY; });
   const paidByPic=picLogs.filter(function(l){ return l.hasil==='Paid'; }).reduce(function(s,l){ return s+(Number(l.amt)||0); },0);
   const totalPaid=paid.reduce(function(s,i){ return s+(Number(i.amt)||0); },0);
@@ -1672,46 +1703,94 @@ function computeKpiByPic(picName,unpaid,paid,ctx){
   const metrics={collectionResult,followUpDiscipline,overdueReduction,pipelineMovement,dataQuality};
   return {
     pic:picName,
+    team:'followup',
     ...metrics,
-    totalScore:calcTotalKpiScore(metrics),
+    totalScore:calcFollowupTotalKpiScore(metrics),
     source:picLogs.length?(paidByPic>0?'real':'mixed'):'dummy',
     raw:{logCount:picLogs.length,todayLogCount:todayPicLogs.length,paidByPic,totalPaid,overdueTouched,overduePool:overdueInv.length,qualityHits}
   };
 }
-function renderKpiPerPic(unpaid,paid){
-  const host=document.getElementById('d-kpi-pic');
-  if(!host) return;
-  const followupNames=TIM.followup.members.map(function(m){ return m.toUpperCase(); });
-  const logNames=Array.from(new Set(logs.map(function(l){ return (l.pic||'').trim().toUpperCase(); }).filter(Boolean)));
-  const picNames=Array.from(new Set([].concat(followupNames,logNames))).slice(0,12);
-  const paidValues=picNames.map(function(name){
-    return logs.filter(function(l){ return (l.pic||'').toLowerCase().includes(name.toLowerCase()) && l.hasil==='Paid'; })
-      .reduce(function(s,l){ return s+(Number(l.amt)||0); },0);
-  });
-  const rows=picNames.map(function(name){
-    return computeKpiByPic(name,unpaid,paid,{paidValues});
-  }).sort(function(a,b){ return b.totalScore-a.totalScore; });
-  if(!rows.length){
-    host.innerHTML='<div style="color:var(--sub);font-size:.78rem;padding:6px 0;">Belum ada data PIC.</div>';
-    return;
-  }
-  host.innerHTML='<table class="kpi-pic-tbl"><thead><tr>'
-    +'<th>PIC</th><th>Collection Result</th><th>Follow Up Discipline</th><th>Overdue Reduction</th><th>Pipeline Movement</th><th>Data Quality</th><th>Total Score</th><th>Source Type</th>'
+function computeKpiSuratByPic(picName,invoices){
+  const dummy=getDummySuratKpiMetrics(picName);
+  const picLogs=logs.filter(function(l){ return isPicMatch(l.pic,picName); });
+  const todayPicLogs=picLogs.filter(function(l){ return (l.date||(l.ts?l.ts.slice(0,10):''))===TODAY; });
+  const assigned=invoices.filter(function(i){ return isPicMatch(i.picB,picName); });
+  const readyDocs=assigned.filter(function(i){ return i.sBA==='Completed'; });
+  const pendingDocs=readyDocs.filter(function(i){ return i.sSrt!=='Completed'; });
+  const rejectedDocs=readyDocs.filter(function(i){ return i.sSrt==='Rejected'; });
+  const doneDocs=readyDocs.filter(function(i){ return i.sSrt==='Completed'; });
+
+  const slaSpeed=readyDocs.length?clampScore((doneDocs.length/readyDocs.length)*100):dummy.slaSpeed;
+  const backlogPenalty=readyDocs.length?(pendingDocs.length/readyDocs.length)*100:40;
+  const backlogControl=readyDocs.length?clampScore(100-Math.min(100,backlogPenalty)):dummy.backlogControl;
+  const outputProductivity=readyDocs.length?clampScore((doneDocs.length/KPI_SURAT_TARGETS.outputDone)*100):dummy.outputProductivity;
+  const accuracyPool=doneDocs.length+rejectedDocs.length;
+  const documentAccuracy=accuracyPool?clampScore(100-((rejectedDocs.length/accuracyPool)*100)):dummy.documentAccuracy;
+  const updateDiscipline=picLogs.length
+    ?clampScore(((todayPicLogs.length/KPI_SURAT_TARGETS.dailyLog)*65)+((picLogs.filter(function(l){ return l.note&&String(l.note).trim().length>=6; }).length/picLogs.length)*35))
+    :dummy.updateDiscipline;
+  const metrics={slaSpeed,backlogControl,outputProductivity,documentAccuracy,updateDiscipline};
+  return {
+    pic:picName,
+    team:'surat',
+    ...metrics,
+    totalScore:calcTotalKpiScore(metrics,KPI_SURAT_WEIGHTS),
+    source:(readyDocs.length||picLogs.length)?'real':'dummy',
+    raw:{assigned:assigned.length,readyDocs:readyDocs.length,pendingDocs:pendingDocs.length,rejectedDocs:rejectedDocs.length,doneDocs:doneDocs.length,logCount:picLogs.length,todayLogCount:todayPicLogs.length}
+  };
+}
+function renderKpiPicTable(rows,kind){
+  if(!rows.length) return '<div style="color:var(--sub);font-size:.76rem;padding:4px 0;">Belum ada data PIC.</div>';
+  const isSurat=kind==='surat';
+  const cols=isSurat
+    ?['SLA Speed','Backlog Control','Output Productivity','Document Accuracy','Update Discipline']
+    :['Collection Result','Follow Up Discipline','Overdue Reduction','Pipeline Movement','Data Quality'];
+  return '<table class="kpi-pic-tbl"><thead><tr>'
+    +'<th>PIC</th><th>'+cols[0]+'</th><th>'+cols[1]+'</th><th>'+cols[2]+'</th><th>'+cols[3]+'</th><th>'+cols[4]+'</th><th>Total Score</th><th>Source Type</th>'
     +'</tr></thead><tbody>'
     +rows.map(function(r){
       const band=getKpiBand(r.totalScore);
+      const c1=isSurat?r.slaSpeed:r.collectionResult;
+      const c2=isSurat?r.backlogControl:r.followUpDiscipline;
+      const c3=isSurat?r.outputProductivity:r.overdueReduction;
+      const c4=isSurat?r.documentAccuracy:r.pipelineMovement;
+      const c5=isSurat?r.updateDiscipline:r.dataQuality;
       return '<tr>'
         +'<td class="kpi-pic-pic">'+esc(r.pic)+'</td>'
-        +'<td>'+r.collectionResult.toFixed(1)+'</td>'
-        +'<td>'+r.followUpDiscipline.toFixed(1)+'</td>'
-        +'<td>'+r.overdueReduction.toFixed(1)+'</td>'
-        +'<td>'+r.pipelineMovement.toFixed(1)+'</td>'
-        +'<td>'+r.dataQuality.toFixed(1)+'</td>'
+        +'<td>'+c1.toFixed(1)+'</td>'
+        +'<td>'+c2.toFixed(1)+'</td>'
+        +'<td>'+c3.toFixed(1)+'</td>'
+        +'<td>'+c4.toFixed(1)+'</td>'
+        +'<td>'+c5.toFixed(1)+'</td>'
         +'<td class="kpi-pic-score">'+r.totalScore.toFixed(1)+' <span class="kpi-badge '+band.cls+'">'+band.label+'</span></td>'
         +'<td style="text-transform:uppercase;font-size:.62rem;color:#607d8b;">'+r.source.toUpperCase()+'</td>'
         +'</tr>';
     }).join('')
     +'</tbody></table>';
+}
+function renderKpiPerPic(unpaid,paid){
+  const host=document.getElementById('d-kpi-pic');
+  if(!host) return;
+  const followupNames=Array.from(new Set(TIM.followup.members.map(function(m){ return canonicalPicName(m); })));
+  const suratNames=Array.from(new Set(TIM.surat.members.map(function(m){ return canonicalPicName(m); })));
+  const logNames=Array.from(new Set(logs.map(function(l){ return canonicalPicName(l.pic||''); }).filter(Boolean)));
+  const followupPicNames=Array.from(new Set([].concat(followupNames,logNames.filter(function(name){ return getTimKey(name)==='followup'; })))).slice(0,12);
+  const suratPicNames=Array.from(new Set([].concat(suratNames,logNames.filter(function(name){ return getTimKey(name)==='surat'; })))).slice(0,12);
+  const paidValues=followupPicNames.map(function(name){
+    return logs.filter(function(l){ return (l.pic||'').toLowerCase().includes(name.toLowerCase()) && l.hasil==='Paid'; })
+      .reduce(function(s,l){ return s+(Number(l.amt)||0); },0);
+  });
+  const followupRows=followupPicNames.map(function(name){
+    return computeKpiByPic(name,unpaid,paid,{paidValues});
+  }).sort(function(a,b){ return b.totalScore-a.totalScore; });
+  const suratRows=suratPicNames.map(function(name){
+    return computeKpiSuratByPic(name,invs);
+  }).sort(function(a,b){ return b.totalScore-a.totalScore; });
+  host.innerHTML='<div style="font-size:.67rem;color:var(--sub);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;">Tim Follow Up</div>'
+    +renderKpiPicTable(followupRows,'followup')
+    +'<div style="font-size:.67rem;color:var(--sub);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin:10px 0 5px;">Tim Surat</div>'
+    +'<div style="font-size:.68rem;color:#7b1fa2;margin-bottom:6px;">*Formula surat memakai pendekatan rule-based dari data yang tersedia (SLA/backlog/output/akurasi/update).</div>'
+    +renderKpiPicTable(suratRows,'surat');
 }
 function renderDash(){
   const today=TODAY;
