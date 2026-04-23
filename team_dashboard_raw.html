@@ -631,6 +631,30 @@ let invs=[], bilMap={}, agMap={}, agTotals={b30:0,b60:0,b90:0,b120:0,b150:0,b180
 const TODAY=new Date().toISOString().slice(0,10);
 const raw={};
 
+function normInvKey(v){
+  return s(v).toUpperCase().replace(/\s+/g,'').replace(/^0+/,'');
+}
+function hasDoc(v){
+  const x=s(v).toLowerCase();
+  return !!(x && x!=='-' && x!=='n/a' && x!=='0' && !x.includes('belum'));
+}
+function fallbackClassificationFromType(t){
+  if(t==='p2p') return 'p2p';
+  if(t==='migrasi') return 'nonp2p_migrasi';
+  if(t==='nonp2p') return 'nonp2p_manual';
+  return 'review';
+}
+function classifyInvoiceSafe(i){
+  const hasOperationalEvidence=!!(i._srcResume||i._srcBilling);
+  const hasAgingEvidence=!!(i._srcAging||i.inFBL5N);
+  const strongP2P=hasOperationalEvidence && i.sSrt==='Completed' && hasDoc(i.noSrt);
+
+  if(strongP2P) return 'p2p';
+  if(hasOperationalEvidence) return 'nonp2p_manual';
+  if(hasAgingEvidence) return 'nonp2p_migrasi';
+  return 'review';
+}
+
 // ═══ INIT ═══
 let gsUrl='';
 window.onload=()=>{
@@ -697,6 +721,8 @@ function prosesData(){
 function _doProsesData(){ try{
   const nb=raw[1]; const ns=nb.Sheets[nb.SheetNames[0]];
   const rows=XLSX.utils.sheet_to_json(ns,{defval:''});
+  const operationalKeys=new Set();
+  const agingKeys=new Set();
   invs=rows.map(r=>({
     no:s(r['Doc No Invoice']||r['Document No']),
     desc:s(r['Description']||''), cust:s(r['Customer']),
@@ -705,8 +731,9 @@ function _doProsesData(){ try{
     sNota:s(r['Status Nota Dinas']||r['Status Nota DInas']||''),
     sMIR:s(r['Status MIR7']||''), pay:s(r['Payment Status']||''), picB:'',
     noBA:s(r['Nomor BA']||''),noSrt:s(r['Nomor Surat Tagihan']||''),
-    noMIR:s(r['Nomor MIR7']||''),
+    noMIR:s(r['Nomor MIR7']||''), _srcResume:true
   })).filter(r=>r.no.startsWith('AR'));
+  invs.forEach(function(i){ const k=normInvKey(i.no); if(k) operationalKeys.add(k); });
 
   bilMap={};
   const coveredSAPNos=new Set(); // SAP doc numbers dari Finance Accounting
@@ -719,6 +746,7 @@ function _doProsesData(){ try{
       const k=s(r['Document No']||r['Doc No']||'');
       const cb=s(r['Created By']||r['Created by']||'');
       if(k) bilMap[k]={cb};
+      const nk=normInvKey(k); if(nk) operationalKeys.add(nk);
       // Simpan SAP Document Number untuk pencocokan migrasi FBL5N
       const addCov = (v) => { if(v&&v!=='-'&&v!=='0') { coveredSAPNos.add(v); coveredSAPNos.add(v.replace(/^0+/,'')); } };
       const sapNo=s(r['Document Number SAP']||r['Document No SAP']||r['SAP Document No']||r['Doc No SAP']||'');
@@ -738,6 +766,7 @@ function _doProsesData(){ try{
       // === Deteksi Non-P2P ===
       // Cara 1: cek kolom "Document Reference Tanos" (kosong = non-P2P)
       const tRef=s(r['Document Reference Tanos']||r['Doc Reference Tanos']||r['Document Reference']||'');
+      const nRef=normInvKey(tRef); if(nRef) operationalKeys.add(nRef);
       addCov(tRef);
       const hasP2PRef=tRef&&tRef!=='-'&&tRef!=='0'&&tRef.length>3;
       
@@ -751,6 +780,7 @@ function _doProsesData(){ try{
           no:k, cust:s(r['Customer']||r['Customer Name']||''), amt,
           pay:'Unpaid',
           picB:cb, type:'nonp2p',
+          _srcBilling:true,
           tgl:s(r['Document Date']||r['Doc Date']||''), desc: (!hasP2PRef ? 'Non-P2P — Langsung FU' : 'Ghost P2P — Referensi tidak di Tanos'),
           sBA:'N/A',
           sSrt:s(r['Status Surat Tagihan']||r['Status Surat']||'N/A'),
@@ -883,6 +913,9 @@ function _doProsesData(){ try{
          window.fbl5nDocsMap[dKey] = {docNo:(rowDocNo||dKey), refNo:rowRefNo, custName, custCode, amt:0, tgl:''};
       }
       window.fbl5nDocsMap[dKey].amt += rowAmt; // Akumulasi jika ada Document Number kembar di file FBL5N
+      const dnk=normInvKey(rowDocNo), rnk=normInvKey(rowRefNo);
+      if(dnk) agingKeys.add(dnk);
+      if(rnk) agingKeys.add(rnk);
 
       // === AKUMULASI per customer ===
       if(!agMap[k]){
@@ -918,6 +951,7 @@ function _doProsesData(){ try{
       if(doc.docNo.includes('M-BLANK-')) {
          invs.push({
             no: doc.docNo, cust: doc.custName||doc.custCode, amt: doc.amt, pay:'Unpaid', picB:'', type:'migrasi',
+            _srcAging:true,
             tgl:doc.tgl||'', desc:'Piutang Migrasi (Kosong Doc/Ref No SAP)',
             sBA:'N/A',sSrt:'N/A',sMIR:'N/A',sNota:'N/A',noBA:'',noSrt:'',noMIR:''
          });
@@ -932,6 +966,7 @@ function _doProsesData(){ try{
         cust:doc.custName||doc.custCode,
         amt:doc.amt,
         pay:'Unpaid', picB:'', type:'migrasi',
+        _srcAging:true,
         tgl:doc.tgl||'', desc:'Piutang Migrasi (SAP — sebelum TANOS)',
         sBA:'N/A',sSrt:'N/A',sMIR:'N/A',sNota:'N/A',noBA:'',noSrt:'',noMIR:''
       });
@@ -952,6 +987,7 @@ function _doProsesData(){ try{
           no:'MIG-'+(ag.custCode||agName.replace(/\s/g,'').slice(0,8).toUpperCase()),
           cust:ag.custName||k, amt:ag.total,
           pay:'Unpaid', picB:'', type:'migrasi',
+          _srcAging:true,
           tgl:'', desc:'Piutang Migrasi (SAP — per customer)',
           sBA:'N/A',sSrt:'N/A',sMIR:'N/A',sNota:'N/A',noBA:'',noSrt:'',noMIR:''
         });
@@ -985,6 +1021,13 @@ function _doProsesData(){ try{
     console.log("=== Discrepancy Nominal (Tanos vs FBL5N) ===");
     if(window.selisihList.length) console.table(window.selisihList);
   }
+
+  invs.forEach(function(i){
+    const k=normInvKey(i.no);
+    if(!i._srcResume && k && operationalKeys.has(k)) i._srcBilling=true;
+    if(k && agingKeys.has(k)) i._srcAging=true;
+    i.classification=classifyInvoiceSafe(i);
+  });
 
   // datalist
   const dl=document.getElementById('inv-dl'); dl.innerHTML='';
@@ -1823,7 +1866,7 @@ function exportLaporan(){
   const ws=XLSX.utils.json_to_sheet(d); const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'Log FU');
   if(invs.length){
-    const u=invs.filter(i=>i.pay==='Unpaid').map(i=>({'Invoice':i.no,'Customer':i.cust,'Jumlah':i.amt,'Status BA':i.sBA,'Status Surat':i.sSrt,'Status MIR7':i.sMIR,'Payment':i.pay,'PIC Billing':i.picB}));
+    const u=invs.filter(i=>i.pay==='Unpaid').map(i=>({'Invoice':i.no,'Customer':i.cust,'Jumlah':i.amt,'Status BA':i.sBA,'Status Surat':i.sSrt,'Status MIR7':i.sMIR,'Payment':i.pay,'PIC Billing':i.picB,'Classification':i.classification||fallbackClassificationFromType(i.type||'')}));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(u),'Unpaid Invoice');
   }
   XLSX.writeFile(wb,'Laporan_Penagihan_'+TODAY.replace(/-/g,'')+'.xlsx'); toast('✅ Laporan diekspor!');
@@ -1904,7 +1947,8 @@ function pushInvsToSheets(){
   setGsStatus('⏳ Push '+invs.length+' invoice ke Sheets...','#1565c0');
   var payload=invs.map(function(i){
     return {no:i.no,cust:i.cust,amt:i.amt,pay:i.pay,picB:i.picB||'',
-      sBA:i.sBA||'',sSrt:i.sSrt||'',sMIR:i.sMIR||'',sNota:i.sNota||'',tgl:i.tgl||''};
+      sBA:i.sBA||'',sSrt:i.sSrt||'',sMIR:i.sMIR||'',sNota:i.sNota||'',tgl:i.tgl||'',
+      type:i.type||'',classification:i.classification||fallbackClassificationFromType(i.type||'')};
   });
   fetch(gsUrl,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},
     body:JSON.stringify({action:'push_invs',invs:payload,updatedAt:new Date().toISOString()})
@@ -1949,7 +1993,8 @@ function pullAllFromSheets(silent=false){
           pay:String(i.pay||''),picB:String(i.picB||''),
           sBA:String(i.sBA||''),sSrt:String(i.sSrt||''),
           sMIR:String(i.sMIR||''),sNota:String(i.sNota||''),tgl:String(i.tgl||''),
-          type:String(i.type||''),desc:String(i.desc||'')};
+          type:String(i.type||''),desc:String(i.desc||''),
+          classification:String(i.classification||fallbackClassificationFromType(i.type||''))};
       });
       var updEl=document.getElementById('gs-last-update');
       if(updEl&&rInvs.updatedAt) updEl.textContent='Data terakhir diupload: '+new Date(rInvs.updatedAt).toLocaleString('id-ID');
@@ -1993,7 +2038,7 @@ function autoPushAfterProcess(){
   var payload=invs.map(function(i){
     return {no:i.no,cust:i.cust,amt:i.amt,pay:i.pay,picB:i.picB||'',
       sBA:i.sBA||'',sSrt:i.sSrt||'',sMIR:i.sMIR||'',sNota:i.sNota||'',
-      tgl:i.tgl||'',type:i.type||''};
+      tgl:i.tgl||'',type:i.type||'',classification:i.classification||fallbackClassificationFromType(i.type||'')};
   });
   fetch(gsUrl,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},
     body:JSON.stringify({action:'push_invs',invs:payload,updatedAt:new Date().toISOString()})
