@@ -974,6 +974,7 @@ function _doProsesData(){ try{
     function agVal(rObj,keys){ for(var ki=0;ki<keys.length;ki++){ var v=rObj[keys[ki]]; if(v&&v!==0) return n(v); } return 0; }
 
     window.fbl5nDocsMap = {}; // Penyimpan unik untuk mengakumulasi duplikat baris invoice yang sama di FBL5N
+    window._migrationIdentifierAuditRows = [];
     let blankIdx = 0;
 
     agRawRows.slice(hdrIdx+1).forEach(function(r,rowOffset){
@@ -1004,9 +1005,30 @@ function _doProsesData(){ try{
       }
       if(rowAmt===0) return;
       // === Simpan per-dokumen untuk deteksi migrasi & override ===
-      const rowDocNo=docNoColIdx>=0?normalizeIdentifierLikeValue(rawTextValue(rText[docNoColIdx]!==undefined?rText[docNoColIdx]:r[docNoColIdx], '')):'';
-      const rowRefNo=refColIdx>=0?normalizeIdentifierLikeValue(rawTextValue(rText[refColIdx]!==undefined?rText[refColIdx]:r[refColIdx], '')):'';
-      let dKey = rowDocNo || rowRefNo;
+      const srcDocRaw=docNoColIdx>=0?(r[docNoColIdx]!==undefined?r[docNoColIdx]:''):'';
+      const srcDocText=docNoColIdx>=0?(rText[docNoColIdx]!==undefined?rText[docNoColIdx]:''):'';
+      const srcRefRaw=refColIdx>=0?(r[refColIdx]!==undefined?r[refColIdx]:''):'';
+      const srcRefText=refColIdx>=0?(rText[refColIdx]!==undefined?rText[refColIdx]:''):'';
+      const docAnalysis=docNoColIdx>=0?analyzeIdentifierLikeValue(rawTextValue(srcDocText!==''?srcDocText:srcDocRaw, '')):{normalized:'',status:'missing_field',recoverable:false,raw:''};
+      const refAnalysis=refColIdx>=0?analyzeIdentifierLikeValue(rawTextValue(srcRefText!==''?srcRefText:srcRefRaw, '')):{normalized:'',status:'missing_field',recoverable:false,raw:''};
+      const rowDocNo=docAnalysis.normalized;
+      const rowRefNo=refAnalysis.normalized;
+      if(docAnalysis.status!=='ok'&&docAnalysis.status!=='empty'&&docAnalysis.status!=='missing_field'){
+        window._migrationIdentifierAuditRows.push({
+          row:hdrIdx+2+rowOffset, field:'Document Number/Assignment', sourceKey:agHeaders[docNoColIdx]||'',
+          originalStoredValue:String(srcDocRaw||''), rawTextCompanion:String(srcDocText||''), hadRawTextCompanion:Boolean(String(srcDocText||'').trim()),
+          normalizedValue:rowDocNo, recoverable:docAnalysis.recoverable, status:docAnalysis.status
+        });
+      }
+      if(refAnalysis.status!=='ok'&&refAnalysis.status!=='empty'&&refAnalysis.status!=='missing_field'){
+        window._migrationIdentifierAuditRows.push({
+          row:hdrIdx+2+rowOffset, field:'Reference', sourceKey:agHeaders[refColIdx]||'',
+          originalStoredValue:String(srcRefRaw||''), rawTextCompanion:String(srcRefText||''), hadRawTextCompanion:Boolean(String(srcRefText||'').trim()),
+          normalizedValue:rowRefNo, recoverable:refAnalysis.recoverable, status:refAnalysis.status
+        });
+      }
+      let dKey = (!isControlledFallbackLabel(rowDocNo)&&rowDocNo) ? rowDocNo : ((!isControlledFallbackLabel(rowRefNo)&&rowRefNo)?rowRefNo:'');
+      if(!dKey&&(rowDocNo||rowRefNo)) dKey='M-CORRUPTED-'+(custCode||'UNKNOWN')+'-'+(hdrIdx+2+rowOffset);
       if(!dKey) { blankIdx++; dKey = 'M-BLANK-'+custCode+'-'+blankIdx; }
       
       if(!window.fbl5nDocsMap[dKey]) {
@@ -3169,27 +3191,34 @@ function rawTextValue(value,emptyFallback='-'){
   }
   return String(value);
 }
+const FALLBACK_INVALID_IDENTIFIER='INVALID_IDENTIFIER';
+const FALLBACK_CORRUPTED_LEGACY_VALUE='CORRUPTED_LEGACY_VALUE';
+function isControlledFallbackLabel(value){
+  return value===FALLBACK_INVALID_IDENTIFIER||value===FALLBACK_CORRUPTED_LEGACY_VALUE;
+}
 function isVerboseJsDateString(value){
   const raw=String(value||'').trim();
-  return /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat)\s[A-Za-z]{3}\s\d{2}\s\d{4}\s\d{2}:\d{2}:\d{2}\sGMT[+-]\d{4}/.test(raw);
+  return /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat)\s[A-Za-z]{3}\s\d{1,2}\s\d{4}\s\d{2}:\d{2}:\d{2}\sGMT[+-]\d{4}(\s*\(.+\))?$/.test(raw);
 }
-function normalizeIdentifierLikeValue(value){
-  if(value===null||value===undefined) return '';
+function analyzeIdentifierLikeValue(value){
+  if(value===null||value===undefined) return {normalized:'',raw:'',status:'empty',recoverable:false,hadRawCompanion:false};
   if(value instanceof Date){
     const serial=Math.round((value.getTime()/(86400*1000))+25569);
-    return isFinite(serial)&&serial>0?String(serial):String(value);
+    if(isFinite(serial)&&serial>0){
+      return {normalized:String(serial),raw:String(value),status:'date_object_serialized',recoverable:false,hadRawCompanion:false};
+    }
+    return {normalized:FALLBACK_INVALID_IDENTIFIER,raw:String(value),status:'date_object_invalid',recoverable:false,hadRawCompanion:false};
   }
   const raw=String(value).trim();
-  if(!raw) return '';
-  const looksDateString = isVerboseJsDateString(raw) || /GMT[+-]\d{4}/i.test(raw) || /^[A-Za-z]{3}\s[A-Za-z]{3}\s\d{1,2}\s\d{4}\b/.test(raw);
-  if(looksDateString){
-    const parsed=new Date(raw);
-    if(!isNaN(parsed.getTime())){
-      const serial=Math.round((parsed.getTime()/(86400*1000))+25569);
-      if(isFinite(serial)&&serial>0) return String(serial);
-    }
+  if(!raw) return {normalized:'',raw,status:'empty',recoverable:false,hadRawCompanion:false};
+  const looksVerboseDate = isVerboseJsDateString(raw) || /GMT[+-]\d{4}\s*\(.+\)/i.test(raw) || /^[A-Za-z]{3}\s[A-Za-z]{3}\s\d{1,2}\s\d{4}\b/.test(raw);
+  if(looksVerboseDate){
+    return {normalized:FALLBACK_CORRUPTED_LEGACY_VALUE,raw,status:'corrupted_verbose_js_date',recoverable:false,hadRawCompanion:false};
   }
-  return raw;
+  return {normalized:raw,raw,status:'ok',recoverable:true,hadRawCompanion:false};
+}
+function normalizeIdentifierLikeValue(value){
+  return analyzeIdentifierLikeValue(value).normalized;
 }
 function sanitizePersistedInvoiceRow(i){
   return {
