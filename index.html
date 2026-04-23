@@ -3029,14 +3029,7 @@ function pullAllFromSheets(silent=false){
 
     // Invoice
     if(rInvs.ok && rInvs.invs && rInvs.invs.length){
-      invs=rInvs.invs.map(function(i){
-        const safeNo=normalizeIdentifierLikeValue(i.no||'');
-        return {no:safeNo,cust:String(i.cust||''),amt:Number(i.amt||0),
-          pay:String(i.pay||''),picB:String(i.picB||''),
-          sBA:String(i.sBA||''),sSrt:String(i.sSrt||''),
-          sMIR:String(i.sMIR||''),sNota:String(i.sNota||''),tgl:String(i.tgl||''),
-          type:String(i.type||''),desc:String(i.desc||'')};
-      });
+      invs=rInvs.invs.map(sanitizePersistedInvoiceRow);
       var updEl=document.getElementById('gs-last-update');
       if(updEl&&rInvs.updatedAt) updEl.textContent='Terakhir dipush ke Sheets: '+new Date(rInvs.updatedAt).toLocaleString('id-ID');
       lastAutoSyncAt=Date.now();
@@ -3188,7 +3181,8 @@ function normalizeIdentifierLikeValue(value){
   }
   const raw=String(value).trim();
   if(!raw) return '';
-  if(isVerboseJsDateString(raw)){
+  const looksDateString = isVerboseJsDateString(raw) || /GMT[+-]\d{4}/i.test(raw) || /^[A-Za-z]{3}\s[A-Za-z]{3}\s\d{1,2}\s\d{4}\b/.test(raw);
+  if(looksDateString){
     const parsed=new Date(raw);
     if(!isNaN(parsed.getTime())){
       const serial=Math.round((parsed.getTime()/(86400*1000))+25569);
@@ -3196,6 +3190,25 @@ function normalizeIdentifierLikeValue(value){
     }
   }
   return raw;
+}
+function sanitizePersistedInvoiceRow(i){
+  return {
+    no:normalizeIdentifierLikeValue(i.no||''),
+    cust:String(i.cust||''),
+    amt:Number(i.amt||0),
+    pay:String(i.pay||''),
+    picB:String(i.picB||''),
+    sBA:String(i.sBA||''),
+    sSrt:String(i.sSrt||''),
+    sMIR:String(i.sMIR||''),
+    sNota:normalizeIdentifierLikeValue(i.sNota||''),
+    tgl:String(i.tgl||''),
+    type:String(i.type||''),
+    desc:String(i.desc||''),
+    noBA:normalizeIdentifierLikeValue(i.noBA||''),
+    noSrt:normalizeIdentifierLikeValue(i.noSrt||''),
+    noMIR:normalizeIdentifierLikeValue(i.noMIR||'')
+  };
 }
 function isIdentifierLikeField(fieldName){
   const f=String(fieldName||'').trim().toLowerCase();
