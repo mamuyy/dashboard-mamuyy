@@ -1212,7 +1212,13 @@ function getInvoiceLogs(invNo){
       return tb.localeCompare(ta);
     });
 }
+function hasDoc(v){
+  const x=s(v).toLowerCase();
+  return !!(x && x!=='-' && x!=='n/a' && x!=='0' && !x.includes('belum'));
+}
 function getInvoiceBusinessClass(inv){
+  const cls=s(inv&&inv.classification).toLowerCase();
+  if(cls==='nonp2p_migrasi' || cls==='nonp2p_manual' || cls==='p2p') return cls;
   const type=s(inv&&inv.type).toLowerCase();
   if(type==='migrasi') return 'nonp2p_migrasi';
   if(type==='nonp2p' || type==='pymad_nonp2p') return 'nonp2p_manual';
@@ -1266,6 +1272,7 @@ function getInvoiceProgress(inv){
   if(bizClass==='nonp2p_manual'){
     if(sSrt==='Rejected') return pack('surat_rejected','Surat Rejected','surat','surat');
     if(sSrt!=='Completed') return pack('surat_pending',pendingLabel('Surat',sSrt),'surat','surat');
+    if(!hasDoc(inv.noSrt)) return pack('surat_pending','Surat Selesai, Nomor Surat Belum Valid','surat','surat');
     if(hasOverdueJanji) return pack('direct_janji_overdue','Direct FU: Janji Jatuh Tempo','followup','direct');
     if(!invLogs.length) return pack('direct_no_fu','Direct FU: Belum FU','followup','direct');
     return pack('direct_active','Direct FU Aktif','followup','direct');
@@ -1340,6 +1347,7 @@ function getStageSubfilters(filter){
     {key:'janji_jt', label:'Janji JT'}
   ];
   if(filter==='np') return [
+    {key:'surat_queue', label:'Masih di Surat'},
     {key:'direct_belum_fu', label:'Belum FU'},
     {key:'direct_sudah_fu', label:'Sudah FU'},
     {key:'direct_janji_jt', label:'Janji JT'}
@@ -1359,7 +1367,7 @@ function renderStageSubfilters(){
       if(cf==='p5' && !['nota_pending','nota_rejected'].includes(prog.key)) return false;
       if(cf==='p4' && !['mir7_pending','mir7_rejected'].includes(prog.key)) return false;
       if(cf==='p3' && !['collection_no_fu','collection_active','collection_janji_overdue'].includes(prog.key)) return false;
-      if(cf==='np' && !['direct_no_fu','direct_active','direct_janji_overdue'].includes(prog.key)) return false;
+      if(cf==='np'){ const bc=getInvoiceBusinessClass(inv); if(!['nonp2p_manual','nonp2p_migrasi'].includes(bc)) return false; }
       if(['p1','p2','p5','p4'].includes(cf)){
         const fieldMap={p1:'sBA',p2:'sSrt',p5:'sNota',p4:'sMIR'};
         return prog[fieldMap[cf]]===key;
@@ -1370,6 +1378,7 @@ function renderStageSubfilters(){
         if(key==='janji_jt') return prog.key==='collection_janji_overdue';
       }
       if(cf==='np'){
+        if(key==='surat_queue') return ['surat_pending','surat_rejected'].includes(prog.key);
         if(key==='direct_belum_fu') return prog.key==='direct_no_fu';
         if(key==='direct_sudah_fu') return prog.key==='direct_active';
         if(key==='direct_janji_jt') return prog.key==='direct_janji_overdue';
@@ -1460,6 +1469,7 @@ function renderQ(append=false){
       if(csub==='janji_jt') return prog.key==='collection_janji_overdue';
     }
     if(cf==='np'){
+      if(csub==='surat_queue') return ['surat_pending','surat_rejected'].includes(prog.key);
       if(csub==='direct_belum_fu') return prog.key==='direct_no_fu';
       if(csub==='direct_sudah_fu') return prog.key==='direct_active';
       if(csub==='direct_janji_jt') return prog.key==='direct_janji_overdue';
@@ -1474,7 +1484,7 @@ function renderQ(append=false){
   if(cf==='p1') list=list.filter(i=>['ba_pending','ba_rejected'].includes(getInvoiceProgress(i).key));
   if(cf==='p2') list=list.filter(i=>['surat_pending','surat_rejected'].includes(getInvoiceProgress(i).key));
   if(cf==='p3') list=list.filter(i=>['collection_no_fu','collection_active','collection_janji_overdue'].includes(getInvoiceProgress(i).key));
-  if(cf==='np') list=list.filter(i=>i.type==='nonp2p'||i.type==='migrasi');
+  if(cf==='np') list=list.filter(i=>{ const bc=getInvoiceBusinessClass(i); return bc==='nonp2p_manual'||bc==='nonp2p_migrasi'; });
   if(cf==='p4') list=list.filter(i=>['mir7_pending','mir7_rejected'].includes(getInvoiceProgress(i).key));
   if(cf==='p5') list=list.filter(i=>['nota_pending','nota_rejected'].includes(getInvoiceProgress(i).key));
   if(csub) list=list.filter(matchStageSubfilter);
@@ -1536,10 +1546,11 @@ function renderQ(append=false){
 function stagePills(i){
   const prog=getInvoiceProgress(i);
   const stageBadge='<span class="sp" style="background:#eceff1;color:#37474f;">'+esc(prog.label)+'</span>';
-  // Non-P2P: langsung FU, tidak ada tahap BA/Surat/MIR7
-  if(i.type==='nonp2p') return `<span class="sp" style="background:#6a1b9a;color:#fff;font-size:.58rem;padding:2px 6px;">⚡ Non-P2P</span>${stageBadge}<span class="sp ${normalizePayStatus(i.pay)==='Paid'?'sp-pd':'sp-un'}">${normalizePayStatus(i.pay)}</span>`;
+  const bizClass=getInvoiceBusinessClass(i);
+  // Non-P2P manual: tetap lewat Surat sampai handoff-ready
+  if(bizClass==='nonp2p_manual') return `<span class="sp" style="background:#6a1b9a;color:#fff;font-size:.58rem;padding:2px 6px;">⚡ Non-P2P</span>${stageBadge}<span class="sp ${normalizePayStatus(i.pay)==='Paid'?'sp-pd':'sp-un'}">${normalizePayStatus(i.pay)}</span>`;
   // Piutang Migrasi: saldo lama SAP sebelum TANOS
-  if(i.type==='migrasi') return `<span class="sp" style="background:#4e342e;color:#fff;font-size:.58rem;padding:2px 6px;">🗂 Migrasi SAP</span>${stageBadge}<span class="sp sp-un">Unpaid</span>`;
+  if(bizClass==='nonp2p_migrasi') return `<span class="sp" style="background:#4e342e;color:#fff;font-size:.58rem;padding:2px 6px;">🗂 Migrasi SAP</span>${stageBadge}<span class="sp sp-un">Unpaid</span>`;
   // P2P normal
   let p='';
   const sBA=normalizeDocStatus(i.sBA), sSrt=normalizeDocStatus(i.sSrt), sNota=normalizeDocStatus(i.sNota), sMIR=normalizeDocStatus(i.sMIR);
@@ -2081,7 +2092,7 @@ function renderDash(){
   const mirKritisVal=mirItems.filter(function(x){return x.inv.amt>50000000;}).reduce((s,x)=>s+x.inv.amt,0);
   const fuCount=fuItems.length;
   const fuVal=fuItems.reduce((s,x)=>s+x.inv.amt,0);
-  const nonP2PItems=directProgress.map(function(x){ return x.inv; });
+  const nonP2PItems=unpaidProgress.filter(function(x){ const bc=getInvoiceBusinessClass(x.inv); return bc==='nonp2p_manual'||bc==='nonp2p_migrasi'; }).map(function(x){ return x.inv; });
   const nonP2PVal=nonP2PItems.reduce((s,i)=>s+i.amt,0);
   const paidVal=paid.reduce((s,i)=>s+(Number(i.amt)||0),0);
   window._db_mir7 = {
@@ -2683,6 +2694,7 @@ function goPipelineSub(filter, sub){
     'belum_fu':'Belum FU',
     'sudah_fu':'Sudah FU',
     'janji_jt':'Janji JT',
+    'surat_queue':'Masih di Surat',
     'direct_belum_fu':'Belum FU',
     'direct_sudah_fu':'Sudah FU',
     'direct_janji_jt':'Janji JT'
