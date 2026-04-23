@@ -616,10 +616,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
       <div id="m-info"></div>
       <div class="stagebar" id="m-stages"></div>
       <div style="margin-top:10px;padding-top:10px;border-top:2px solid var(--bg);">
-        <div style="font-size:.72rem;font-weight:700;color:var(--dark);text-transform:uppercase;margin-bottom:8px;">✍️ Catat Hasil Follow-Up</div>
+        <div id="m-form-title" style="font-size:.72rem;font-weight:700;color:var(--dark);text-transform:uppercase;margin-bottom:8px;">✍️ Catat Hasil Follow-Up</div>
         <input type="hidden" id="m-inv">
+        <input type="hidden" id="m-mode">
         <label class="lbl">Tanggal</label><input type="date" id="m-date">
-        <label class="lbl">Channel</label>
+        <label class="lbl" id="m-ch-label">Channel</label>
         <div class="rrow" id="m-ch-r">
           <div class="rbtn" onclick="selR('m-ch','WhatsApp',this)">WA</div>
           <div class="rbtn" onclick="selR('m-ch','Telepon',this)">Tel</div>
@@ -627,7 +628,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
           <div class="rbtn" onclick="selR('m-ch','Meeting',this)">Meeting</div>
           <div class="rbtn" onclick="selR('m-ch','Internal',this)">Internal</div>
         </div><input type="hidden" id="m-ch">
-        <label class="lbl">Hasil</label>
+        <label class="lbl" id="m-hs-label">Hasil</label>
         <div class="rrow" id="m-hs-r">
           <div class="rbtn rg" onclick="selR('m-hs','Contacted',this);jBox('m',false)">✅ Terhubung</div>
           <div class="rbtn ro" onclick="selR('m-hs','No Answer',this);jBox('m',false)">📵 No Answer</div>
@@ -638,6 +639,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
         <div class="janji-box" id="m-jb">
           <label class="lbl" style="margin-top:0;">Tgl Janji Bayar</label><input type="date" id="m-jt">
           <label class="lbl">Nominal (Rp)</label><input type="number" id="m-jn">
+        </div>
+        <div id="m-next-wrap" style="display:none;">
+          <label class="lbl">Next Action</label>
+          <div class="rrow" id="m-next-r"></div>
+          <input type="hidden" id="m-next">
         </div>
         <label class="lbl">Catatan</label>
         <textarea id="m-note" rows="2" placeholder="Ringkasan hasil..."></textarea>
@@ -1513,12 +1519,15 @@ function stagePills(i){
 function openM(no){
   const i=invs.find(x=>x.no===no); if(!i) return;
   const prog=getInvoiceProgress(i);
+  const mode=detectModalMode(i,prog);
   document.getElementById('m-title').textContent=no;
   document.getElementById('m-inv').value=no;
+  document.getElementById('m-mode').value=mode;
   document.getElementById('m-date').value=TODAY;
   ['m-ch','m-hs'].forEach(id=>document.getElementById(id).value='');
-  ['m-note'].forEach(id=>document.getElementById(id).value='');
+  ['m-note','m-next'].forEach(id=>document.getElementById(id).value='');
   ['m-jt','m-jn'].forEach(id=>document.getElementById(id).value='');
+  applyModalMode(mode);
   document.querySelectorAll('#mbg .rbtn').forEach(b=>b.classList.remove('sel'));
   jBox('m',false);
   document.getElementById('m-info').innerHTML=`
@@ -1541,25 +1550,127 @@ function openM(no){
     prev.map(l=>`<div style="background:#f5f5f5;border-radius:6px;padding:7px 9px;margin-bottom:4px;font-size:.73rem;">
       <strong>${esc(l.date)}</strong> · ${esc(l.ch||'—')} · <span class="htag h-${(l.hasil||'').toLowerCase().replace(' ','')}">${esc(l.hasil)}</span>
       ${l.note?`<br><span style="color:var(--sub);">${esc(l.note)}</span>`:''}
+      ${l.nx?`<br>➡️ Next: ${esc(l.nx)}`:''}
       ${l.jt?`<br>📅 Janji: ${l.jt}${l.jn?' · '+fmt(l.jn):''}`:''}</div>`).join(''):'';
   document.getElementById('mbg').classList.add('open');
 }
 function closeMBG(e){ if(e.target===document.getElementById('mbg')) closeM(); }
 function closeM(){ document.getElementById('mbg').classList.remove('open'); }
+const MODAL_MODE_OPTIONS={
+  followup:{
+    title:'✍️ Catat Hasil Follow-Up',
+    chLabel:'Channel',
+    hsLabel:'Hasil',
+    showJanji:true,
+    showNext:false,
+    ch:[
+      {label:'WA',value:'WhatsApp'},
+      {label:'Tel',value:'Telepon'},
+      {label:'Email',value:'Email'},
+      {label:'Meeting',value:'Meeting'},
+      {label:'Internal',value:'Internal'}
+    ],
+    hs:[
+      {label:'✅ Terhubung',value:'Contacted',cls:'rg'},
+      {label:'📵 No Answer',value:'No Answer',cls:'ro'},
+      {label:'🤝 Janji',value:'Janji Bayar',cls:'rb',showJanji:true},
+      {label:'⚠️ Dispute',value:'Dispute',cls:'rr'},
+      {label:'💰 Paid',value:'Paid',cls:'rg'}
+    ],
+    next:[]
+  },
+  surat:{
+    title:'✍️ Catat Aktivitas Tim Surat',
+    chLabel:'Jenis Aktivitas',
+    hsLabel:'Status',
+    showJanji:false,
+    showNext:true,
+    ch:[
+      {label:'Draft Surat',value:'Draft Surat'},
+      {label:'Cek Dokumen',value:'Cek Dokumen'},
+      {label:'Koordinasi Internal',value:'Koordinasi Internal'},
+      {label:'Revisi',value:'Revisi'},
+      {label:'Finalisasi',value:'Finalisasi'},
+      {label:'Kirim Surat',value:'Kirim Surat'}
+    ],
+    hs:[
+      {label:'Menunggu Dokumen',value:'Menunggu Dokumen',cls:'ro'},
+      {label:'Sedang Proses',value:'Sedang Proses',cls:'rb'},
+      {label:'Sudah Dibuat',value:'Sudah Dibuat',cls:'rg'},
+      {label:'Sudah Dikirim',value:'Sudah Dikirim',cls:'rg'},
+      {label:'Return / Revisi',value:'Return/Revisi',cls:'rr'},
+      {label:'Pending Data',value:'Pending Data',cls:'ro'}
+    ],
+    next:[
+      {label:'Menunggu BA',value:'Menunggu BA'},
+      {label:'Revisi Data Customer',value:'Revisi Data Customer'},
+      {label:'Final Check',value:'Final Check'},
+      {label:'Kirim Hari Ini',value:'Kirim Hari Ini'}
+    ]
+  }
+};
+function detectModalMode(inv,prog){
+  if(!inv || !prog) return 'followup';
+  const srtStatus=normalizeDocStatus(inv.sSrt);
+  const ownerTeamLabel=s(prog.ownerTeam).toLowerCase();
+  const isSuratOwner=prog.team==='surat' || prog.stage==='surat' || ownerTeamLabel.includes('surat');
+  if(isSuratOwner || srtStatus==='Belum Dibuat') return 'surat';
+  return 'followup';
+}
+function renderModalChoices(rowId,inputId,items,kind){
+  const row=document.getElementById(rowId);
+  if(!row) return;
+  row.innerHTML=items.map(function(item){
+    const cls=item.cls?(' '+item.cls):'';
+    if(kind==='hasil'){
+      const showJanji=item.showJanji?'true':'false';
+      return `<div class="rbtn${cls}" onclick="selR('${inputId}','${esc(item.value)}',this);jBox('m',${showJanji})">${esc(item.label)}</div>`;
+    }
+    return `<div class="rbtn${cls}" onclick="selR('${inputId}','${esc(item.value)}',this)">${esc(item.label)}</div>`;
+  }).join('');
+}
+function applyModalMode(mode){
+  const cfg=MODAL_MODE_OPTIONS[mode]||MODAL_MODE_OPTIONS.followup;
+  document.getElementById('m-form-title').textContent=cfg.title;
+  document.getElementById('m-ch-label').textContent=cfg.chLabel;
+  document.getElementById('m-hs-label').textContent=cfg.hsLabel;
+  renderModalChoices('m-ch-r','m-ch',cfg.ch,'channel');
+  renderModalChoices('m-hs-r','m-hs',cfg.hs,'hasil');
+  const nextWrap=document.getElementById('m-next-wrap');
+  if(cfg.showNext){
+    nextWrap.style.display='block';
+    renderModalChoices('m-next-r','m-next',cfg.next,'next');
+  }else{
+    nextWrap.style.display='none';
+    document.getElementById('m-next-r').innerHTML='';
+    document.getElementById('m-next').value='';
+  }
+  jBox('m',cfg.showJanji);
+  if(!cfg.showJanji){
+    document.getElementById('m-jt').value='';
+    document.getElementById('m-jn').value='';
+    jBox('m',false);
+  }
+}
 function saveMLog(){
   const no=document.getElementById('m-inv').value, hs=document.getElementById('m-hs').value;
   if(!no||!hs){toast('⚠ Pilih Hasil dulu!');return;}
   const i=invs.find(x=>x.no===no)||{};
+  const mode=document.getElementById('m-mode')?document.getElementById('m-mode').value:'followup';
+  const nextAction=document.getElementById('m-next')?document.getElementById('m-next').value:'';
   logs.unshift({id:Date.now(),inv:no,date:document.getElementById('m-date').value||TODAY,
     pic,ch:document.getElementById('m-ch').value,hasil:hs,
     note:document.getElementById('m-note').value,
     jt:document.getElementById('m-jt').value,
     jn:n(document.getElementById('m-jn').value),
+    mode:mode,
+    nx:nextAction||'',
     cust:i.cust||'',amt:i.amt||0,ts:new Date().toISOString()});
   saveLogs(); closeM(); renderQ(); renderH(); renderDash(); toast('✅ Log disimpan: '+hs);
 }
 
 // ═══ QUICK LOG ═══
+// Quick Log sengaja tetap mode Follow Up (tidak adaptif per tim) untuk menjaga alur input cepat yang sudah berjalan.
 document.getElementById('ql-inv').addEventListener('input',function(){
   const v=this.value, no=v.includes(' — ')?v.split(' — ')[0].trim():v.trim();
   const i=invs.find(x=>x.no===no); const el=document.getElementById('ql-info');
