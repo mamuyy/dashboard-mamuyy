@@ -278,6 +278,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 .kpi-pic-score{font-weight:800;font-size:.95rem;}
 .kpi-badge{display:inline-block;padding:2px 7px;border-radius:999px;font-size:.58rem;font-weight:700;}
 .kpi-badge.good{background:#e8f5e9;color:#2e7d32;}
+.kpi-badge.good2{background:#e3f2fd;color:#1565c0;}
 .kpi-badge.mid{background:#fff3e0;color:#e65100;}
 .kpi-badge.low{background:#ffebee;color:#c62828;}
 
@@ -687,7 +688,7 @@ let isPushingToSheets=false;
 const SAFE_PUSH_MIN_INVOICE_COUNT=100;
 const SAFE_PUSH_DROP_RATIO=0.5;
 const TODAY=new Date().toISOString().slice(0,10);
-const KPI_PIC_WEIGHTS={collectionResult:0.30,followUpDiscipline:0.25,overdueReduction:0.20,pipelineMovement:0.15,dataQuality:0.10};
+const KPI_PIC_WEIGHTS={collectionResult:0.22,followUpDiscipline:0.24,overdueReduction:0.20,pipelineMovement:0.22,dataQuality:0.12};
 const KPI_PIC_DUMMY={
   RIZAL:{collectionResult:78,followUpDiscipline:84,overdueReduction:73,pipelineMovement:80,dataQuality:88},
   ACHMAD:{collectionResult:75,followUpDiscipline:82,overdueReduction:70,pipelineMovement:77,dataQuality:85},
@@ -1636,25 +1637,35 @@ function calcTotalKpiScore(s){
   );
 }
 function getKpiBand(score){
-  if(score>=85) return {label:'Excellent',cls:'good'};
-  if(score>=70) return {label:'On Track',cls:'mid'};
+  if(score>=82) return {label:'Excellent',cls:'good'};
+  if(score>=70) return {label:'Good',cls:'good2'};
+  if(score>=58) return {label:'Watchlist',cls:'mid'};
   return {label:'Needs Focus',cls:'low'};
 }
 function getDummyKpiMetrics(picName){
   return KPI_PIC_DUMMY[picName]||{collectionResult:72,followUpDiscipline:78,overdueReduction:70,pipelineMovement:74,dataQuality:82};
 }
-function computeKpiByPic(picName,unpaid,paid){
+function calcPercentileRank(values,current){
+  if(!values.length) return 50;
+  const sorted=[...values].sort(function(a,b){ return a-b; });
+  let lower=0;
+  sorted.forEach(function(v){ if(v<=current) lower++; });
+  return clampScore((lower/sorted.length)*100);
+}
+function computeKpiByPic(picName,unpaid,paid,ctx){
   const dummy=getDummyKpiMetrics(picName);
   const picLogs=logs.filter(function(l){ return (l.pic||'').toLowerCase().includes(picName.toLowerCase()); });
   const todayPicLogs=picLogs.filter(function(l){ return (l.date||(l.ts?l.ts.slice(0,10):''))===TODAY; });
   const paidByPic=picLogs.filter(function(l){ return l.hasil==='Paid'; }).reduce(function(s,l){ return s+(Number(l.amt)||0); },0);
   const totalPaid=paid.reduce(function(s,i){ return s+(Number(i.amt)||0); },0);
-  const collectionResult=totalPaid>0?clampScore((paidByPic/totalPaid)*100):dummy.collectionResult;
-  const followUpDiscipline=picLogs.length?clampScore(Math.min(100,(todayPicLogs.length/5)*100)):dummy.followUpDiscipline;
+  const shareScore=totalPaid>0?clampScore((paidByPic/totalPaid)*100):dummy.collectionResult;
+  const normalizedPaid=calcPercentileRank(ctx.paidValues,paidByPic);
+  const collectionResult=picLogs.length?clampScore((shareScore*0.35)+(normalizedPaid*0.65)):dummy.collectionResult;
+  const followUpDiscipline=picLogs.length?clampScore(Math.min(100,(todayPicLogs.length/3)*100)):dummy.followUpDiscipline;
   const touchedInv=new Set(picLogs.map(function(l){ return l.inv; }).filter(Boolean));
   const overdueInv=unpaid.filter(function(i){ const ag=getAgingByInvoice(i); return ag&&ag.o90>0; });
   const overdueTouched=overdueInv.filter(function(i){ return touchedInv.has(i.no); }).length;
-  const overdueReduction=overdueInv.length?clampScore((overdueTouched/overdueInv.length)*100):dummy.overdueReduction;
+  const overdueReduction=picLogs.length?clampScore((overdueTouched/(overdueTouched+4))*100):dummy.overdueReduction;
   const pipelineMovement=picLogs.length?clampScore((picLogs.filter(function(l){ return ['Contacted','Janji Bayar','Paid'].includes(l.hasil); }).length/picLogs.length)*100):dummy.pipelineMovement;
   const qualityHits=picLogs.filter(function(l){ return l.ch&&l.note&&String(l.note).trim().length>=6&&((l.hasil!=='Janji Bayar')||l.jt); }).length;
   const dataQuality=picLogs.length?clampScore((qualityHits/picLogs.length)*100):dummy.dataQuality;
@@ -1663,7 +1674,7 @@ function computeKpiByPic(picName,unpaid,paid){
     pic:picName,
     ...metrics,
     totalScore:calcTotalKpiScore(metrics),
-    source:picLogs.length?'real+rule':'dummy',
+    source:picLogs.length?(paidByPic>0?'real':'mixed'):'dummy',
     raw:{logCount:picLogs.length,todayLogCount:todayPicLogs.length,paidByPic,totalPaid,overdueTouched,overduePool:overdueInv.length,qualityHits}
   };
 }
@@ -1673,13 +1684,19 @@ function renderKpiPerPic(unpaid,paid){
   const followupNames=TIM.followup.members.map(function(m){ return m.toUpperCase(); });
   const logNames=Array.from(new Set(logs.map(function(l){ return (l.pic||'').trim().toUpperCase(); }).filter(Boolean)));
   const picNames=Array.from(new Set([].concat(followupNames,logNames))).slice(0,12);
-  const rows=picNames.map(function(name){ return computeKpiByPic(name,unpaid,paid); }).sort(function(a,b){ return b.totalScore-a.totalScore; });
+  const paidValues=picNames.map(function(name){
+    return logs.filter(function(l){ return (l.pic||'').toLowerCase().includes(name.toLowerCase()) && l.hasil==='Paid'; })
+      .reduce(function(s,l){ return s+(Number(l.amt)||0); },0);
+  });
+  const rows=picNames.map(function(name){
+    return computeKpiByPic(name,unpaid,paid,{paidValues});
+  }).sort(function(a,b){ return b.totalScore-a.totalScore; });
   if(!rows.length){
     host.innerHTML='<div style="color:var(--sub);font-size:.78rem;padding:6px 0;">Belum ada data PIC.</div>';
     return;
   }
   host.innerHTML='<table class="kpi-pic-tbl"><thead><tr>'
-    +'<th>PIC</th><th>Collection Result</th><th>Follow Up Discipline</th><th>Overdue Reduction</th><th>Pipeline Movement</th><th>Data Quality</th><th>Total Score</th><th>Sumber</th>'
+    +'<th>PIC</th><th>Collection Result</th><th>Follow Up Discipline</th><th>Overdue Reduction</th><th>Pipeline Movement</th><th>Data Quality</th><th>Total Score</th><th>Source Type</th>'
     +'</tr></thead><tbody>'
     +rows.map(function(r){
       const band=getKpiBand(r.totalScore);
@@ -1691,7 +1708,7 @@ function renderKpiPerPic(unpaid,paid){
         +'<td>'+r.pipelineMovement.toFixed(1)+'</td>'
         +'<td>'+r.dataQuality.toFixed(1)+'</td>'
         +'<td class="kpi-pic-score">'+r.totalScore.toFixed(1)+' <span class="kpi-badge '+band.cls+'">'+band.label+'</span></td>'
-        +'<td style="text-transform:uppercase;font-size:.62rem;color:#607d8b;">'+r.source+'</td>'
+        +'<td style="text-transform:uppercase;font-size:.62rem;color:#607d8b;">'+r.source.toUpperCase()+'</td>'
         +'</tr>';
     }).join('')
     +'</tbody></table>';
