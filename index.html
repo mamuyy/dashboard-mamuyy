@@ -1752,6 +1752,15 @@ function canonicalPicName(name){
   const up=(name||'').trim().toUpperCase();
   return PIC_ALIAS_MAP[up]||up;
 }
+function canonicalPicKey(name){
+  return canonicalPicName(name).toLowerCase();
+}
+function canonicalPicDisplay(name){
+  const canon=canonicalPicName(name);
+  return canon.split(' ').filter(Boolean).map(function(w){
+    return w.charAt(0)+w.slice(1).toLowerCase();
+  }).join(' ');
+}
 function isPicMatch(rawName,targetName){
   const raw=s(rawName).toLowerCase();
   const target=s(targetName).toLowerCase();
@@ -2247,6 +2256,10 @@ function renderDash(){
       }
 
       let html='';
+      const operasiMembers=Array.from(new Set(TIM.operasi.members.map(function(m){ return canonicalPicKey(m); })));
+      const suratMembers=Array.from(new Set(TIM.surat.members.map(function(m){ return canonicalPicKey(m); })));
+      const followupMembers=Array.from(new Set(TIM.followup.members.map(function(m){ return canonicalPicKey(m); })));
+      const allMembers=[...operasiMembers,...suratMembers,...followupMembers];
 
       // ── O(N) Cache for Performance ──
       const logsByPic = {};
@@ -2254,8 +2267,8 @@ function renderDash(){
       const fuLogsByInv = {};
       
       logs.forEach(l => {
-        const pLow = (l.pic||'').toLowerCase();
-        [...TIM.operasi.members, ...TIM.surat.members, ...TIM.followup.members].forEach(m => {
+        const pLow = canonicalPicKey(l.pic||'');
+        allMembers.forEach(m => {
            if(pLow.includes(m)) {
               if(!logsByPic[m]) logsByPic[m] = [];
               logsByPic[m].push(l);
@@ -2279,7 +2292,7 @@ function renderDash(){
       html+='<div style="font-size:.72rem;color:var(--sub);margin-bottom:7px;">📋 Antrian tim: <strong style="color:#1565c0;">'+opTeamInvs.length+' invoice BA belum selesai</strong>'
         +' · Total: <strong style="color:#1565c0;">'+fmt(opTeamInvs.reduce(function(s,i){return s+i.amt;},0))+'</strong></div>';
       html+='<div style="display:flex;flex-wrap:wrap;gap:8px;">';
-      TIM.operasi.members.filter(function(m){return !['nurul'].includes(m)||m==='nurul komaria';}).forEach(function(p){
+      operasiMembers.filter(function(m){return !['nurul'].includes(m)||m==='nurul komaria';}).forEach(function(p){
         const actToday=(todayLogsByPic[p]||[]).length;
         const lastLog=(logsByPic[p]||[])[0];
         // Kartu dengan info aktivitas (data invoice per orang tidak ada di TANOS)
@@ -2288,7 +2301,7 @@ function renderDash(){
         const statusColor = actToday ? 'var(--blue)' : 'var(--sub)';
         html+='<div style="background:'+sb+';border:1px solid '+sc+'44;border-radius:9px;padding:10px;min-width:150px;flex:1;max-width:200px;">'
           +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
-          +'<span style="font-weight:700;font-size:.8rem;color:'+tim.color+';">'+p.split(' ').map(function(w){return w.charAt(0).toUpperCase()+w.slice(1);}).join(' ')+'</span>'
+          +'<span style="font-weight:700;font-size:.8rem;color:'+tim.color+';">'+canonicalPicDisplay(p)+'</span>'
           +'<span style="font-size:.63rem;background:'+sc+';color:#fff;border-radius:20px;padding:1px 6px;">'+actToday+' log</span></div>'
           +'<div style="font-size:.68rem; font-weight:700; color:'+statusColor+';">'+statusText+'</div>'
           +(lastLog?'<div style="font-size:.6rem;color:var(--sub);margin-top:3px;">Terakhir: '+lastLog.date+'</div>':'')
@@ -2300,19 +2313,23 @@ function renderDash(){
       // picB = Tim Surat → grouping per picB untuk invoice sBA=Completed & sSrt≠Completed
       const srtPool=srtItems.map(function(x){return x.inv;});
       const srtByPIC={};
-      srtPool.forEach(function(i){var p=(i.picB||'Belum Diassign');srtByPIC[p]=(srtByPIC[p]||[]);srtByPIC[p].push(i);});
+      srtPool.forEach(function(i){
+        var p=canonicalPicKey(i.picB||'');
+        if(!p) p='belum diassign';
+        srtByPIC[p]=(srtByPIC[p]||[]);
+        srtByPIC[p].push(i);
+      });
       html+='<div class="tim-section">'+mkTimHeader('surat');
       html+='<div class="tim-hd" style="border-left-color:#6a1b9a;"><span>📋 Total antrian: <strong style="color:#6a1b9a;">'+srtPool.length+' invoice bottleneck di Surat</strong></span><span class="tim-hd-info">Klik kartu untuk expand detail</span></div>';
       html+='<div class="tim-cards">';
       // Tampilkan Tim Surat yang terdaftar + siapa pun yang picB-nya masuk tim ini dari data
-      const srtShown=new Set(TIM.surat.members);
-      Object.keys(srtByPIC).forEach(function(p){if(getTimKey(p)==='surat')srtShown.add(p.toLowerCase());});
+      const srtShown=new Set(suratMembers);
+      Object.keys(srtByPIC).forEach(function(p){if(getTimKey(p)==='surat')srtShown.add(p);});
       [...srtShown].sort().forEach(function(p){
-        // Match case-insensitive ke picB di data
-        const myInvs=srtPool.filter(function(i){return i.picB.toLowerCase().includes(p);});
+        const myInvs=srtByPIC[p]||[];
         const actToday=(todayLogsByPic[p]||[]).length;
         const lastLog=(logsByPic[p]||[])[0];
-        const displayName=p.split(' ').map(function(w){return w.charAt(0).toUpperCase()+w.slice(1);}).join(' ');
+        const displayName=canonicalPicDisplay(p);
         const tim=TIM.surat,sc=myInvs.length>0?'#6a1b9a':'#2e7d32',sb=myInvs.length>0?'#f3e5f5':'#f1f8e9';
         html+='<div class="pic-card" style="background:'+sb+';border:1px solid '+sc+'44;" onclick="this.classList.toggle(\'open\')">'
           +'<div class="pic-card-hd">'
@@ -2338,10 +2355,10 @@ function renderDash(){
         html+='</tbody></table></div></div>';
       });
       // Tampilkan invoice yang picB-nya bukan Tim Surat (belum diassign)
-      if(srtByPIC['Belum Diassign']&&srtByPIC['Belum Diassign'].length){
+      if(srtByPIC['belum diassign']&&srtByPIC['belum diassign'].length){
         html+='<div class="pic-card" style="background:#fff3e0;border:1px dashed #e65100;">'
           +'<div style="font-weight:700;font-size:.8rem;color:#bf360c;margin-bottom:4px;">⚠ Belum Diassign</div>'
-          +'<div style="font-size:.72rem;color:var(--sub);">'+srtByPIC['Belum Diassign'].length+' invoice belum ada PIC surat</div></div>';
+          +'<div style="font-size:.72rem;color:var(--sub);">'+srtByPIC['belum diassign'].length+' invoice belum ada PIC surat</div></div>';
       }
       html+='</div></div>';
 
@@ -2377,15 +2394,15 @@ function renderDash(){
             +'<td><button class="btn-go" onclick="goToInv(\''+inv.no+'\')">→ Buka</button></td></tr>';
         });
         if(unassignedInvs.length>50) html+='<tr><td colspan="4" style="text-align:center;color:var(--sub);font-size:.72rem;padding:6px;">... dan '+(unassignedInvs.length-50)+' invoice lainnya</td></tr>';
-        html+='</tbody></table></div></div>';
+      html+='</tbody></table></div></div>';
       }
 
       html+='<div class="tim-cards">';
-      TIM.followup.members.forEach(function(p){
+      followupMembers.forEach(function(p){
         const myInvs=fuByPIC[p]||[];
-        const actToday=todayLogs.filter(function(l){return l.pic.toLowerCase().includes(p);}).length;
-        const lastLog=logs.filter(function(l){return l.pic.toLowerCase().includes(p);}).sort(function(a,b){return b.ts>a.ts?1:-1;})[0];
-        const displayName=p.charAt(0).toUpperCase()+p.slice(1);
+        const actToday=(todayLogsByPic[p]||[]).length;
+        const lastLog=(logsByPic[p]||[])[0];
+        const displayName=canonicalPicDisplay(p);
         const tim=TIM.followup,sc=myInvs.length>0?'#2e7d32':'#9e9e9e',sb=myInvs.length>0?'#e8f5e9':'#f5f5f5';
         html+='<div class="pic-card" style="background:'+sb+';border:1px solid '+sc+'44;" onclick="this.classList.toggle(\'open\')">'
           +'<div class="pic-card-hd">'
@@ -2534,19 +2551,31 @@ function buildAlertDetail(type){
   }
   if(type==='nolog'){
     const picSet=new Set();
-    unpaid.forEach(i=>{if(i.picB)picSet.add(i.picB);});
-    logs.forEach(l=>{if(l.pic)picSet.add(l.pic);});
+    const dailyCountByPic={};
+    const invCountByPic={};
+    unpaid.forEach(i=>{
+      const key=canonicalPicKey(i.picB||'');
+      if(!key) return;
+      picSet.add(key);
+      invCountByPic[key]=(invCountByPic[key]||0)+1;
+    });
+    logs.forEach(l=>{
+      const key=canonicalPicKey(l.pic||'');
+      if(!key) return;
+      picSet.add(key);
+      if(l.date===TODAY) dailyCountByPic[key]=(dailyCountByPic[key]||0)+1;
+    });
     if(!picSet.size) return '<div class="ai-no-data">Upload data untuk melihat daftar PIC.</div>';
     // Group by tim, sort operasi > surat > followup
     const order={operasi:0,surat:1,followup:2};
     const sorted=[...picSet].sort((a,b)=>(order[getTimKey(a)]||0)-(order[getTimKey(b)]||0)||a.localeCompare(b));
     const rows=sorted.map(function(p){
-      const cnt=logs.filter(l=>l.pic===p&&l.date===TODAY).length;
+      const cnt=dailyCountByPic[p]||0;
       const status=cnt>=5?'<span style="color:#2e7d32;font-weight:700;">✅ On track ('+cnt+')</span>'
         :cnt>=2?'<span style="color:#e65100;font-weight:700;">⚠ Kurang ('+cnt+')</span>'
         :'<span style="color:#c62828;font-weight:700;">❌ Belum ada</span>';
-      const invCnt=unpaid.filter(i=>i.picB===p).length;
-      return '<tr><td><strong>'+esc(p)+'</strong><br>'+timBadge(p)+'</td><td>'+invCnt+'</td><td>'+status+'</td></tr>';
+      const invCnt=invCountByPic[p]||0;
+      return '<tr><td><strong>'+esc(canonicalPicDisplay(p))+'</strong><br>'+timBadge(p)+'</td><td>'+invCnt+'</td><td>'+status+'</td></tr>';
     });
     return buildPICTable(['PIC / Tim','Invoice','Status FU Hari Ini'],rows,'');
   }
