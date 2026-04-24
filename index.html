@@ -2325,7 +2325,7 @@ function renderDash(){
   // Alerts
   const alerts=[];
   if(mirKritis>0) alerts.push({c:'ar',icon:'🔴',title:`MIR7 Kritis: ${mirKritis} invoice · ${fmt(mirKritisVal)}`,body:'Klik untuk lihat per-PIC. Proses hari ini di SAP.',type:'mir7'});
-  const ar90pctN=totalAmt>0?(ar90/totalAmt*100):0;
+  const ar90pctN=ar90base>0?(ar90/ar90base*100):0;
   if(ar90pctN>10) alerts.push({c:'ar',icon:'🔴',title:`AR >90 Hari: ${ar90pct} (target ≤10%)`,body:'Klik untuk lihat top customer. Eskalasi ke manajemen.',type:'ar90'});
 
   // Update progress bars
