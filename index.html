@@ -455,7 +455,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
   <div class="fbar" style="margin-top:4px;padding-top:4px;border-top:1px solid #e8e8e8;">
     <span style="font-size:.63rem;color:var(--sub);font-weight:700;padding:4px 2px;white-space:nowrap;">Tahap:</span>
     <button class="fbtn" id="fp1" onclick="setF('p1')">🏗️ Status BA</button>
-    <button class="fbtn" id="fp2" onclick="setF('p2')">📨 Surat (P2P)</button>
+    <button class="fbtn" id="fp2" onclick="setF('p2')">📨 Status Surat Tagihan</button>
     <button class="fbtn" id="fp5" onclick="setF('p5')">📝 Status Nota Dinas</button>
     <button class="fbtn" id="fp3" onclick="setF('p3')">📞 Unpaid Pasca MIR7</button>
     <button class="fbtn" id="fp4" onclick="setF('p4')">💳 Status MIR7</button>
@@ -2747,14 +2747,14 @@ function goPipelineSub(filter, sub){
     'direct_sudah_fu':'Sudah FU',
     'direct_janji_jt':'Janji JT'
   };
-  toast('🔍 Filter: '+({'p1':'Status BA','p2':'Surat (P2P)','p3':'Unpaid Pasca MIR7','p4':'Status MIR7','p5':'Status Nota Dinas','np':'Non-P2P + Migrasi'}[filter]||filter)+' • '+(names[sub]||sub||'Semua'));
+  toast('🔍 Filter: '+({'p1':'Status BA','p2':'Status Surat Tagihan','p3':'Unpaid Pasca MIR7','p4':'Status MIR7','p5':'Status Nota Dinas','np':'Non-P2P + Migrasi'}[filter]||filter)+' • '+(names[sub]||sub||'Semua'));
 }
 function goPipeline(filter){
   showPage('queue');
   const srch=document.getElementById('srch');
   if(srch) srch.value='';
   setF(filter);
-  toast('🔍 Filter: '+({'a':'Semua','p1':'Status BA','p2':'Surat (P2P)','p3':'Unpaid Pasca MIR7','p4':'Status MIR7','p5':'Status Nota Dinas','np':'Non-P2P + Migrasi'}[filter]||filter));
+  toast('🔍 Filter: '+({'a':'Semua','p1':'Status BA','p2':'Status Surat Tagihan','p3':'Unpaid Pasca MIR7','p4':'Status MIR7','p5':'Status Nota Dinas','np':'Non-P2P + Migrasi'}[filter]||filter));
 }
 
 // ═══ EXPORT ═══
