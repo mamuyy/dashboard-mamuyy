@@ -1374,7 +1374,14 @@ function fuStat(no){
   return{t:d+'hr lalu ⚠',w:d>7,d:d>7};
 }
 function getStageSubfilters(filter){
-  if(['p1','p2','p5','p4'].includes(filter)) return [
+  if(['p1','p5','p4'].includes(filter)) return [
+    {key:'Belum Dibuat', label:'Belum Dibuat'},
+    {key:'In Progress', label:'In Progress'},
+    {key:'Rejected', label:'Rejected'}
+  ];
+  if(filter==='p2') return [
+    {key:'p2p_only', label:'P2P'},
+    {key:'nonp2p_only', label:'Non-P2P + Migrasi'},
     {key:'Belum Dibuat', label:'Belum Dibuat'},
     {key:'In Progress', label:'In Progress'},
     {key:'Rejected', label:'Rejected'}
@@ -1406,9 +1413,15 @@ function renderStageSubfilters(){
       if(cf==='p4' && !['mir7_pending','mir7_rejected'].includes(prog.key)) return false;
       if(cf==='p3' && !['collection_no_fu','collection_active','collection_janji_overdue'].includes(prog.key)) return false;
       if(cf==='np'){ const bc=getInvoiceBusinessClass(inv); if(!['nonp2p_manual','nonp2p_migrasi'].includes(bc)) return false; }
-      if(['p1','p2','p5','p4'].includes(cf)){
+      if(['p1','p5','p4'].includes(cf)){
         const fieldMap={p1:'sBA',p2:'sSrt',p5:'sNota',p4:'sMIR'};
         return prog[fieldMap[cf]]===key;
+      }
+      if(cf==='p2'){
+        const bizClass=getInvoiceBusinessClass(inv);
+        if(key==='p2p_only') return bizClass==='p2p';
+        if(key==='nonp2p_only') return ['nonp2p_manual','nonp2p_migrasi'].includes(bizClass);
+        return prog.sSrt===key;
       }
       if(cf==='p3'){
         if(key==='belum_fu') return prog.key==='collection_no_fu';
@@ -1498,7 +1511,11 @@ function renderQ(append=false){
     if(!csub) return true;
     const prog=getInvoiceProgress(inv);
     if(cf==='p1') return prog.sBA===csub;
-    if(cf==='p2') return prog.sSrt===csub;
+    if(cf==='p2'){
+      if(csub==='p2p_only') return getInvoiceBusinessClass(inv)==='p2p';
+      if(csub==='nonp2p_only') return ['nonp2p_manual','nonp2p_migrasi'].includes(getInvoiceBusinessClass(inv));
+      return prog.sSrt===csub;
+    }
     if(cf==='p5') return prog.sNota===csub;
     if(cf==='p4') return prog.sMIR===csub;
     if(cf==='p3'){
