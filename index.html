@@ -172,6 +172,14 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 /* ── DASHBOARD ── */
 .dash-page{max-width:900px;}
 .pipe{display:flex;align-items:center;background:var(--card);border-radius:12px;padding:14px 16px;margin-bottom:14px;box-shadow:0 1px 5px rgba(0,0,0,.07);overflow-x:auto;gap:0;}
+.pipe-lane{margin-bottom:10px;}
+.pipe-lane:last-child{margin-bottom:14px;}
+.pipe-lane-hd{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 6px;}
+.pipe-lane-title{font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.55px;color:#37474f;}
+.pipe-lane-sub{font-size:.6rem;color:#78909c;}
+.pipe-lane.p2p .pipe-lane-title{color:#1565c0;}
+.pipe-lane.manual .pipe-lane-title{color:#6a1b9a;}
+.pipe-lane.migrasi .pipe-lane-title{color:#4e342e;}
 .pstep{flex:1;min-width:100px;text-align:center;padding:8px 6px;position:relative;}
 .pstep::after{content:'▶';position:absolute;right:-7px;top:50%;transform:translateY(-50%);color:#ddd;font-size:.85rem;z-index:1;}
 .pstep:last-child::after{display:none;}
@@ -447,7 +455,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
   <div class="fbar" style="margin-top:4px;padding-top:4px;border-top:1px solid #e8e8e8;">
     <span style="font-size:.63rem;color:var(--sub);font-weight:700;padding:4px 2px;white-space:nowrap;">Tahap:</span>
     <button class="fbtn" id="fp1" onclick="setF('p1')">🏗️ Status BA</button>
-    <button class="fbtn" id="fp2" onclick="setF('p2')">📨 Status Surat Tagihan</button>
+    <button class="fbtn" id="fp2" onclick="setF('p2')">📨 Surat (P2P)</button>
     <button class="fbtn" id="fp5" onclick="setF('p5')">📝 Status Nota Dinas</button>
     <button class="fbtn" id="fp3" onclick="setF('p3')">📞 Unpaid Pasca MIR7</button>
     <button class="fbtn" id="fp4" onclick="setF('p4')">💳 Status MIR7</button>
@@ -543,15 +551,45 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
   <div class="card" style="margin-bottom:12px;padding:12px 16px;" id="d-rekon"></div>
 
   <!-- Pipeline -->
-  <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:var(--sub);letter-spacing:.8px;margin-bottom:8px;">🔄 Pipeline Penagihan <span style="font-size:.62rem;font-weight:600;color:#1565c0;background:#e3f2fd;padding:2px 8px;border-radius:10px;margin-left:4px;text-transform:none;">Khusus P2P</span></div>
-  <div class="pipe">
-    <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p1')" title="Filter: Status BA"><div class="picon">📄</div><div class="plbl">Status BA</div><div class="pnum" id="dp-ba">–</div><div class="pbadge pb-o">Belum Completed</div><div class="psub" id="dp-ba-meta">–</div><div class="psub" id="dp-ba-val">Rp –</div></div>
-    <div class="pstep po" style="cursor:pointer;" onclick="goPipeline('p2')" title="Filter: Status Surat Tagihan"><div class="picon">📨</div><div class="plbl">Status Surat Tagihan</div><div class="pnum" id="dp-srt">–</div><div class="pbadge pb-o">Belum Completed</div><div class="psub" id="dp-srt-meta">–</div><div class="psub" id="dp-srt-val">Rp –</div></div>
-    <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p5')" title="Filter: Status Nota Dinas"><div class="picon">📝</div><div class="plbl">Status Nota Dinas</div><div class="pnum" id="dp-prn">–</div><div class="pbadge pb-b">Belum Completed</div><div class="psub" id="dp-prn-meta">–</div><div class="psub" id="dp-prn-val">Rp –</div></div>
-    <div class="pstep pr" style="cursor:pointer;" onclick="showRekonViewer('mir7')" title="Klik untuk lihat detail Status MIR7"><div class="picon">💳</div><div class="plbl">Status MIR7</div><div class="pnum" id="dp-mir">–</div><div class="pbadge pb-r">Belum Completed</div><div class="psub" id="dp-mir-meta">–</div><div class="psub" id="dp-mir-val">Rp –</div></div>
-    <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p3')" title="Filter: Unpaid Pasca MIR7"><div class="picon">💰</div><div class="plbl">Unpaid Pasca MIR7</div><div class="pnum" id="dp-fu">–</div><div class="pbadge pb-b">MIR7 Completed</div><div class="psub" id="dp-fu-meta">–</div><div class="psub" id="dp-fu-val">Rp –</div></div>
-    <div class="pstep" style="cursor:pointer;background:#f3e5f5;border-left:3px solid #7b1fa2;" onclick="goPipeline('np')" title="Filter: Non-P2P + Migrasi — langsung FU"><div class="picon">⚡</div><div class="plbl" style="color:#6a1b9a;">Non-P2P + Migrasi</div><div class="pnum" id="dp-nonp2p" style="color:#6a1b9a;">–</div><div class="pbadge" style="background:#e1bee7;color:#4a148c;" id="dp-nonp2p-val">Langsung FU</div></div>
-    <div class="pstep pg" style="cursor:pointer;" onclick="goPipeline('a')" title="Lihat semua invoice"><div class="picon">✅</div><div class="plbl">Paid</div><div class="pnum" id="dp-paid">–</div><div class="pbadge pb-g" id="dp-paid-val">Lunas</div></div>
+  <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:var(--sub);letter-spacing:.8px;margin-bottom:8px;">🔄 Pipeline Penagihan <span style="font-size:.62rem;font-weight:600;color:#1565c0;background:#e3f2fd;padding:2px 8px;border-radius:10px;margin-left:4px;text-transform:none;">Per Business Lane</span></div>
+  <div class="pipe-lane p2p">
+    <div class="pipe-lane-hd"><div class="pipe-lane-title">P2P Normal</div><div class="pipe-lane-sub">BA → Surat → Nota Dinas → MIR7 → Siap FU → FU → Paid</div></div>
+    <div class="pipe">
+      <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p1')" title="Filter: Status BA"><div class="picon">📄</div><div class="plbl">Status BA</div><div class="pnum" id="dp-ba">–</div><div class="pbadge pb-o">Belum Completed</div><div class="psub" id="dp-ba-meta">–</div><div class="psub" id="dp-ba-val">Rp –</div></div>
+      <div class="pstep po" style="cursor:pointer;" onclick="goPipeline('p2')" title="Filter: Status Surat Tagihan"><div class="picon">📨</div><div class="plbl">Status Surat Tagihan</div><div class="pnum" id="dp-srt">–</div><div class="pbadge pb-o">Belum Completed</div><div class="psub" id="dp-srt-meta">–</div><div class="psub" id="dp-srt-val">Rp –</div></div>
+      <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p5')" title="Filter: Status Nota Dinas"><div class="picon">📝</div><div class="plbl">Status Nota Dinas</div><div class="pnum" id="dp-prn">–</div><div class="pbadge pb-b">Belum Completed</div><div class="psub" id="dp-prn-meta">–</div><div class="psub" id="dp-prn-val">Rp –</div></div>
+      <div class="pstep pr" style="cursor:pointer;" onclick="showRekonViewer('mir7')" title="Klik untuk lihat detail Status MIR7"><div class="picon">💳</div><div class="plbl">Status MIR7</div><div class="pnum" id="dp-mir">–</div><div class="pbadge pb-r">Belum Completed</div><div class="psub" id="dp-mir-meta">–</div><div class="psub" id="dp-mir-val">Rp –</div></div>
+      <div class="pstep pb" style="cursor:pointer;" onclick="goPipeline('p3')" title="Filter: Unpaid Pasca MIR7"><div class="picon">💰</div><div class="plbl">Unpaid Pasca MIR7</div><div class="pnum" id="dp-fu">–</div><div class="pbadge pb-b">MIR7 Completed</div><div class="psub" id="dp-fu-meta">–</div><div class="psub" id="dp-fu-val">Rp –</div></div>
+      <div class="pstep pg" style="cursor:pointer;" onclick="goPipeline('a')" title="Lihat semua invoice"><div class="picon">✅</div><div class="plbl">Paid</div><div class="pnum" id="dp-paid">–</div><div class="pbadge pb-g" id="dp-paid-val">Lunas</div></div>
+    </div>
+  </div>
+  <div class="pipe-lane manual">
+    <div class="pipe-lane-hd"><div class="pipe-lane-title">Non-P2P Manual</div><div class="pipe-lane-sub">Verifikasi / Surat → Siap FU → FU</div></div>
+    <div class="pipe">
+      <div class="pstep" style="cursor:pointer;background:#f3e5f5;border-left:3px solid #7b1fa2;" onclick="goPipeline('np')" title="Filter: Non-P2P + Migrasi">
+        <div class="picon">⚡</div><div class="plbl" style="color:#6a1b9a;">Verifikasi / Surat</div><div class="pnum" id="dp-np-manual" style="color:#6a1b9a;">–</div><div class="pbadge" style="background:#e1bee7;color:#4a148c;" id="dp-np-manual-val">Rp 0</div><div class="psub" id="dp-np-manual-meta">Masih di Surat</div>
+      </div>
+      <div class="pstep" style="cursor:pointer;background:#f3e5f5;border-left:3px solid #7b1fa2;" onclick="goPipelineSub('np','direct_belum_fu')" title="Filter: Belum FU">
+        <div class="picon">🧾</div><div class="plbl" style="color:#6a1b9a;">Siap FU</div><div class="pnum" id="dp-np-manual-ready" style="color:#6a1b9a;">–</div><div class="pbadge" style="background:#e1bee7;color:#4a148c;">Belum FU</div>
+      </div>
+      <div class="pstep" style="cursor:pointer;background:#f3e5f5;border-left:3px solid #7b1fa2;" onclick="goPipelineSub('np','direct_sudah_fu')" title="Filter: Sudah FU">
+        <div class="picon">📞</div><div class="plbl" style="color:#6a1b9a;">FU</div><div class="pnum" id="dp-np-manual-fu" style="color:#6a1b9a;">–</div><div class="pbadge" style="background:#e1bee7;color:#4a148c;">Sudah FU</div>
+      </div>
+    </div>
+  </div>
+  <div class="pipe-lane migrasi">
+    <div class="pipe-lane-hd"><div class="pipe-lane-title">Non-P2P Migrasi</div><div class="pipe-lane-sub">Review Legacy → Validasi → Siap FU / Closed</div></div>
+    <div class="pipe">
+      <div class="pstep" style="cursor:pointer;background:#efebe9;border-left:3px solid #4e342e;" onclick="goPipeline('np')" title="Filter: Non-P2P + Migrasi">
+        <div class="picon">🗂</div><div class="plbl" style="color:#4e342e;">Review Legacy</div><div class="pnum" id="dp-np-migrasi" style="color:#4e342e;">–</div><div class="pbadge" style="background:#d7ccc8;color:#3e2723;" id="dp-np-migrasi-val">Rp 0</div>
+      </div>
+      <div class="pstep" style="cursor:pointer;background:#efebe9;border-left:3px solid #4e342e;" onclick="goPipelineSub('np','direct_belum_fu')" title="Filter: Belum FU">
+        <div class="picon">🔎</div><div class="plbl" style="color:#4e342e;">Validasi</div><div class="pnum" id="dp-np-migrasi-ready" style="color:#4e342e;">–</div><div class="pbadge" style="background:#d7ccc8;color:#3e2723;">Siap FU</div>
+      </div>
+      <div class="pstep" style="cursor:pointer;background:#efebe9;border-left:3px solid #4e342e;" onclick="goPipelineSub('np','direct_sudah_fu')" title="Filter: Sudah FU / Closed">
+        <div class="picon">✅</div><div class="plbl" style="color:#4e342e;">Closed / FU</div><div class="pnum" id="dp-np-migrasi-fu" style="color:#4e342e;">–</div><div class="pbadge" style="background:#d7ccc8;color:#3e2723;">Progress</div>
+      </div>
+    </div>
   </div>
 
   <!-- KPI Grid -->
@@ -2092,8 +2130,12 @@ function renderDash(){
   const mirKritisVal=mirItems.filter(function(x){return x.inv.amt>50000000;}).reduce((s,x)=>s+x.inv.amt,0);
   const fuCount=fuItems.length;
   const fuVal=fuItems.reduce((s,x)=>s+x.inv.amt,0);
-  const nonP2PItems=unpaidProgress.filter(function(x){ const bc=getInvoiceBusinessClass(x.inv); return bc==='nonp2p_manual'||bc==='nonp2p_migrasi'; }).map(function(x){ return x.inv; });
-  const nonP2PVal=nonP2PItems.reduce((s,i)=>s+i.amt,0);
+  const manualProgress=unpaidProgress.filter(function(x){ return getInvoiceBusinessClass(x.inv)==='nonp2p_manual'; });
+  const migrasiProgress=unpaidProgress.filter(function(x){ return getInvoiceBusinessClass(x.inv)==='nonp2p_migrasi'; });
+  const manualItems=manualProgress.map(function(x){ return x.inv; });
+  const migrasiItems=migrasiProgress.map(function(x){ return x.inv; });
+  const manualVal=manualItems.reduce((s,i)=>s+i.amt,0);
+  const migrasiVal=migrasiItems.reduce((s,i)=>s+i.amt,0);
   const paidVal=paid.reduce((s,i)=>s+(Number(i.amt)||0),0);
   window._db_mir7 = {
     all: mirItems.map(function(x){ return x.inv; }),
@@ -2158,7 +2200,6 @@ function renderDash(){
   const mirParts=stageStatusParts(mirItems,'sMIR');
   document.getElementById('dp-mir-meta').innerHTML=metaLinks('p4',mirParts,'Status MIR7');
   document.getElementById('dp-mir-val').textContent=valLabel(mirParts);
-  const nonP2PCount=nonP2PItems.length;
   document.getElementById('dp-fu').textContent=fuCount||'–';
   document.getElementById('dp-fu-meta').innerHTML=metaLinksByKey('p3',[
     {count:fuNoItems.length,label:'Belum FU',key:'belum_fu'},
@@ -2170,8 +2211,15 @@ function renderDash(){
     {value:sumInvs(fuActiveItems),label:'Proses'},
     {value:sumInvs(fuOverdueItems),label:'Janji JT'}
   ]);
-  document.getElementById('dp-nonp2p').textContent=nonP2PCount||'–';
-  document.getElementById('dp-nonp2p-val').textContent=nonP2PCount?fmt(nonP2PVal):'Rp 0';
+  document.getElementById('dp-np-manual').textContent=manualItems.length||'–';
+  document.getElementById('dp-np-manual-val').textContent=manualItems.length?fmt(manualVal):'Rp 0';
+  document.getElementById('dp-np-manual-meta').textContent=manualProgress.filter(function(x){ return ['surat_pending','surat_rejected'].includes(x.prog.key); }).length+' di Surat';
+  document.getElementById('dp-np-manual-ready').textContent=manualProgress.filter(function(x){ return x.prog.key==='direct_no_fu'; }).length||'–';
+  document.getElementById('dp-np-manual-fu').textContent=manualProgress.filter(function(x){ return ['direct_active','direct_janji_overdue'].includes(x.prog.key); }).length||'–';
+  document.getElementById('dp-np-migrasi').textContent=migrasiItems.length||'–';
+  document.getElementById('dp-np-migrasi-val').textContent=migrasiItems.length?fmt(migrasiVal):'Rp 0';
+  document.getElementById('dp-np-migrasi-ready').textContent=migrasiProgress.filter(function(x){ return x.prog.key==='direct_no_fu'; }).length||'–';
+  document.getElementById('dp-np-migrasi-fu').textContent=migrasiProgress.filter(function(x){ return ['direct_active','direct_janji_overdue'].includes(x.prog.key); }).length||'–';
   document.getElementById('dp-paid').textContent=paid.length||'–';
   document.getElementById('dp-paid-val').textContent=paid.length?fmt(paidVal):'Rp 0';
 
@@ -2699,14 +2747,14 @@ function goPipelineSub(filter, sub){
     'direct_sudah_fu':'Sudah FU',
     'direct_janji_jt':'Janji JT'
   };
-  toast('🔍 Filter: '+({'p1':'Status BA','p2':'Status Surat Tagihan','p3':'Unpaid Pasca MIR7','p4':'Status MIR7','p5':'Status Nota Dinas','np':'Non-P2P + Migrasi'}[filter]||filter)+' • '+(names[sub]||sub||'Semua'));
+  toast('🔍 Filter: '+({'p1':'Status BA','p2':'Surat (P2P)','p3':'Unpaid Pasca MIR7','p4':'Status MIR7','p5':'Status Nota Dinas','np':'Non-P2P + Migrasi'}[filter]||filter)+' • '+(names[sub]||sub||'Semua'));
 }
 function goPipeline(filter){
   showPage('queue');
   const srch=document.getElementById('srch');
   if(srch) srch.value='';
   setF(filter);
-  toast('🔍 Filter: '+({'a':'Semua','p1':'Status BA','p2':'Status Surat Tagihan','p3':'Unpaid Pasca MIR7','p4':'Status MIR7','p5':'Status Nota Dinas','np':'Non-P2P + Migrasi'}[filter]||filter));
+  toast('🔍 Filter: '+({'a':'Semua','p1':'Status BA','p2':'Surat (P2P)','p3':'Unpaid Pasca MIR7','p4':'Status MIR7','p5':'Status Nota Dinas','np':'Non-P2P + Migrasi'}[filter]||filter));
 }
 
 // ═══ EXPORT ═══
