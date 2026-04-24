@@ -2101,7 +2101,9 @@ function renderDash(){
   }
 
   // Pipeline
-  const p2pProgress=unpaidProgress.filter(function(x){return x.prog.stage!=='direct';});
+  const p2pProgress=unpaidProgress.filter(function(x){
+    return getInvoiceBusinessClass(x.inv)==='p2p' && x.prog.stage!=='direct';
+  });
   const directProgress=unpaidProgress.filter(function(x){return x.prog.stage==='direct';});
   const baItems=p2pProgress.filter(function(x){return ['ba_pending','ba_rejected'].includes(x.prog.key);});
   const notaItems=p2pProgress.filter(function(x){return ['nota_pending','nota_rejected'].includes(x.prog.key);});
