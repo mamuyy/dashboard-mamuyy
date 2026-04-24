@@ -564,10 +564,10 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
     </div>
   </div>
   <div class="pipe-lane manual">
-    <div class="pipe-lane-hd"><div class="pipe-lane-title">Non-P2P Manual</div><div class="pipe-lane-sub">Verifikasi → Surat → Siap FU → FU</div></div>
+    <div class="pipe-lane-hd"><div class="pipe-lane-title">Non-P2P Manual</div><div class="pipe-lane-sub">Operasi (Finance) → Surat (Handoff SAP) → Siap FU → FU</div></div>
     <div class="pipe">
-      <div class="pstep" style="cursor:pointer;background:#f3e5f5;border-left:3px solid #7b1fa2;" onclick="goPipeline('np')" title="Filter: Non-P2P + Migrasi">
-        <div class="picon">⚡</div><div class="plbl" style="color:#6a1b9a;">Verifikasi / Surat</div><div class="pnum" id="dp-np-manual" style="color:#6a1b9a;">–</div><div class="pbadge" style="background:#e1bee7;color:#4a148c;" id="dp-np-manual-val">Rp 0</div><div class="psub" id="dp-np-manual-meta">Masih di Surat</div>
+      <div class="pstep" style="cursor:pointer;background:#f3e5f5;border-left:3px solid #7b1fa2;" onclick="goPipeline('np')" title="Filter: Non-P2P Manual (split Operasi/Surat/FU)">
+        <div class="picon">⚡</div><div class="plbl" style="color:#6a1b9a;">Verifikasi (Operasi/Surat)</div><div class="pnum" id="dp-np-manual" style="color:#6a1b9a;">–</div><div class="pbadge" style="background:#e1bee7;color:#4a148c;" id="dp-np-manual-val">Rp 0</div><div class="psub" id="dp-np-manual-meta">Ops 0 • Surat 0 • FU 0</div>
       </div>
       <div class="pstep" style="cursor:pointer;background:#f3e5f5;border-left:3px solid #7b1fa2;" onclick="goPipelineSub('np','direct_belum_fu')" title="Filter: Belum FU">
         <div class="picon">🧾</div><div class="plbl" style="color:#6a1b9a;">Siap FU</div><div class="pnum" id="dp-np-manual-ready" style="color:#6a1b9a;">–</div><div class="pbadge" style="background:#e1bee7;color:#4a148c;">Belum FU</div>
@@ -2138,6 +2138,16 @@ function renderDash(){
   const migrasiItems=migrasiProgress.map(function(x){ return x.inv; });
   const manualVal=manualItems.reduce((s,i)=>s+i.amt,0);
   const migrasiVal=migrasiItems.reduce((s,i)=>s+i.amt,0);
+  function isSapEnteredForManual(inv){
+    const sapNoStr=String((inv&&inv.sNota)||'').toLowerCase().trim();
+    return !!(sapNoStr && sapNoStr!=='-' && sapNoStr!=='n/a' && !sapNoStr.includes('belum terkirim'));
+  }
+  function isFinanceCompleteForManual(inv){
+    return normalizeDocStatus(inv&&inv.sSrt)==='Completed' && hasDoc(inv&&inv.noSrt);
+  }
+  const manualOpsItems=manualItems.filter(function(inv){ return !isFinanceCompleteForManual(inv); });
+  const manualSuratItems=manualItems.filter(function(inv){ return isFinanceCompleteForManual(inv) && !isSapEnteredForManual(inv); });
+  const manualFuItems=manualItems.filter(function(inv){ return isFinanceCompleteForManual(inv) && isSapEnteredForManual(inv); });
   const paidVal=paid.reduce((s,i)=>s+(Number(i.amt)||0),0);
   window._db_mir7 = {
     all: mirItems.map(function(x){ return x.inv; }),
@@ -2215,9 +2225,13 @@ function renderDash(){
   ]);
   document.getElementById('dp-np-manual').textContent=manualItems.length||'–';
   document.getElementById('dp-np-manual-val').textContent=manualItems.length?fmt(manualVal):'Rp 0';
-  document.getElementById('dp-np-manual-meta').textContent=manualProgress.filter(function(x){ return ['surat_pending','surat_rejected'].includes(x.prog.key); }).length+' di Surat';
-  document.getElementById('dp-np-manual-ready').textContent=manualProgress.filter(function(x){ return x.prog.key==='direct_no_fu'; }).length||'–';
-  document.getElementById('dp-np-manual-fu').textContent=manualProgress.filter(function(x){ return ['direct_active','direct_janji_overdue'].includes(x.prog.key); }).length||'–';
+  document.getElementById('dp-np-manual-meta').textContent='Ops '+manualOpsItems.length+' • Surat '+manualSuratItems.length+' • FU '+manualFuItems.length;
+  document.getElementById('dp-np-manual-ready').textContent=manualProgress.filter(function(x){
+    return isFinanceCompleteForManual(x.inv) && isSapEnteredForManual(x.inv) && x.prog.key==='direct_no_fu';
+  }).length||'–';
+  document.getElementById('dp-np-manual-fu').textContent=manualProgress.filter(function(x){
+    return isFinanceCompleteForManual(x.inv) && isSapEnteredForManual(x.inv) && ['direct_active','direct_janji_overdue'].includes(x.prog.key);
+  }).length||'–';
   document.getElementById('dp-np-migrasi').textContent=migrasiItems.length||'–';
   document.getElementById('dp-np-migrasi-val').textContent=migrasiItems.length?fmt(migrasiVal):'Rp 0';
   document.getElementById('dp-np-migrasi-ready').textContent=migrasiProgress.filter(function(x){ return x.prog.key==='direct_no_fu'; }).length||'–';
