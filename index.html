@@ -578,7 +578,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
     </div>
   </div>
   <div class="pipe-lane migrasi">
-    <div class="pipe-lane-hd"><div class="pipe-lane-title">Non-P2P Migrasi</div><div class="pipe-lane-sub">Review Legacy → Validasi → Siap FU / Closed</div></div>
+    <div class="pipe-lane-hd"><div class="pipe-lane-title">Non-P2P Migrasi</div><div class="pipe-lane-sub">REVIEW LEGACY (PIPELINE) → Validasi → Siap FU / Closed</div></div>
     <div class="pipe">
       <div class="pstep" style="cursor:pointer;background:#efebe9;border-left:3px solid #4e342e;" onclick="goPipeline('np')" title="Filter: Non-P2P + Migrasi">
         <div class="picon">🗂</div><div class="plbl" style="color:#4e342e;">Review Legacy</div><div class="pnum" id="dp-np-migrasi" style="color:#4e342e;">–</div><div class="pbadge" style="background:#d7ccc8;color:#3e2723;" id="dp-np-migrasi-val">Rp 0</div>
@@ -2117,13 +2117,14 @@ function renderDash(){
           <div style="font-size:.65rem;color:#888;">Piutang Sah SAP · ${unpaidNonP2P.length} inv</div>
         </div>
         <div onclick="showRekonViewer('mig')" style="cursor:pointer;flex:1;min-width:140px;background:#efebe9;border-radius:8px;padding:10px 14px;transition:transform 0.2s;box-shadow:0 2px 4px rgba(0,0,0,0.05);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
-          <div style="font-size:.62rem;color:#4e342e;font-weight:700;text-transform:uppercase;">Migrasi SAP (No-Ref)</div>
+          <div style="font-size:.62rem;color:#4e342e;font-weight:700;text-transform:uppercase;" title="Kartu atas memakai basis balancing FBL5N, sedangkan pipeline memakai sum item migrasi.">MIGRASI SAP (REKON FBL5N)</div>
           <div style="font-size:1.1rem;font-weight:800;color:#4e342e;">${totMig>0?fmt(totMig):'–'}</div>
           <div style="font-size:.65rem;color:#888;">Piutang Sah SAP · ${unpaidMig.length} cust</div>
         </div>
       </div>
       <div style="font-size:.7rem;color:var(--sub);margin-bottom:10px;line-height:1.4">
          <strong>Catatan:</strong> Pendapatan Operasi <strong>PYMAD (${fmt(totPymad)})</strong> dipisahkan dari tabel status SAP di atas karena belum diakui secara valid oleh pihak Finance (Surat belum ada). Anda dapat mengklik kotak merah PYMAD di pojok <u>kiri atas</u> layar untuk melihat detailnya.
+         <span style="display:block;margin-top:4px;color:#5d4037;">Kartu atas memakai basis balancing FBL5N, sedangkan pipeline memakai sum item migrasi.</span>
          <span style="float:right;font-weight:bold;color:#2e7d32;background:#e8f5e9;padding:2px 8px;border-radius:4px;">✅ FBL5N 100% Locked & Klop</span>
       </div>`;
   }
