@@ -14,13 +14,14 @@ Selain itu, jika `type === migrasi` maka masuk `nonp2p_migrasi`.
 Urutan rule pada `getInvoiceProgress(inv)`:
 1. Jika `pay === Paid` => `paid`.
 2. Jika class `nonp2p_manual`:
-   - jika `sSrt === Rejected` => `surat_rejected`
-   - jika `sSrt !== Completed` => `surat_pending`
-   - jika nomor surat (`noSrt`) tidak valid => `surat_pending`
-   - setelah surat valid, pindah ke direct follow-up:
+   - jika **Document Number SAP / invoice (`sNota`) sudah valid** => langsung pindah ke direct follow-up:
      - ada janji jatuh tempo => `direct_janji_overdue`
      - belum ada log => `direct_no_fu`
      - selain itu => `direct_active`
+   - jika `sSrt === Rejected` => `surat_rejected`
+   - jika `sSrt !== Completed` => `surat_pending`
+   - jika nomor surat (`noSrt`) tidak valid => `surat_pending`
+   - fallback kompatibilitas lama: setelah surat valid, tetap masuk direct follow-up.
 
 ## 3) Angka kartu “Verifikasi / Surat”
 - **Count** (`dp-np-manual`) = jumlah invoice unpaid dengan business class `nonp2p_manual`.

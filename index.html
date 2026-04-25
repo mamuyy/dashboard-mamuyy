@@ -1262,6 +1262,9 @@ function getInvoiceBusinessClass(inv){
   if(type==='nonp2p' || type==='pymad_nonp2p') return 'nonp2p_manual';
   return 'p2p';
 }
+function isSapEnteredForManual(inv){
+  return hasDoc(inv&&inv.sNota);
+}
 function getInvoiceProgress(inv){
   const type=s(inv.type).toLowerCase();
   const bizClass=getInvoiceBusinessClass(inv);
@@ -1308,6 +1311,14 @@ function getInvoiceProgress(inv){
   }
 
   if(bizClass==='nonp2p_manual'){
+    // Rule khusus Non-P2P:
+    // begitu Document Number SAP / invoice sudah ada, ownership pindah ke Tim FU
+    // walau status surat internal masih belum completed.
+    if(isSapEnteredForManual(inv)){
+      if(hasOverdueJanji) return pack('direct_janji_overdue','Direct FU: Janji Jatuh Tempo','followup','direct');
+      if(!invLogs.length) return pack('direct_no_fu','Direct FU: Belum FU','followup','direct');
+      return pack('direct_active','Direct FU Aktif','followup','direct');
+    }
     if(sSrt==='Rejected') return pack('surat_rejected','Surat Rejected','surat','surat');
     if(sSrt!=='Completed') return pack('surat_pending',pendingLabel('Surat',sSrt),'surat','surat');
     if(!hasDoc(inv.noSrt)) return pack('surat_pending','Surat Selesai, Nomor Surat Belum Valid','surat','surat');
@@ -2155,16 +2166,12 @@ function renderDash(){
   const migrasiItems=migrasiProgress.map(function(x){ return x.inv; });
   const manualVal=manualItems.reduce((s,i)=>s+i.amt,0);
   const migrasiVal=migrasiItems.reduce((s,i)=>s+i.amt,0);
-  function isSapEnteredForManual(inv){
-    const sapNoStr=String((inv&&inv.sNota)||'').toLowerCase().trim();
-    return !!(sapNoStr && sapNoStr!=='-' && sapNoStr!=='n/a' && !sapNoStr.includes('belum terkirim'));
-  }
   function isFinanceCompleteForManual(inv){
     return normalizeDocStatus(inv&&inv.sSrt)==='Completed' && hasDoc(inv&&inv.noSrt);
   }
-  const manualOpsItems=manualItems.filter(function(inv){ return !isFinanceCompleteForManual(inv); });
-  const manualSuratItems=manualItems.filter(function(inv){ return isFinanceCompleteForManual(inv) && !isSapEnteredForManual(inv); });
-  const manualFuItems=manualItems.filter(function(inv){ return isFinanceCompleteForManual(inv) && isSapEnteredForManual(inv); });
+  const manualOpsItems=manualItems.filter(function(inv){ return !isSapEnteredForManual(inv) && !isFinanceCompleteForManual(inv); });
+  const manualSuratItems=manualItems.filter(function(inv){ return !isSapEnteredForManual(inv) && isFinanceCompleteForManual(inv); });
+  const manualFuItems=manualItems.filter(function(inv){ return isSapEnteredForManual(inv); });
   const paidVal=paid.reduce((s,i)=>s+(Number(i.amt)||0),0);
   window._db_mir7 = {
     all: mirItems.map(function(x){ return x.inv; }),
@@ -2244,10 +2251,10 @@ function renderDash(){
   document.getElementById('dp-np-manual-val').textContent=manualItems.length?fmt(manualVal):'Rp 0';
   document.getElementById('dp-np-manual-meta').textContent='Ops '+manualOpsItems.length+' • Surat '+manualSuratItems.length+' • FU '+manualFuItems.length;
   document.getElementById('dp-np-manual-ready').textContent=manualProgress.filter(function(x){
-    return isFinanceCompleteForManual(x.inv) && isSapEnteredForManual(x.inv) && x.prog.key==='direct_no_fu';
+    return isSapEnteredForManual(x.inv) && x.prog.key==='direct_no_fu';
   }).length||'–';
   document.getElementById('dp-np-manual-fu').textContent=manualProgress.filter(function(x){
-    return isFinanceCompleteForManual(x.inv) && isSapEnteredForManual(x.inv) && ['direct_active','direct_janji_overdue'].includes(x.prog.key);
+    return isSapEnteredForManual(x.inv) && ['direct_active','direct_janji_overdue'].includes(x.prog.key);
   }).length||'–';
   document.getElementById('dp-np-migrasi').textContent=migrasiItems.length||'–';
   document.getElementById('dp-np-migrasi-val').textContent=migrasiItems.length?fmt(migrasiVal):'Rp 0';
