@@ -297,6 +297,84 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 .tim-hd-info{font-size:.68rem;opacity:.75;}
 .tim-cards{display:flex;flex-wrap:wrap;gap:10px;}
 .watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg); font-size: 10rem; font-weight: 900; color: rgba(0, 0, 0, 0.03); z-index: 0; pointer-events: none; user-select: none; white-space: nowrap; }
+.action-board{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;}
+.action-tile{border-radius:12px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.06);cursor:pointer;transition:transform .15s, box-shadow .15s;}
+.action-tile:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.08);}
+.action-tile.red{background:#fdecea;}
+.action-tile.orange{background:#fff3e0;}
+.action-tile.blue{background:#e3f2fd;}
+.action-tile.green{background:#e8f5e9;}
+.action-k{font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#666;margin-bottom:8px;}
+.action-v{font-size:1.7rem;font-weight:800;line-height:1;color:var(--dark);margin-bottom:8px;}
+.action-l{font-size:.72rem;font-weight:700;margin-bottom:4px;}
+.action-s{font-size:.66rem;color:var(--sub);line-height:1.35;}
+.dash-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+.dash-badges{display:flex;gap:8px;flex-wrap:wrap;}
+.dash-badge{font-size:.65rem;font-weight:700;padding:5px 9px;border-radius:999px;background:#eef2f7;color:#4b5563;}
+.kpi-hero{background:linear-gradient(135deg,#ffffff 0%,#f7f9fc 100%);border:1px solid #e6ebf2;border-radius:14px;padding:14px 14px 12px;margin-bottom:14px;box-shadow:0 1px 4px rgba(0,0,0,.05);}
+.kpi-hero-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
+.kpi-hero-title{font-size:.74rem;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:#4b5563;}
+.kpi-hero-build{font-size:.62rem;font-weight:700;padding:4px 8px;border-radius:999px;background:#e8eef8;color:#48607c;}
+.kpi-hero .summary-row{margin-bottom:0;}
+.priority-board{display:grid;gap:10px;}
+.priority-row{display:grid;grid-template-columns:1.4fr .85fr .7fr auto;gap:10px;align-items:center;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px;cursor:pointer;transition:border-color .15s, transform .15s;}
+.priority-row:hover{border-color:#bbd1f3;transform:translateY(-1px);}
+.priority-main{min-width:0;}
+.priority-title{font-size:.78rem;font-weight:800;color:var(--dark);}
+.priority-meta{font-size:.68rem;color:var(--sub);margin-top:3px;line-height:1.35;}
+.priority-amt{font-size:.82rem;font-weight:800;text-align:right;}
+.priority-chip{font-size:.62rem;font-weight:800;padding:6px 8px;border-radius:999px;text-align:center;}
+.priority-chip.red{background:#fde4e4;color:#b71c1c;}
+.priority-chip.orange{background:#fff0db;color:#b45f06;}
+.priority-chip.blue{background:#e7f0ff;color:#1557c2;}
+.priority-cta{font-size:.66rem;font-weight:700;color:#1565c0;white-space:nowrap;}
+.super-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:12px;margin-bottom:14px;}
+.super-card{background:#fff;border-radius:12px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+.super-card h4{font-size:.76rem;font-weight:800;color:var(--dark);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px;}
+.mini-feed{display:grid;gap:8px;}
+.mini-feed-item{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:start;padding-bottom:8px;border-bottom:1px dashed #e5e7eb;}
+.mini-feed-item:last-child{border-bottom:none;padding-bottom:0;}
+.mini-feed-dot{width:10px;height:10px;border-radius:50%;margin-top:4px;}
+.mini-feed-dot.green{background:#2e7d32;}
+.mini-feed-dot.orange{background:#ef6c00;}
+.mini-feed-dot.blue{background:#1976d2;}
+.mini-feed-text{font-size:.7rem;color:#374151;line-height:1.4;}
+.mini-feed-time{font-size:.63rem;color:var(--sub);}
+.queue-focus{display:grid;grid-template-columns:1.1fr .9fr;gap:12px;margin-bottom:14px;}
+.queue-card{background:#fff;border-radius:12px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+.queue-card h3{font-size:.78rem;font-weight:800;color:var(--dark);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px;}
+.queue-glance{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.queue-box{border-radius:12px;padding:11px 12px;}
+.queue-box.red{background:#fdecea;}
+.queue-box.orange{background:#fff3e0;}
+.queue-box.blue{background:#e3f2fd;}
+.queue-box .qv{font-size:1.25rem;font-weight:800;line-height:1.1;}
+.queue-box .ql{font-size:.65rem;font-weight:800;text-transform:uppercase;margin-top:4px;}
+.queue-box .qs{font-size:.62rem;color:var(--sub);margin-top:3px;line-height:1.35;}
+.queue-brief{display:grid;gap:8px;}
+.queue-brief-item{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:9px 0;border-bottom:1px dashed #e5e7eb;}
+.queue-brief-item:last-child{border-bottom:none;padding-bottom:0;}
+.queue-brief-title{font-size:.72rem;font-weight:700;color:var(--dark);}
+.queue-brief-meta{font-size:.65rem;color:var(--sub);margin-top:2px;}
+.queue-brief-cta{font-size:.64rem;font-weight:800;color:#1565c0;white-space:nowrap;}
+.risk-stack{display:grid;gap:10px;}
+.risk-row{border-left:4px solid #c62828;background:#fff;border-radius:12px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,.05);cursor:pointer;transition:transform .15s, box-shadow .15s, border-color .15s;}
+.risk-row:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,0,0,.08);}
+.risk-row:nth-child(2){border-left-color:#ef6c00;}
+.risk-row:nth-child(3){border-left-color:#1565c0;}
+.risk-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;}
+.risk-name{font-size:.76rem;font-weight:800;color:var(--dark);}
+.risk-amt{font-size:.75rem;font-weight:800;}
+.risk-meta{font-size:.65rem;color:var(--sub);line-height:1.45;margin-top:5px;}
+.risk-cta{display:inline-block;margin-top:8px;font-size:.63rem;font-weight:800;color:#1565c0;}
+@media(max-width:760px){
+  .action-board{grid-template-columns:repeat(2,1fr);}
+  .priority-row{grid-template-columns:1fr;}
+  .priority-amt{text-align:left;}
+  .super-grid{grid-template-columns:1fr;}
+  .queue-focus{grid-template-columns:1fr;}
+  .queue-glance{grid-template-columns:1fr;}
+}
 </style>
 </head>
 <body>
@@ -440,6 +518,22 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 
 <!-- ═══════════ ANTRIAN ═══════════ -->
 <div class="page" id="page-queue">
+  <div class="queue-focus">
+    <div class="queue-card">
+      <h3>Today Focus</h3>
+      <div class="queue-glance" id="q-focus-cards">
+        <div class="queue-box red"><div class="qv">0</div><div class="ql">Kritis</div><div class="qs">Belum ada data</div></div>
+        <div class="queue-box orange"><div class="qv">0</div><div class="ql">Siap Tagih</div><div class="qs">Belum ada data</div></div>
+        <div class="queue-box blue"><div class="qv">0</div><div class="ql">Bottleneck</div><div class="qs">Belum ada data</div></div>
+      </div>
+    </div>
+    <div class="queue-card">
+      <h3>Supervisor Notes</h3>
+      <div class="queue-brief" id="q-supervisor-brief">
+        <div style="font-size:.72rem;color:var(--sub);">Upload atau tarik data dulu untuk melihat ringkasan kerja hari ini.</div>
+      </div>
+    </div>
+  </div>
   <div class="stats-row">
     <div class="stat r"><div class="stat-n" id="sq-tot">0</div><div class="stat-l">Unpaid</div></div>
     <div class="stat o"><div class="stat-n" id="sq-bfu">0</div><div class="stat-l">Belum FU</div></div>
@@ -526,6 +620,78 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 
 <!-- ═══════════ DASHBOARD ═══════════ -->
 <div class="page dash-page" id="page-dash">
+
+  <div class="dash-head">
+    <div>
+      <div style="font-size:.95rem;font-weight:800;color:var(--dark);">Mamuyy Action Center</div>
+      <div style="font-size:.72rem;color:var(--sub);margin-top:2px;">Ringkasan aksi prioritas harian untuk tim penagihan.</div>
+    </div>
+  <div class="dash-badges">
+      <div class="dash-badge" id="dash-sync-badge">Data: Belum sync</div>
+      <div class="dash-badge" id="dash-focus-badge">Fokus: Semua PIC</div>
+    </div>
+  </div>
+
+  <div class="kpi-hero">
+    <div class="kpi-hero-head">
+      <div class="kpi-hero-title">📌 KPI Snapshot</div>
+      <div class="kpi-hero-build">Build 2026-04-26 KPI</div>
+    </div>
+    <div class="summary-row">
+      <div class="sum-box" style="background:#fff3e0;">
+        <div class="sum-n" style="color:#e65100;" id="topkpi-unpaid">–</div>
+        <div class="sum-l" style="color:#e65100;">Active Invoice</div>
+      </div>
+      <div class="sum-box" style="background:#fdecea;">
+        <div class="sum-n" style="color:#c62828;" id="topkpi-ar90">–</div>
+        <div class="sum-l" style="color:#c62828;">AR &gt;90 Hari</div>
+      </div>
+      <div class="sum-box" style="background:#fff8e1;">
+        <div class="sum-n" style="color:#f57c00;" id="topkpi-bfu">–</div>
+        <div class="sum-l" style="color:#f57c00;">Belum FU</div>
+      </div>
+      <div class="sum-box" style="background:#e8f5e9;">
+        <div class="sum-n" style="color:#2e7d32;" id="topkpi-fu">–</div>
+        <div class="sum-l" style="color:#2e7d32;">FU Hari Ini</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="action-board" id="d-action-board">
+    <div class="action-tile red"><div class="action-k">Kritis</div><div class="action-v">0</div><div class="action-l">Janji Bayar Jatuh Tempo</div><div class="action-s">Belum ada data</div></div>
+    <div class="action-tile orange"><div class="action-k">Aksi Hari Ini</div><div class="action-v">0</div><div class="action-l">Ready To Follow Up</div><div class="action-s">Belum ada data</div></div>
+    <div class="action-tile blue"><div class="action-k">Bottleneck</div><div class="action-v">0</div><div class="action-l">Stuck di Proses</div><div class="action-s">Belum ada data</div></div>
+    <div class="action-tile green"><div class="action-k">Momentum</div><div class="action-v">0</div><div class="action-l">Potensi Closing</div><div class="action-s">Belum ada data</div></div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px;">
+    <h3>🎯 Priority Queue</h3>
+    <div style="font-size:.72rem;color:var(--sub);margin-bottom:10px;">Urutan invoice yang paling layak dikerjakan lebih dulu berdasarkan risiko, nominal, janji bayar, dan kelambatan follow up.</div>
+    <div class="priority-board" id="d-priority-board">
+      <div style="font-size:.78rem;color:var(--sub);padding:8px 2px;">Upload atau tarik data dulu untuk melihat antrian prioritas.</div>
+    </div>
+  </div>
+
+  <div class="super-grid">
+    <div class="super-card">
+      <h4>👥 Panel PIC</h4>
+      <div id="d-pic-summary" style="font-size:.74rem;color:var(--sub);">Belum ada data PIC untuk ditampilkan.</div>
+    </div>
+    <div class="super-card">
+      <h4>🕘 Activity Feed</h4>
+      <div class="mini-feed" id="d-activity-feed">
+        <div style="font-size:.74rem;color:var(--sub);">Belum ada aktivitas yang terekam.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px;">
+    <h3>🧭 Customer Risk Radar</h3>
+    <div style="font-size:.72rem;color:var(--sub);margin-bottom:10px;">Customer yang paling perlu dijaga hari ini berdasarkan outstanding, aging, dan kualitas follow up terakhir.</div>
+    <div class="risk-stack" id="d-customer-risk">
+      <div style="font-size:.78rem;color:var(--sub);padding:8px 2px;">Belum ada data customer risk.</div>
+    </div>
+  </div>
 
   <!-- Summary boxes -->
   <div class="summary-row">
@@ -1485,6 +1651,10 @@ function renderQ(append=false){
       if(sqTot) sqTot.textContent='0';
       if(sqBfu) sqBfu.textContent='0';
       if(sqTdy) sqTdy.textContent='0';
+      const qFocus=document.getElementById('q-focus-cards');
+      if(qFocus) qFocus.innerHTML='<div class="queue-box red"><div class="qv">0</div><div class="ql">Kritis</div><div class="qs">Belum ada data</div></div><div class="queue-box orange"><div class="qv">0</div><div class="ql">Siap Tagih</div><div class="qs">Belum ada data</div></div><div class="queue-box blue"><div class="qv">0</div><div class="ql">Bottleneck</div><div class="qs">Belum ada data</div></div>';
+      const qBrief=document.getElementById('q-supervisor-brief');
+      if(qBrief) qBrief.innerHTML='<div style="font-size:.72rem;color:var(--sub);">Upload atau tarik data dulu untuk melihat ringkasan kerja hari ini.</div>';
     }
     return;
   }
@@ -1570,6 +1740,27 @@ function renderQ(append=false){
     document.getElementById('sq-tot').textContent=all.length;
     document.getElementById('sq-bfu').textContent=all.filter(i=>getLogs(i.no).length===0).length;
     document.getElementById('sq-tdy').textContent=new Set(logs.filter(l=>l.date===TODAY).map(l=>l.inv)).size;
+    const criticalList=all.filter(i=>fastPrio(i)==='c');
+    const readyList=all.filter(i=>['collection_no_fu','direct_no_fu'].includes(getInvoiceProgress(i).key));
+    const bottleneckList=all.filter(i=>['ba_pending','ba_rejected','surat_pending','surat_rejected','nota_pending','nota_rejected','mir7_pending','mir7_rejected'].includes(getInvoiceProgress(i).key));
+    const qFocus=document.getElementById('q-focus-cards');
+    if(qFocus){
+      qFocus.innerHTML=`
+        <div class="queue-box red"><div class="qv">${criticalList.length}</div><div class="ql">Kritis</div><div class="qs">${criticalList.length?fmt(criticalList.reduce((s,i)=>s+i.amt,0))+' perlu perhatian':'Belum ada item kritis'}</div></div>
+        <div class="queue-box orange"><div class="qv">${readyList.length}</div><div class="ql">Siap Tagih</div><div class="qs">${readyList.length?fmt(readyList.reduce((s,i)=>s+i.amt,0))+' siap dieksekusi':'Belum ada invoice siap tagih'}</div></div>
+        <div class="queue-box blue"><div class="qv">${bottleneckList.length}</div><div class="ql">Bottleneck</div><div class="qs">${bottleneckList.length?fmt(bottleneckList.reduce((s,i)=>s+i.amt,0))+' tertahan di proses':'Tidak ada bottleneck dominan'}</div></div>`;
+    }
+    const qBrief=document.getElementById('q-supervisor-brief');
+    if(qBrief){
+      const janjiOverdue=logs.filter(l=>l.hasil==='Janji Bayar'&&l.jt&&l.jt<TODAY);
+      const noFuTop=all.filter(i=>getLogs(i.no).length===0).sort((a,b)=>b.amt-a.amt).slice(0,1);
+      const mirTop=all.filter(i=>['mir7_pending','mir7_rejected'].includes(getInvoiceProgress(i).key)).sort((a,b)=>b.amt-a.amt).slice(0,1);
+      const rows=[];
+      rows.push(`<div class="queue-brief-item"><div><div class="queue-brief-title">${janjiOverdue.length||0} janji bayar lewat jatuh tempo</div><div class="queue-brief-meta">Perlu konfirmasi realisasi hari ini.</div></div><div class="queue-brief-cta" onclick="setF('j')">Lihat</div></div>`);
+      if(noFuTop.length) rows.push(`<div class="queue-brief-item"><div><div class="queue-brief-title">${esc(noFuTop[0].no)} belum pernah di-follow-up</div><div class="queue-brief-meta">${esc(noFuTop[0].cust)} • ${fmt(noFuTop[0].amt)}</div></div><div class="queue-brief-cta" onclick="openM('${jsq(noFuTop[0].no)}')">Buka</div></div>`);
+      if(mirTop.length) rows.push(`<div class="queue-brief-item"><div><div class="queue-brief-title">${esc(mirTop[0].no)} stuck di MIR7</div><div class="queue-brief-meta">${esc(mirTop[0].cust)} • ${fmt(mirTop[0].amt)}</div></div><div class="queue-brief-cta" onclick="openM('${jsq(mirTop[0].no)}')">Eskalasi</div></div>`);
+      qBrief.innerHTML=rows.join('');
+    }
   }
 
   const el=document.getElementById('qlist');
@@ -2070,6 +2261,10 @@ function renderDash(){
   const paid=invs.filter(i=>i.pay==='Paid');
   renderKpiPerPic(unpaid,paid);
   const unpaidProgress=unpaid.map(function(i){ return {inv:i, prog:getInvoiceProgress(i)}; });
+  const syncBadge=document.getElementById('dash-sync-badge');
+  if(syncBadge) syncBadge.textContent='Data: '+(localDraftMode?'Draft lokal':'Cloud / siap pakai');
+  const focusBadge=document.getElementById('dash-focus-badge');
+  if(focusBadge) focusBadge.textContent='Fokus: '+(pic||'Semua PIC');
 
   // Summary - Pemisahan Piutang Sah vs PYMAD
   let agGrandTotal=0, ar90=0;
@@ -2174,6 +2369,14 @@ function renderDash(){
   const manualSuratItems=manualItems.filter(function(inv){ return !isSapEnteredForManual(inv) && isFinanceCompleteForManual(inv); });
   const manualFuItems=manualItems.filter(function(inv){ return isSapEnteredForManual(inv); });
   const paidVal=paid.reduce((s,i)=>s+(Number(i.amt)||0),0);
+  const readyToFollow=unpaidProgress.filter(function(x){return ['collection_no_fu','direct_no_fu'].includes(x.prog.key);}).map(function(x){return x.inv;});
+  const stuckProcess=unpaidProgress.filter(function(x){return ['ba_pending','ba_rejected','surat_pending','surat_rejected','nota_pending','nota_rejected','mir7_pending','mir7_rejected'].includes(x.prog.key);}).map(function(x){return x.inv;});
+  const janjiDueLogs=logs.filter(function(l){return l.hasil==='Janji Bayar'&&l.jt&&l.jt<TODAY;});
+  const janjiDueSet=new Set(janjiDueLogs.map(function(l){return l.inv;}));
+  const potentialClosing=unpaid.filter(function(i){
+    const last=logs.find(function(l){return l.inv===i.no;});
+    return last && (last.hasil==='Janji Bayar' || last.hasil==='Contacted');
+  }).slice(0,6);
   window._db_mir7 = {
     all: mirItems.map(function(x){ return x.inv; }),
     belum: mirPendingItems.map(function(x){ return x.inv; }),
@@ -2278,6 +2481,163 @@ function renderDash(){
   document.getElementById('dk-bfu').textContent=belumFU||'–';
   document.getElementById('dk-janji').textContent=janjiOD||'0';
   document.getElementById('dk-fuhari').textContent=todayLogs.length||'0';
+  const topUnpaid=document.getElementById('topkpi-unpaid');
+  if(topUnpaid) topUnpaid.textContent=unpaid.length||'–';
+  const topAr90=document.getElementById('topkpi-ar90');
+  if(topAr90) topAr90.textContent=ar90>0?fmt(ar90):'Upload Aging';
+  const topBfu=document.getElementById('topkpi-bfu');
+  if(topBfu) topBfu.textContent=belumFU||'0';
+  const topFu=document.getElementById('topkpi-fu');
+  if(topFu) topFu.textContent=todayLogs.length||'0';
+
+  const actionBoard=document.getElementById('d-action-board');
+  if(actionBoard){
+    actionBoard.innerHTML=`
+      <div class="action-tile red" onclick="goPipeline('j')">
+        <div class="action-k">Kritis</div>
+        <div class="action-v">${janjiOD||0}</div>
+        <div class="action-l">Janji Bayar Jatuh Tempo</div>
+        <div class="action-s">${janjiDueLogs.length?fmt(janjiDueLogs.reduce((s,l)=>s+(l.jn||0),0))+' perlu konfirmasi':'Belum ada janji yang lewat jatuh tempo'}</div>
+      </div>
+      <div class="action-tile orange" onclick="goPipeline('p3')">
+        <div class="action-k">Aksi Hari Ini</div>
+        <div class="action-v">${readyToFollow.length}</div>
+        <div class="action-l">Ready To Follow Up</div>
+        <div class="action-s">${readyToFollow.length?fmt(readyToFollow.reduce((s,i)=>s+i.amt,0))+' siap ditagih':'Belum ada invoice siap tagih'}</div>
+      </div>
+      <div class="action-tile blue" onclick="goPipeline('p4')">
+        <div class="action-k">Bottleneck</div>
+        <div class="action-v">${stuckProcess.length}</div>
+        <div class="action-l">Stuck di Proses</div>
+        <div class="action-s">${stuckProcess.length?fmt(stuckProcess.reduce((s,i)=>s+i.amt,0))+' tertahan di BA/Surat/ND/MIR7':'Tidak ada bottleneck utama'}</div>
+      </div>
+      <div class="action-tile green" onclick="goPipeline('a')">
+        <div class="action-k">Momentum</div>
+        <div class="action-v">${potentialClosing.length}</div>
+        <div class="action-l">Potensi Closing</div>
+        <div class="action-s">${potentialClosing.length?fmt(potentialClosing.reduce((s,i)=>s+i.amt,0))+' layak dikawal hari ini':'Belum ada peluang closing dominan'}</div>
+      </div>`;
+  }
+
+  const priorityBoard=document.getElementById('d-priority-board');
+  if(priorityBoard){
+    const logMap={};
+    logs.forEach(function(l){ if(!logMap[l.inv]) logMap[l.inv]=[]; logMap[l.inv].push(l); });
+    function priorityScore(inv){
+      const last=(logMap[inv.no]||[])[0];
+      let score=0;
+      if(inv.amt>250000000) score+=45; else if(inv.amt>100000000) score+=30; else if(inv.amt>50000000) score+=20;
+      const prog=getInvoiceProgress(inv);
+      if(['collection_no_fu','direct_no_fu'].includes(prog.key)) score+=18;
+      if(['mir7_pending','surat_pending','nota_pending','ba_pending'].includes(prog.key)) score+=12;
+      if(['mir7_rejected','surat_rejected','nota_rejected','ba_rejected'].includes(prog.key)) score+=20;
+      if(janjiDueSet.has(inv.no)) score+=35;
+      if(!last) score+=16;
+      else {
+        const diff=Math.floor((new Date(TODAY)-new Date(last.date))/86400000);
+        if(diff>=7) score+=18;
+        else if(diff>=3) score+=10;
+      }
+      return score;
+    }
+    const topPriority=unpaid.slice().sort(function(a,b){return priorityScore(b)-priorityScore(a);}).slice(0,6);
+    priorityBoard.innerHTML=topPriority.length?topPriority.map(function(inv){
+      const score=priorityScore(inv);
+      const prog=getInvoiceProgress(inv);
+      const chip=janjiDueSet.has(inv.no)?['red','Kritis']:score>=45?['red','Kritis']:score>=28?['orange','Perlu Aksi']:['blue','Monitor'];
+      const last=(logMap[inv.no]||[])[0];
+      const meta=[
+        'PIC: '+(prog.ownerPerson||inv.picB||'Belum assign'),
+        last?'FU terakhir '+last.date:'Belum ada FU',
+        prog.label
+      ].join(' • ');
+      return `<div class="priority-row" onclick="openM('${jsq(inv.no)}')">
+        <div class="priority-main">
+          <div class="priority-title">${esc(inv.no)} • ${esc(inv.cust)}</div>
+          <div class="priority-meta">${esc(meta)}</div>
+        </div>
+        <div class="priority-amt">${fmt(inv.amt)}</div>
+        <div class="priority-chip ${chip[0]}">${chip[1]}</div>
+        <div class="priority-cta">Buka Detail</div>
+      </div>`;
+    }).join(''):'<div style="font-size:.78rem;color:var(--sub);padding:8px 2px;">Tidak ada invoice prioritas untuk ditampilkan.</div>';
+  }
+
+  const picSummary=document.getElementById('d-pic-summary');
+  if(picSummary){
+    const picMap={};
+    unpaid.forEach(function(inv){
+      const owner=getInvoiceProgress(inv).ownerPerson||inv.picB||'Belum assign';
+      if(!picMap[owner]) picMap[owner]={count:0,amt:0,today:0,critical:0};
+      picMap[owner].count++;
+      picMap[owner].amt+=inv.amt||0;
+      if(janjiDueSet.has(inv.no)) picMap[owner].critical++;
+    });
+    todayLogs.forEach(function(l){
+      const owner=l.pic||'Belum assign';
+      if(!picMap[owner]) picMap[owner]={count:0,amt:0,today:0,critical:0};
+      picMap[owner].today++;
+    });
+    const rows=Object.entries(picMap).sort(function(a,b){return b[1].amt-a[1].amt;}).slice(0,6);
+    picSummary.innerHTML=rows.length?rows.map(function(entry){
+      const name=entry[0], v=entry[1];
+      return `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 0;border-bottom:1px dashed #e5e7eb;">
+        <div>
+          <div style="font-size:.78rem;font-weight:800;color:var(--dark);">${esc(name)}</div>
+          <div style="font-size:.67rem;color:var(--sub);">${v.count} invoice • ${v.today} log hari ini • ${v.critical} kritis</div>
+        </div>
+        <div style="font-size:.75rem;font-weight:800;color:var(--dark);">${fmt(v.amt)}</div>
+      </div>`;
+    }).join(''):'Belum ada data PIC untuk ditampilkan.';
+  }
+
+  const activityFeed=document.getElementById('d-activity-feed');
+  if(activityFeed){
+    const recentLogs=logs.slice(0,5);
+    activityFeed.innerHTML=recentLogs.length?recentLogs.map(function(l){
+      const dot=l.hasil==='Paid'?'green':l.hasil==='Janji Bayar'?'orange':'blue';
+      return `<div class="mini-feed-item">
+        <div class="mini-feed-dot ${dot}"></div>
+        <div class="mini-feed-text"><strong>${esc(l.pic||'PIC')}</strong> ${esc((l.hasil||'update').toLowerCase())} ${esc(l.inv||'invoice')}<br>${esc(l.note||l.cust||'')}</div>
+        <div class="mini-feed-time">${esc(l.date||'')}</div>
+      </div>`;
+    }).join(''):'<div style="font-size:.74rem;color:var(--sub);">Belum ada aktivitas yang terekam.</div>';
+  }
+
+  const customerRisk=document.getElementById('d-customer-risk');
+  if(customerRisk){
+    const byCustomer={};
+    unpaid.forEach(function(inv){
+      const key=inv.cust||'Tanpa Nama';
+      if(!byCustomer[key]) byCustomer[key]={cust:key,amt:0,count:0,o90:0,last:'',janji:false,pic:''};
+      byCustomer[key].amt+=Number(inv.amt)||0;
+      byCustomer[key].count++;
+      const ag=getAgingByInvoice(inv);
+      byCustomer[key].o90+=ag&&ag.o90?Number(ag.o90)||0:0;
+      const relLogs=logs.filter(function(l){return l.inv===inv.no;});
+      if(relLogs.length && (!byCustomer[key].last || relLogs[0].date>byCustomer[key].last)) byCustomer[key].last=relLogs[0].date;
+      if(relLogs.some(function(l){return l.hasil==='Janji Bayar'&&l.jt&&l.jt<TODAY;})) byCustomer[key].janji=true;
+      if(!byCustomer[key].pic) byCustomer[key].pic=getInvoiceProgress(inv).ownerPerson||inv.picB||'Belum assign';
+    });
+    const riskRows=Object.values(byCustomer).sort(function(a,b){
+      const scoreA=(a.janji?1000000000:0)+a.o90+a.amt;
+      const scoreB=(b.janji?1000000000:0)+b.o90+b.amt;
+      return scoreB-scoreA;
+    }).slice(0,5);
+    customerRisk.innerHTML=riskRows.length?riskRows.map(function(r){
+      const agingText=r.o90>0?fmt(r.o90)+' >90 hari':'Aging aman / belum ada data';
+      const followText=r.last?'FU terakhir '+r.last:'Belum ada follow up';
+      const janjiText=r.janji?'Ada janji bayar yang lewat jatuh tempo':'Belum ada janji lewat tempo';
+      return `<div class="risk-row" onclick="goToCustomerRisk('${jsq(r.cust)}')">
+        <div class="risk-top">
+          <div class="risk-name">${esc(r.cust)}</div>
+          <div class="risk-amt">${fmt(r.amt)}</div>
+        </div>
+        <div class="risk-meta">${r.count} invoice aktif • PIC ${esc(r.pic)} • ${agingText}<br>${followText} • ${janjiText}</div>
+        <div class="risk-cta">Lihat invoice customer ini →</div>
+      </div>`;
+    }).join(''):'<div style="font-size:.78rem;color:var(--sub);padding:8px 2px;">Belum ada data customer risk.</div>';
+  }
 
   // Piutang Lama table
   const plamaEl=document.getElementById('d-piutang-lama');
@@ -2769,6 +3129,15 @@ function goToInv(no){
   showPage('queue');
   const srch=document.getElementById('srch');
   if(srch){srch.value=no; setF('a');}
+}
+function goToCustomerRisk(cust){
+  showPage('queue');
+  const srch=document.getElementById('srch');
+  if(srch){
+    srch.value=cust||'';
+    setF('a');
+  }
+  toast('🔎 Menampilkan invoice customer: '+(cust||'-'));
 }
 function goPipelineSub(filter, sub){
   showPage('queue');

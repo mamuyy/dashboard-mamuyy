@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mamuyy V2 Mock</title>
+<style>
+:root{
+  --ink:#11224d;
+  --bg:#eef3f9;
+  --card:#ffffff;
+  --line:#d9e2ef;
+  --muted:#65748b;
+  --accent:#1146a6;
+  --accent-2:#1e88e5;
+  --ok:#2e7d32;
+  --warn:#ef6c00;
+  --danger:#c62828;
+  --soft-blue:#eaf3ff;
+  --soft-green:#ecf8ef;
+  --soft-orange:#fff4e8;
+  --soft-red:#fdeeee;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:Segoe UI,Arial,sans-serif;
+  background:
+    radial-gradient(circle at top right, rgba(30,136,229,.12), transparent 28%),
+    linear-gradient(180deg, #f7fafe 0%, var(--bg) 100%);
+  color:#1d2433;
+}
+.shell{max-width:1280px;margin:0 auto;padding:24px 20px 48px}
+.topbar{
+  display:flex;justify-content:space-between;align-items:center;gap:16px;
+  background:linear-gradient(135deg, #10224a 0%, #17438f 100%);
+  color:#fff;border-radius:22px;padding:20px 22px;box-shadow:0 18px 36px rgba(17,34,77,.18);
+}
+.brand h1{font-size:28px;line-height:1.1;margin-bottom:6px}
+.brand p{font-size:14px;opacity:.85}
+.top-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:flex-end}
+.pill,.btn{
+  border-radius:999px;padding:10px 14px;font-size:13px;font-weight:700;border:1px solid transparent
+}
+.pill{background:rgba(255,255,255,.12);color:#fff}
+.btn{background:#fff;color:var(--ink)}
+.btn.primary{background:#cfe2ff;color:#0d2d69}
+.btn.success{background:#d8f1dc;color:#215f28}
+.layout{display:grid;grid-template-columns:1.6fr .9fr;gap:18px;margin-top:18px}
+.stack{display:grid;gap:18px}
+.card{
+  background:var(--card);border:1px solid rgba(17,34,77,.06);border-radius:22px;
+  box-shadow:0 10px 28px rgba(15,43,91,.06);padding:20px;
+}
+.card h2{font-size:18px;color:var(--ink);margin-bottom:6px}
+.sub{font-size:13px;color:var(--muted)}
+.hero-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:16px}
+.hero{
+  border-radius:18px;padding:16px;min-height:132px;display:flex;flex-direction:column;justify-content:space-between
+}
+.hero.red{background:var(--soft-red)}
+.hero.orange{background:var(--soft-orange)}
+.hero.green{background:var(--soft-green)}
+.hero.blue{background:var(--soft-blue)}
+.hero .tag{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;opacity:.8}
+.hero .num{font-size:34px;font-weight:800;line-height:1}
+.hero .cap{font-size:13px;font-weight:700}
+.hero .mini{font-size:12px;color:#55606f}
+.priority-list{display:grid;gap:10px;margin-top:16px}
+.priority{
+  display:grid;grid-template-columns:1.5fr .9fr .8fr auto;gap:10px;align-items:center;
+  border:1px solid var(--line);border-radius:16px;padding:14px 16px;background:#fff;
+}
+.priority:hover{border-color:#bfd0ea;background:#fbfdff}
+.title{font-size:14px;font-weight:800;color:var(--ink)}
+.meta{font-size:12px;color:var(--muted);margin-top:3px}
+.amount{font-size:15px;font-weight:800;text-align:right}
+.status{font-size:12px;font-weight:800;border-radius:999px;padding:7px 10px;text-align:center}
+.status.red{background:#fde4e4;color:var(--danger)}
+.status.orange{background:#fff0db;color:#b45f06}
+.status.blue{background:#e7f0ff;color:#1557c2}
+.action{font-size:12px;font-weight:700;color:#0d47a1}
+.pipeline{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-top:16px}
+.step{
+  position:relative;border:1px solid var(--line);border-radius:16px;padding:14px 12px;background:#fff;text-align:center
+}
+.step:not(:last-child)::after{
+  content:"";position:absolute;top:50%;right:-10px;width:18px;height:2px;background:#c7d3e6
+}
+.step .k{font-size:11px;text-transform:uppercase;font-weight:800;color:var(--muted)}
+.step .v{font-size:26px;font-weight:800;color:var(--ink);margin:6px 0}
+.step .t{font-size:12px;color:var(--muted)}
+.pic-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:16px}
+.pic{
+  border:1px solid var(--line);border-radius:18px;padding:16px;background:linear-gradient(180deg,#fff,#fbfdff)
+}
+.pic-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.pic-name{font-size:16px;font-weight:800;color:var(--ink)}
+.pic-role{font-size:12px;color:var(--muted)}
+.pic-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}
+.mini-stat{background:#f6f9fd;border-radius:14px;padding:10px}
+.mini-stat .n{font-size:20px;font-weight:800}
+.mini-stat .l{font-size:11px;text-transform:uppercase;font-weight:800;color:var(--muted);margin-top:3px}
+.risk-list{display:grid;gap:10px;margin-top:16px}
+.risk{
+  border-left:5px solid #d32f2f;background:#fff;border-radius:16px;padding:14px 16px;
+  box-shadow:0 6px 14px rgba(0,0,0,.04)
+}
+.risk:nth-child(2){border-left-color:#ef6c00}
+.risk:nth-child(3){border-left-color:#1565c0}
+.risk .r1{display:flex;justify-content:space-between;gap:12px}
+.risk .name{font-size:14px;font-weight:800;color:var(--ink)}
+.risk .amt{font-size:14px;font-weight:800}
+.risk .r2{margin-top:6px;font-size:12px;color:var(--muted);line-height:1.45}
+.activity{display:grid;gap:10px;margin-top:16px}
+.feed{
+  display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:start;
+  border-bottom:1px dashed var(--line);padding-bottom:10px
+}
+.feed:last-child{border-bottom:none;padding-bottom:0}
+.dot{width:12px;height:12px;border-radius:50%;margin-top:5px}
+.dot.green{background:var(--ok)}
+.dot.orange{background:var(--warn)}
+.dot.blue{background:var(--accent-2)}
+.feed .who{font-size:13px;font-weight:800}
+.feed .what{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.4}
+.feed .time{font-size:11px;color:var(--muted)}
+.footer-note{margin-top:16px;font-size:12px;color:var(--muted)}
+@media (max-width:1080px){
+  .layout{grid-template-columns:1fr}
+  .hero-grid{grid-template-columns:repeat(2,1fr)}
+  .pipeline{grid-template-columns:repeat(3,1fr)}
+}
+@media (max-width:720px){
+  .topbar{flex-direction:column;align-items:flex-start}
+  .top-actions{justify-content:flex-start}
+  .hero-grid,.pic-grid,.pipeline{grid-template-columns:1fr}
+  .priority{grid-template-columns:1fr}
+  .amount{text-align:left}
+}
+</style>
+</head>
+<body>
+  <div class="shell">
+    <div class="topbar">
+      <div class="brand">
+        <h1>Mamuyy V2</h1>
+        <p>Action board penagihan harian. Fokus ke apa yang harus dikerjakan hari ini.</p>
+      </div>
+      <div class="top-actions">
+        <div class="pill">Data terakhir: 26 Apr 2026 08:15</div>
+        <div class="pill">PIC: Semua Tim</div>
+        <div class="pill">Status: Aman</div>
+        <button class="btn success">Sync Data Terbaru</button>
+        <button class="btn primary">Buka Priority Queue</button>
+      </div>
+    </div>
+
+    <div class="layout">
+      <div class="stack">
+        <div class="card">
+          <h2>Today Action Board</h2>
+          <div class="sub">Ringkasan aksi penting yang harus selesai hari ini sebelum tim masuk ke detail invoice.</div>
+          <div class="hero-grid">
+            <div class="hero red">
+              <div class="tag">Kritis</div>
+              <div class="num">12</div>
+              <div class="cap">Janji Bayar Jatuh Tempo</div>
+              <div class="mini">Rp 842,5 jt belum terkonfirmasi</div>
+            </div>
+            <div class="hero orange">
+              <div class="tag">Harus Ditagih</div>
+              <div class="num">28</div>
+              <div class="cap">Ready To Follow Up</div>
+              <div class="mini">8 invoice belum disentuh > 3 hari</div>
+            </div>
+            <div class="hero blue">
+              <div class="tag">Bottleneck</div>
+              <div class="num">9</div>
+              <div class="cap">Stuck di Surat / MIR7</div>
+              <div class="mini">Perlu eskalasi lintas fungsi</div>
+            </div>
+            <div class="hero red">
+              <div class="tag">Overdue</div>
+              <div class="num">17</div>
+              <div class="cap">AR > 30 Hari</div>
+              <div class="mini">5 customer dominan</div>
+            </div>
+            <div class="hero green">
+              <div class="tag">Momentum</div>
+              <div class="num">6</div>
+              <div class="cap">Potensi Closing Hari Ini</div>
+              <div class="mini">Target kas masuk Rp 1,14 M</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Priority Queue</h2>
+          <div class="sub">Urutan kerja harian otomatis berdasarkan overdue, nominal, janji bayar, dan kemandekan proses.</div>
+          <div class="priority-list">
+            <div class="priority">
+              <div>
+                <div class="title">AR-2026-0005725 • PT Pelindo Jasa Maritim</div>
+                <div class="meta">PIC: Mamu • Follow up terakhir 4 hari lalu • Janji bayar hari ini</div>
+              </div>
+              <div class="amount">Rp 286.400.000</div>
+              <div class="status red">Kritis</div>
+              <div class="action">Log FU / Detail</div>
+            </div>
+            <div class="priority">
+              <div>
+                <div class="title">AR-2026-0005724 • PT Pelindo Jasa Maritim</div>
+                <div class="meta">PIC: Yuni • Ready tagih • Belum ada aktivitas 3 hari</div>
+              </div>
+              <div class="amount">Rp 193.870.000</div>
+              <div class="status orange">Perlu Aksi</div>
+              <div class="action">Tagih Sekarang</div>
+            </div>
+            <div class="priority">
+              <div>
+                <div class="title">AR-2026-0005681 • PT Pelindo Multi Terminal</div>
+                <div class="meta">PIC: Rizal • MIR7 masih pending • Overdue 18 hari</div>
+              </div>
+              <div class="amount">Rp 421.200.000</div>
+              <div class="status blue">Tersangkut</div>
+              <div class="action">Eskalasi</div>
+            </div>
+            <div class="priority">
+              <div>
+                <div class="title">AR-2026-0005610 • PT Terminal Curah Utama</div>
+                <div class="meta">PIC: Mamu • Customer aktif merespons • Potensi paid minggu ini</div>
+              </div>
+              <div class="amount">Rp 118.250.000</div>
+              <div class="status orange">Follow Up</div>
+              <div class="action">Amankan Janji</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Pipeline Monitoring</h2>
+          <div class="sub">Alur proses invoice dari dokumen internal sampai menjadi kas masuk.</div>
+          <div class="pipeline">
+            <div class="step"><div class="k">BA</div><div class="v">14</div><div class="t">3 melewati SLA</div></div>
+            <div class="step"><div class="k">Surat</div><div class="v">9</div><div class="t">2 perlu eskalasi</div></div>
+            <div class="step"><div class="k">Nota</div><div class="v">5</div><div class="t">normal</div></div>
+            <div class="step"><div class="k">MIR7</div><div class="v">7</div><div class="t">4 pending</div></div>
+            <div class="step"><div class="k">Ready</div><div class="v">28</div><div class="t">siap tagih</div></div>
+            <div class="step"><div class="k">FU Aktif</div><div class="v">22</div><div class="t">janji 12</div></div>
+            <div class="step"><div class="k">Paid</div><div class="v">11</div><div class="t">minggu ini</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stack">
+        <div class="card">
+          <h2>Panel PIC</h2>
+          <div class="sub">Supervisor bisa melihat beban kerja, risiko, dan produktivitas per PIC.</div>
+          <div class="pic-grid">
+            <div class="pic">
+              <div class="pic-top">
+                <div>
+                  <div class="pic-name">Mamu</div>
+                  <div class="pic-role">Follow Up Lead</div>
+                </div>
+                <div class="status red">4 kritis</div>
+              </div>
+              <div class="pic-stats">
+                <div class="mini-stat"><div class="n">18</div><div class="l">Invoice Aktif</div></div>
+                <div class="mini-stat"><div class="n">Rp 1,8 M</div><div class="l">Outstanding</div></div>
+                <div class="mini-stat"><div class="n">7</div><div class="l">FU Hari Ini</div></div>
+                <div class="mini-stat"><div class="n">5</div><div class="l">Janji Aktif</div></div>
+              </div>
+            </div>
+            <div class="pic">
+              <div class="pic-top">
+                <div>
+                  <div class="pic-name">Yuni</div>
+                  <div class="pic-role">Billing Coordination</div>
+                </div>
+                <div class="status orange">3 overdue</div>
+              </div>
+              <div class="pic-stats">
+                <div class="mini-stat"><div class="n">12</div><div class="l">Invoice Aktif</div></div>
+                <div class="mini-stat"><div class="n">Rp 1,1 M</div><div class="l">Outstanding</div></div>
+                <div class="mini-stat"><div class="n">4</div><div class="l">FU Hari Ini</div></div>
+                <div class="mini-stat"><div class="n">2</div><div class="l">Stuck Proses</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Customer Risk Radar</h2>
+          <div class="sub">Bukan cuma invoice per dokumen, tapi risiko per customer yang perlu dikawal.</div>
+          <div class="risk-list">
+            <div class="risk">
+              <div class="r1">
+                <div class="name">PT Pelindo Jasa Maritim</div>
+                <div class="amt">Rp 1,24 M</div>
+              </div>
+              <div class="r2">6 invoice aktif • dominan overdue 30+ hari • follow up terakhir 4 hari lalu • 2 janji bayar belum lunas</div>
+            </div>
+            <div class="risk">
+              <div class="r1">
+                <div class="name">PT Terminal Curah Utama</div>
+                <div class="amt">Rp 842 jt</div>
+              </div>
+              <div class="r2">3 invoice aktif • customer responsif • peluang closing minggu ini tinggi</div>
+            </div>
+            <div class="risk">
+              <div class="r1">
+                <div class="name">PT Pelindo Multi Terminal</div>
+                <div class="amt">Rp 775 jt</div>
+              </div>
+              <div class="r2">4 invoice aktif • terhambat di MIR7 • butuh tindak lanjut lintas unit</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Activity Feed</h2>
+          <div class="sub">Riwayat aksi tim yang langsung relevan untuk pengendalian harian.</div>
+          <div class="activity">
+            <div class="feed">
+              <div class="dot green"></div>
+              <div>
+                <div class="who">Mamu update janji bayar AR-2026-0005725</div>
+                <div class="what">Customer komit bayar Rp 150 jt hari ini pukul 15:00. Perlu konfirmasi mutasi sore.</div>
+              </div>
+              <div class="time">08:12</div>
+            </div>
+            <div class="feed">
+              <div class="dot orange"></div>
+              <div>
+                <div class="who">Yuni tandai 2 invoice stuck di MIR7</div>
+                <div class="what">Perlu follow up ke unit proses. Sudah lebih dari 2 hari tanpa update.</div>
+              </div>
+              <div class="time">07:48</div>
+            </div>
+            <div class="feed">
+              <div class="dot blue"></div>
+              <div>
+                <div class="who">Sync data selesai</div>
+                <div class="what">34 invoice aktif, 11 paid minggu ini, 3 invoice perlu pengecekan data sumber.</div>
+              </div>
+              <div class="time">07:15</div>
+            </div>
+          </div>
+          <div class="footer-note">Arah mock ini: atas untuk insight, tengah untuk aksi, kanan untuk kontrol supervisor. Jadi Mamuyy terasa sebagai meja kerja, bukan sekadar monitor status.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
