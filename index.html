@@ -162,6 +162,10 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 .hhead{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px;}
 .hinv{font-weight:800;color:var(--dark);font-size:.75rem;}
 .hdate{font-size:.68rem;color:var(--sub);}
+.hactions{display:flex;gap:6px;align-items:center;}
+.icon-mini-btn{border:none;background:#f5f7fb;color:#546e7a;border-radius:8px;padding:5px 8px;font-size:.68rem;font-weight:700;cursor:pointer;}
+.icon-mini-btn.danger{background:#fdecea;color:#b71c1c;}
+.icon-mini-btn:hover{filter:brightness(.97);}
 .htag{display:inline-block;padding:2px 7px;border-radius:10px;font-size:.63rem;font-weight:700;}
 .h-c{background:#e8f5e9;color:#2e7d32;}
 .h-n{background:#fff3e0;color:#e65100;}
@@ -431,7 +435,6 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 </head>
 <body>
 <div class="watermark">MAMUYY</div>
-
 <div class="topbar">
   <h1>📬 Penagihan – PT Pelindo Daya Sejahtera</h1>
   <div class="right">
@@ -2368,6 +2371,18 @@ function clearQL(){
   document.querySelectorAll('#page-log .rbtn').forEach(b=>b.classList.remove('sel'));
   jBox('ql',false);
 }
+function deleteLogEntry(id){
+  const idx=logs.findIndex(l=>String(l.id)===String(id));
+  if(idx<0){ toast('⚠️ Log tidak ditemukan'); return; }
+  const item=logs[idx];
+  if(!confirm('Hapus log '+(item.inv||'')+' tanggal '+(item.date||'')+'?')) return;
+  logs.splice(idx,1);
+  saveLogs();
+  renderH();
+  renderQ();
+  renderDash();
+  toast('🗑 Log testing dihapus');
+}
 
 // ═══ HISTORY ═══
 function setHF(f){ hf=f; document.querySelectorAll('#page-history .fbtn').forEach(b=>b.classList.remove('active'));
@@ -2404,7 +2419,10 @@ function renderH(){
     <div class="hcard">
       <div class="hhead">
         <span class="hinv">${esc(l.inv)}</span>
-        <span class="hdate">${esc(l.date)} · ${esc(l.pic||'—')}</span>
+        <div class="hactions">
+          <span class="hdate">${esc(l.date)} · ${esc(l.pic||'—')}</span>
+          <button class="icon-mini-btn danger" onclick="deleteLogEntry('${jsq(l.id)}')">Hapus</button>
+        </div>
       </div>
       <span class="htag h-${(l.hasil||'').toLowerCase().replace(' ','')}">${esc(l.hasil||'?')}</span>
       ${l.ch?`<span style="font-size:.65rem;color:var(--sub);margin-left:5px;">via ${esc(l.ch)}</span>`:''}
