@@ -1627,6 +1627,19 @@ function getAgingByInvoice(inv){
   });
   return fuzzyKey?agMap[fuzzyKey]:null;
 }
+function getAgingDocList(){
+  if(window.fbl5nDocsMap && Object.keys(window.fbl5nDocsMap).length){
+    return Object.values(window.fbl5nDocsMap);
+  }
+  return [];
+}
+function getAgingGrandTotal(){
+  const docList=getAgingDocList();
+  if(docList.length){
+    return docList.reduce(function(sum,doc){ return sum + (Number(doc.amt) || 0); },0);
+  }
+  return Object.values(agMap).reduce(function(sum,row){ return sum + (Number(row.total) || 0); },0);
+}
 function prio(inv){
   const il=logs.filter(l=>l.inv===inv.no); const last=il.sort((a,b)=>b.date.localeCompare(a.date))[0];
   let sc=0;
@@ -2634,14 +2647,7 @@ function renderDash(){
   // Summary - Pemisahan Piutang Sah vs PYMAD
   let agGrandTotal=0, ar90=0;
   Object.values(agMap).forEach(v=>{ ar90+=(v.o90||0); });
-  const fbl5nDocList=(window.fbl5nDocsMap && Object.keys(window.fbl5nDocsMap).length)
-    ? Object.values(window.fbl5nDocsMap)
-    : [];
-  if(fbl5nDocList.length){
-    agGrandTotal=fbl5nDocList.reduce((s,doc)=>s+(Number(doc.amt)||0),0);
-  } else {
-    Object.values(agMap).forEach(v=>{ agGrandTotal+=(v.total||0); });
-  }
+  agGrandTotal=getAgingGrandTotal();
 
   // ── Breakdown: P2P | Non-P2P | Migrasi (Hanya yg inFBL5N / Piutang Sah) ──
   const p2pBilled=unpaid.filter(i=> i.type==='p2p' || (!i.type && i.sSrt==='Completed')); 
@@ -3021,12 +3027,7 @@ function renderDash(){
       if(plamaBadge) plamaBadge.textContent='';
     } else {
       const totalLama=agTotals.b120+agTotals.b150+agTotals.b180+agTotals.b210+agTotals.bOld;
-      const fbl5nDocList=(window.fbl5nDocsMap && Object.keys(window.fbl5nDocsMap).length)
-        ? Object.values(window.fbl5nDocsMap)
-        : [];
-      const grandTotal=fbl5nDocList.length
-        ? fbl5nDocList.reduce((s,doc)=>s+(Number(doc.amt)||0),0)
-        : ((agTotals.b0||0)+agTotals.b30+agTotals.b60+agTotals.b90+totalLama);
+      const grandTotal=getAgingGrandTotal() || ((agTotals.b0||0)+agTotals.b30+agTotals.b60+agTotals.b90+totalLama);
       if(plamaBadge) plamaBadge.textContent='Total: '+fmt(grandTotal)+' | >90hr: '+fmt(totalLama)+'  (Current: '+fmt(agTotals.b0||0)+')';
       // Top 10 customer berdasarkan piutang >360 hari (dOld) terbesar
       const aged=Object.entries(agMap)
@@ -4031,9 +4032,11 @@ function pullAllFromSheets(silent=false){
     if(rAging.ok && rAging.agMap){
       agMap=rAging.agMap || {};
       agTotals=rAging.agTotals || {b0:0,b30:0,b60:0,b90:0,b120:0,b150:0,b180:0,b210:0,bOld:0,hasData:Object.keys(agMap).length>0};
+      window.fbl5nDocsMap=rAging.fbl5nDocsMap || {};
     } else {
       agMap={};
       agTotals={b0:0,b30:0,b60:0,b90:0,b120:0,b150:0,b180:0,b210:0,bOld:0,hasData:false};
+      window.fbl5nDocsMap={};
     }
 
     // Logs — merge dengan lokal
