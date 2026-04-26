@@ -373,6 +373,17 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 .customer-stat{background:#f8fafc;border:1px solid #e7edf5;border-radius:12px;padding:12px;}
 .customer-stat-v{font-size:1.15rem;font-weight:800;line-height:1.1;color:var(--dark);}
 .customer-stat-l{font-size:.64rem;font-weight:800;text-transform:uppercase;color:var(--sub);margin-top:4px;}
+.customer-reco{background:linear-gradient(135deg,#f8fbff 0%,#eef5ff 100%);border:1px solid #d9e7fb;border-radius:14px;padding:13px 14px;margin-bottom:14px;}
+.customer-reco-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;}
+.customer-reco-k{font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#607d8b;margin-bottom:5px;}
+.customer-reco-v{font-size:.9rem;font-weight:800;color:var(--dark);}
+.customer-reco-s{font-size:.68rem;color:#546e7a;line-height:1.45;margin-top:4px;}
+.customer-reco-badge{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;font-size:.62rem;font-weight:800;}
+.customer-reco-badge.red{background:#fdecea;color:#b71c1c;}
+.customer-reco-badge.orange{background:#fff3e0;color:#e65100;}
+.customer-reco-badge.blue{background:#e3f2fd;color:#1565c0;}
+.customer-reco-badge.green{background:#e8f5e9;color:#1b5e20;}
+.customer-reco-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
 .customer-two{display:grid;grid-template-columns:1.1fr .9fr;gap:12px;}
 .customer-card{background:#fff;border:1px solid #e8edf3;border-radius:12px;padding:12px;}
 .customer-card h4{font-size:.74rem;font-weight:800;color:var(--dark);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;}
@@ -916,6 +927,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
     <div class="mbody">
       <input type="hidden" id="c-cust">
       <div class="customer-grid" id="c-stats"></div>
+      <div class="customer-reco" id="c-reco"></div>
       <div class="customer-two">
         <div class="customer-card">
           <div class="customer-actions">
@@ -1968,6 +1980,7 @@ function openM(no){
 function closeMBG(e){ if(e.target===document.getElementById('mbg')) closeM(); }
 function closeM(){ document.getElementById('mbg').classList.remove('open'); }
 function customerKey(v){ return String(v||'').trim().toLowerCase(); }
+function findInvoiceByNo(no){ return invs.find(i=>i.no===no); }
 function getTimelineSlaBadge(log){
   const base=(log&&log.date)||'';
   if(!base) return {cls:'sla-warn',label:'Tanggal kosong'};
@@ -1994,6 +2007,72 @@ function getCustomerSnapshot(cust){
   const topPic=Object.entries(picMap).sort((a,b)=>b[1]-a[1])[0];
   return {cust,related,unpaid,relatedLogs,totalAmt,totalO90,overdueJanji,latest,topPic:topPic?topPic[0]:'Belum assign'};
 }
+function getCustomerRecommendation(snap){
+  const sorted=snap.unpaid.slice().sort((a,b)=>{
+    const agA=getAgingByInvoice(a), agB=getAgingByInvoice(b);
+    const scoreA=((agA&&Number(agA.o90))||0)+(Number(a.amt)||0);
+    const scoreB=((agB&&Number(agB.o90))||0)+(Number(b.amt)||0);
+    return scoreB-scoreA;
+  });
+  const primary=sorted[0]||null;
+  const janjiOverdueInv=sorted.find(inv=>{
+    const last=logs.filter(l=>l.inv===inv.no).sort((a,b)=>(b.ts||b.date||'').localeCompare(a.ts||a.date||''))[0];
+    return last && last.hasil==='Janji Bayar' && last.jt && last.jt<TODAY;
+  });
+  if(janjiOverdueInv){
+    return {
+      tone:'red',
+      title:'Kejar janji bayar yang lewat tempo',
+      summary:`Prioritaskan ${janjiOverdueInv.no} karena customer ini sudah punya janji bayar yang melewati jatuh tempo.`,
+      actionLabel:'Quick Log Janji',
+      targetNo:janjiOverdueInv.no,
+      mode:'log'
+    };
+  }
+  const noFuInv=sorted.find(inv=>!logs.some(l=>l.inv===inv.no));
+  if(noFuInv){
+    return {
+      tone:'orange',
+      title:'Lakukan first touch sekarang',
+      summary:`${noFuInv.no} belum pernah di-follow-up. Cocok untuk jadi kontak pertama customer ini hari ini.`,
+      actionLabel:'Quick Log Prioritas',
+      targetNo:noFuInv.no,
+      mode:'log'
+    };
+  }
+  const blockedInv=sorted.find(inv=>{
+    const key=getInvoiceProgress(inv).key;
+    return ['ba_pending','ba_rejected','surat_pending','surat_rejected','nota_pending','nota_rejected','mir7_pending','mir7_rejected'].includes(key);
+  });
+  if(blockedInv){
+    return {
+      tone:'blue',
+      title:'Bereskan bottleneck dokumen',
+      summary:`${blockedInv.no} tertahan di ${getInvoiceProgress(blockedInv).label}. Lanjutkan proses dokumen sebelum collection berikutnya.`,
+      actionLabel:'Buka Invoice Prioritas',
+      targetNo:blockedInv.no,
+      mode:'invoice'
+    };
+  }
+  if(primary){
+    return {
+      tone:'green',
+      title:'Lanjutkan follow up aktif',
+      summary:`Customer ini relatif sehat. Fokuskan tindak lanjut ke ${primary.no} untuk menjaga momentum closing.`,
+      actionLabel:'Buka Invoice Prioritas',
+      targetNo:primary.no,
+      mode:'invoice'
+    };
+  }
+  return {
+    tone:'green',
+    title:'Belum ada tindakan prioritas',
+    summary:'Customer ini belum punya invoice aktif yang perlu diolah sekarang.',
+    actionLabel:'Buka di Antrian',
+    targetNo:'',
+    mode:'queue'
+  };
+}
 function openCustomerInvoice(no){
   closeCustomerPanel();
   openM(no);
@@ -2008,6 +2087,22 @@ function openCustomerPanel(cust){
     <div class="customer-stat"><div class="customer-stat-v">${snap.unpaid.length}</div><div class="customer-stat-l">Invoice Aktif</div></div>
     <div class="customer-stat"><div class="customer-stat-v">${fmt(snap.totalO90)}</div><div class="customer-stat-l">AR &gt;90 Hari</div></div>
     <div class="customer-stat"><div class="customer-stat-v">${snap.overdueJanji}</div><div class="customer-stat-l">Janji Lewat Tempo</div></div>`;
+  const reco=getCustomerRecommendation(snap);
+  document.getElementById('c-reco').innerHTML=`
+    <div class="customer-reco-top">
+      <div>
+        <div class="customer-reco-k">Next Best Action</div>
+        <div class="customer-reco-v">${reco.title}</div>
+        <div class="customer-reco-s">${reco.summary}</div>
+      </div>
+      <div class="customer-reco-badge ${reco.tone}">${reco.tone==='red'?'Urgent':reco.tone==='orange'?'Today':reco.tone==='blue'?'Process':'Healthy'}</div>
+    </div>
+    <div class="customer-reco-actions">
+      <button class="btn btn-primary btn-sm" onclick="runCustomerRecommendation()">${reco.actionLabel}</button>
+      <button class="btn btn-outline btn-sm" onclick="focusCustomerQueue()">Lihat Semua Invoice</button>
+    </div>`;
+  document.getElementById('c-reco').dataset.targetNo=reco.targetNo||'';
+  document.getElementById('c-reco').dataset.mode=reco.mode||'queue';
   const invNote=document.getElementById('c-inv-note');
   if(invNote) invNote.textContent=`Menampilkan ${Math.min(snap.unpaid.length,8)} dari ${snap.unpaid.length} invoice aktif`;
   const actNote=document.getElementById('c-act-note');
@@ -2088,6 +2183,33 @@ function quickLogCustomerPrimary(){
     clearQL();
     toast('✍️ Buka Log FU untuk customer: '+(cust||'-'));
   }
+}
+function runCustomerRecommendation(){
+  const box=document.getElementById('c-reco');
+  if(!box) return;
+  const mode=box.dataset.mode||'queue';
+  const no=box.dataset.targetNo||'';
+  if(mode==='invoice' && no){
+    closeCustomerPanel();
+    openM(no);
+    return;
+  }
+  if(mode==='log' && no){
+    const cust=document.getElementById('c-cust').value||'';
+    closeCustomerPanel();
+    showPage('log');
+    const inv=findInvoiceByNo(no);
+    const invInput=document.getElementById('ql-inv');
+    if(invInput){
+      invInput.value=(inv?inv.no+' — '+inv.cust:no);
+      invInput.dispatchEvent(new Event('input'));
+    }
+    const qlDate=document.getElementById('ql-date');
+    if(qlDate && !qlDate.value) qlDate.value=TODAY;
+    toast('⚡ Next action siap untuk '+(inv?inv.no:cust));
+    return;
+  }
+  focusCustomerQueue();
 }
 const MODAL_MODE_OPTIONS={
   followup:{
