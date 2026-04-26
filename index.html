@@ -669,7 +669,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
   <div id="hlist"><div style="text-align:center;padding:40px;color:var(--sub);">📜 Belum ada log</div></div>
   <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
     <button class="btn btn-green btn-sm" onclick="exportLog()">📥 Export Excel</button>
-    <button class="btn btn-outline btn-sm" onclick="if(confirm('Hapus semua log?')){logs=[];saveLogs();renderH();renderQ();renderDash();}">🗑 Hapus Log</button>
+    <button class="btn btn-outline btn-sm" onclick="clearAllLogs()">🗑 Hapus Log</button>
   </div>
 </div>
 
@@ -2377,11 +2377,20 @@ function deleteLogEntry(id){
   const item=logs[idx];
   if(!confirm('Hapus log '+(item.inv||'')+' tanggal '+(item.date||'')+'?')) return;
   logs.splice(idx,1);
-  saveLogs();
+  saveLogs('full-sync');
   renderH();
   renderQ();
   renderDash();
   toast('🗑 Log testing dihapus');
+}
+function clearAllLogs(){
+  if(!confirm('Hapus semua log?')) return;
+  logs=[];
+  saveLogs('full-sync');
+  renderH();
+  renderQ();
+  renderDash();
+  toast('🗑 Semua log dihapus');
 }
 
 // ═══ HISTORY ═══
@@ -3537,11 +3546,15 @@ function exportLaporan(){
 }
 
 // ═══ HELPERS ═══
-function saveLogs(){
+function saveLogs(mode='append'){
   localStorage.setItem('fu_logs',JSON.stringify(logs));
 
   if(gsUrl){
-    pushLastLogToSheets();
+    if(mode==='full-sync'){
+      pushAllToSheets(true);
+    } else {
+      pushLastLogToSheets();
+    }
 
     setTimeout(function(){
       pullAllFromSheets(true);
@@ -3728,13 +3741,12 @@ function pushLastLogToSheets(){
 }
 
 // Upload SEMUA log ke Sheets (overwrite)
-function pushAllToSheets(){
-  if(!gsUrl){ toast('⚠️ URL belum diisi!'); return; }
-  if(!logs.length){ toast('ℹ️ Belum ada log untuk diupload.'); return; }
+function pushAllToSheets(silent=false){
+  if(!gsUrl){ if(!silent) toast('⚠️ URL belum diisi!'); return; }
   setGsStatus('⏳ Mengupload '+logs.length+' log ke Sheets...','#1565c0');
   return postGsAction('sync',{logs:logs}).then(function(){
     setGsStatus('✅ '+logs.length+' log diupload — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
-    toast('✅ Semua log diupload ke Sheets!');
+    if(!silent) toast('✅ Semua log diupload ke Sheets!');
   }).catch(function(e){ setGsStatus('❌ Gagal: '+e.message,'var(--red)'); throw e; });
 }
 
