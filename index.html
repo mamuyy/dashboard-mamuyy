@@ -509,6 +509,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 
     <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;">
       <button class="btn btn-primary" id="btn-proses" onclick="prosesData()" disabled>⚡ Proses & Muat Data</button>
+      <button class="btn btn-outline" id="btn-refresh-aging" onclick="refreshAgingOnly()" disabled>🔁 Refresh Aging Saja</button>
       <button class="btn btn-outline" onclick="resetData()">↺ Reset</button>
     </div>
     <div id="load-msg" style="margin-top:9px;font-size:.78rem;color:var(--sub);"></div>
@@ -1073,9 +1074,16 @@ function selPIC(n){ if(!n.trim()) return; pic=n.trim(); localStorage.setItem('fu
 function updPIC(){ document.getElementById('pic-display').textContent='👤 '+(pic||'Pilih PIC'); }
 
 // ═══ FILE LOAD ═══
+function updateDataActionButtons(){
+  const prosesBtn=document.getElementById('btn-proses');
+  if(prosesBtn) prosesBtn.disabled=!raw[1];
+  const refreshAgingBtn=document.getElementById('btn-refresh-aging');
+  if(refreshAgingBtn) refreshAgingBtn.disabled=!(raw[1]&&raw[3]);
+}
 function loadF(n,inp){ 
   const f=inp.files[0]; if(!f) return;
   const el=document.getElementById('fn'+n);
+  const loadMsgEl=document.getElementById('load-msg');
   el.textContent='⏳ '+f.name; el.className='fname wait';
   const r=new FileReader();
   r.onload=e=>{
@@ -1085,8 +1093,22 @@ function loadF(n,inp){
       // Field tanggal asli tetap bisa diformat dari serial number di safeDisplayValue().
       raw[n]=XLSX.read(e.target.result,{type:'array',cellDates:false});
       el.textContent='✅ '+f.name; el.className='fname ok';
-      if(raw[1]) document.getElementById('btn-proses').disabled=false;
-      document.getElementById('load-msg').textContent=n===1?'✅ File utama siap. Klik Proses.':'';
+      updateDataActionButtons();
+      if(n===1){
+        loadMsgEl.textContent='✅ File utama siap. Klik Proses & Muat Data.';
+      } else if(n===3){
+        loadMsgEl.textContent=raw[1]
+          ? '✅ File aging baru siap. Dashboard akan menghitung ulang otomatis untuk preview lokal.'
+          : '✅ File aging siap. Upload file utama lalu klik Proses & Muat Data untuk menerapkan angka SAP terbaru.';
+        toast(raw[1]
+          ? '📊 File aging sudah dipilih. Dashboard sedang menghitung ulang aging lokal otomatis.'
+          : '📊 File aging sudah dipilih. Upload file utama lalu proses data untuk menerapkan angka baru.');
+        if(raw[1]){
+          setTimeout(function(){ refreshAgingOnly(true); }, 80);
+        }
+      } else {
+        loadMsgEl.textContent='';
+      }
     }catch(ex){ el.textContent='❌ '+ex.message; el.className='fname'; }
   };
   r.readAsArrayBuffer(f);
@@ -1105,23 +1127,45 @@ function autoBackupLog(){
 }
 
 // ═══ PROCESS ═══
-function prosesData(){
-  if(!adminPinHash){
+function prosesData(opts){
+  opts=opts||{};
+  if(!opts.skipPin && !adminPinHash){
     alert('⚠️ PIN Admin Lokal belum diatur.\nBuka tab Data → isi "PIN Admin Lokal" terlebih dulu.');
     showPage('setup');
     return;
   }
-  const pin = prompt('⛔ AKSES KHUSUS ADMIN ⛔\nMasukkan Kunci Rahasia / PIN untuk merubah Master Data:');
-  if(hashPin(pin||'') !== adminPinHash) {
-    alert('❌ Akses Ditolak!\nMaaf, hanya Admin yang mendelegasikan wewenang ini. Tim silakan gunakan tombol "Tarik Data" saja.');
-    return;
+  if(!opts.skipPin){
+    const pin = prompt('⛔ AKSES KHUSUS ADMIN ⛔\nMasukkan Kunci Rahasia / PIN untuk merubah Master Data:');
+    if(hashPin(pin||'') !== adminPinHash) {
+      alert('❌ Akses Ditolak!\nMaaf, hanya Admin yang mendelegasikan wewenang ini. Tim silakan gunakan tombol "Tarik Data" saja.');
+      return;
+    }
   }
   // Tampilkan loading dulu, proses berat dijalankan setelah UI update
-  document.getElementById('load-msg').textContent='⏳ Memproses data...';
+  document.getElementById('load-msg').textContent=opts.loadingText||'⏳ Memproses data...';
   document.getElementById('btn-proses').disabled=true;
-  setTimeout(function(){ _doProsesData(); }, 80);
+  setTimeout(function(){ _doProsesData(opts); }, 80);
 }
-function _doProsesData(){ try{
+function refreshAgingOnly(autoTriggered){
+  if(!raw[1]){
+    toast('ℹ️ Upload File 1 dulu supaya aging bisa ditempel ke invoice yang aktif.');
+    return;
+  }
+  if(!raw[3]){
+    toast('ℹ️ Upload File 3 dulu supaya aging terbaru bisa dihitung.');
+    return;
+  }
+  prosesData({
+    skipPin:true,
+    skipAutoPush:true,
+    keepPage:true,
+    loadingText:autoTriggered?'⏳ File aging baru terdeteksi. Sistem sedang menghitung ulang otomatis...':'⏳ Menghitung ulang aging dari file terbaru...',
+    successToast:autoTriggered
+      ? '✅ Aging baru sudah diterapkan otomatis ke dashboard lokal. Jika sudah cocok, push manual ke Sheets.'
+      : '✅ Aging baru sudah diterapkan ke dashboard lokal. Jika sudah cocok, klik Push Data Aging atau Push Semua Data.'
+  });
+}
+function _doProsesData(opts){ opts=opts||{}; try{
   const nb=raw[1]; const ns=nb.Sheets[nb.SheetNames[0]];
   const rows=XLSX.utils.sheet_to_json(ns,{defval:''});
   invs=rows.map(r=>({
@@ -1446,23 +1490,28 @@ function _doProsesData(){ try{
   const unNP=invs.filter(i=>i.pay==='Unpaid'&&(i.type==='nonp2p'||i.type==='migrasi')).length;
   localDraftMode=true;
   document.getElementById('load-msg').textContent=`✅ Data lokal berhasil diproses: ${invs.length} invoice (${un} unpaid, ${unNP} non-P2P/migrasi). Sistem akan otomatis push ke Sheets jika hasilnya aman.`;
+  if(opts.skipAutoPush){
+    document.getElementById('load-msg').textContent=`✅ Aging lokal berhasil diterapkan: ${invs.length} invoice (${un} unpaid, ${unNP} non-P2P/migrasi). Jika sudah cocok, push manual ke Sheets.`;
+  }
   const postEl=document.getElementById('post-process-actions');
   if(postEl) postEl.style.display='block';
   document.getElementById('data-badge').textContent=`📅 ${TODAY}`;
-  document.getElementById('btn-proses').disabled=false;
+  updateDataActionButtons();
   renderQ(); renderDash();
-  toast('✅ Data dimuat! '+un+' unpaid'+(unNP?' | ⚡'+unNP+' Non-P2P/Migrasi':''));
-  if(gsUrl){
+  toast(opts.successToast || ('✅ Data dimuat! '+un+' unpaid'+(unNP?' | ⚡'+unNP+' Non-P2P/Migrasi':'')));
+  if(gsUrl && !opts.skipAutoPush){
     setGsStatus('⏳ Data lokal siap. Sistem sedang mencoba auto-push ke Sheets...','#1565c0');
     setTimeout(function(){
       pushAllDataToSheets({auto:true}).catch(function(){});
     }, 250);
+  } else if(opts.skipAutoPush){
+    setGsStatus('ℹ️ Aging baru sudah diterapkan lokal. Push manual jika ingin sinkron ke Sheets.','#ef6c00');
   } else {
     setGsStatus('ℹ️ URL Sheets belum diisi. Auto-push dilewati.','#ef6c00');
   }
-  showPage('queue');
+  if(!opts.keepPage) showPage('queue');
 } catch(err){
-  document.getElementById('btn-proses').disabled=false;
+  updateDataActionButtons();
   document.getElementById('load-msg').textContent='❌ Error: '+err.message;
   toast('❌ Proses gagal: '+err.message);
   console.error('prosesData error:',err);
@@ -1475,7 +1524,7 @@ function resetData(){
     document.getElementById('fn'+n).textContent=n===1?'Belum dipilih':'Belum dipilih (opsional)';
     document.getElementById('fn'+n).className='fname wait';
     const inp=document.getElementById('f'+n); if(inp) inp.value='';});
-  document.getElementById('btn-proses').disabled=true;
+  updateDataActionButtons();
   document.getElementById('load-msg').textContent='';
   localDraftMode=false;
   const postEl=document.getElementById('post-process-actions');
