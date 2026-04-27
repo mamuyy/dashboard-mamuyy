@@ -308,6 +308,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 .action-tile.orange{background:#fff3e0;}
 .action-tile.blue{background:#e3f2fd;}
 .action-tile.green{background:#e8f5e9;}
+.aging-spinner{width:14px;height:14px;border:2px solid rgba(21,101,192,.18);border-top-color:#1565c0;border-radius:50%;display:inline-block;animation:agingSpin .8s linear infinite;vertical-align:-2px;margin-right:8px;}
+@keyframes agingSpin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
 .action-k{font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#666;margin-bottom:8px;}
 .action-v{font-size:1.7rem;font-weight:800;line-height:1;color:var(--dark);margin-bottom:8px;}
 .action-l{font-size:.72rem;font-weight:700;margin-bottom:4px;}
@@ -1092,6 +1094,13 @@ function showAgingRefreshBanner(message){
     banner.style.display='none';
   }, 5000);
 }
+function showAgingRefreshPending(message){
+  const banner=document.getElementById('aging-refresh-banner');
+  if(!banner) return;
+  if(agingBannerTimer) clearTimeout(agingBannerTimer);
+  banner.innerHTML='<span class="aging-spinner"></span>'+message;
+  banner.style.display='block';
+}
 function loadF(n,inp){ 
   const f=inp.files[0]; if(!f) return;
   const el=document.getElementById('fn'+n);
@@ -1116,6 +1125,7 @@ function loadF(n,inp){
           ? '📊 File aging sudah dipilih. Dashboard sedang menghitung ulang aging lokal otomatis.'
           : '📊 File aging sudah dipilih. Upload file utama lalu proses data untuk menerapkan angka baru.');
         if(raw[1]){
+          showAgingRefreshPending('Menghitung ulang aging dari file terbaru...');
           setTimeout(function(){ refreshAgingOnly(true); }, 80);
         }
       } else {
