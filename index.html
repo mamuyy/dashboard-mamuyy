@@ -513,6 +513,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
       <button class="btn btn-outline" onclick="resetData()">↺ Reset</button>
     </div>
     <div id="load-msg" style="margin-top:9px;font-size:.78rem;color:var(--sub);"></div>
+    <div id="aging-refresh-banner" style="display:none;margin-top:10px;padding:10px 12px;border-radius:10px;background:#e8f5e9;border:1px solid #a5d6a7;color:#1b5e20;font-size:.76rem;font-weight:700;"></div>
     <div id="post-process-actions" style="display:none;margin-top:10px;padding:10px 12px;border-radius:8px;background:#ede7f6;">
       <div style="font-size:.74rem;font-weight:700;color:#512da8;margin-bottom:8px;">Auto-push akan dicoba otomatis setelah proses selesai. Jika sempat terblokir pengaman atau gagal jaringan, Anda bisa ulang manual dari sini.</div>
       <button class="btn btn-sm" style="background:#512da8;color:#fff;font-weight:700;" onclick="pushAllDataToSheets()">🚀 Push Semua Data Sekarang</button>
@@ -1080,6 +1081,17 @@ function updateDataActionButtons(){
   const refreshAgingBtn=document.getElementById('btn-refresh-aging');
   if(refreshAgingBtn) refreshAgingBtn.disabled=!(raw[1]&&raw[3]);
 }
+let agingBannerTimer=null;
+function showAgingRefreshBanner(message){
+  const banner=document.getElementById('aging-refresh-banner');
+  if(!banner) return;
+  banner.textContent=message;
+  banner.style.display='block';
+  if(agingBannerTimer) clearTimeout(agingBannerTimer);
+  agingBannerTimer=setTimeout(function(){
+    banner.style.display='none';
+  }, 5000);
+}
 function loadF(n,inp){ 
   const f=inp.files[0]; if(!f) return;
   const el=document.getElementById('fn'+n);
@@ -1499,6 +1511,10 @@ function _doProsesData(opts){ opts=opts||{}; try{
   updateDataActionButtons();
   renderQ(); renderDash();
   toast(opts.successToast || ('✅ Data dimuat! '+un+' unpaid'+(unNP?' | ⚡'+unNP+' Non-P2P/Migrasi':'')));
+  if(opts.skipAutoPush){
+    const agTotalText=(typeof getAgingGrandTotal==='function' && getAgingGrandTotal()>0)?fmt(getAgingGrandTotal()):'Rp 0';
+    showAgingRefreshBanner('✅ Aging lokal diperbarui otomatis. Total FBL5N sekarang '+agTotalText+'.');
+  }
   if(gsUrl && !opts.skipAutoPush){
     setGsStatus('⏳ Data lokal siap. Sistem sedang mencoba auto-push ke Sheets...','#1565c0');
     setTimeout(function(){
@@ -1526,6 +1542,8 @@ function resetData(){
     const inp=document.getElementById('f'+n); if(inp) inp.value='';});
   updateDataActionButtons();
   document.getElementById('load-msg').textContent='';
+  const banner=document.getElementById('aging-refresh-banner');
+  if(banner) banner.style.display='none';
   localDraftMode=false;
   const postEl=document.getElementById('post-process-actions');
   if(postEl) postEl.style.display='none';
