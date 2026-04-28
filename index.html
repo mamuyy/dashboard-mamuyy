@@ -541,6 +541,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
       <div style="font-size:.72rem;font-weight:700;color:#1565c0;margin-bottom:6px;">👥 UNTUK TIM — Tarik data terbaru dari Sheets:</div>
       <button class="btn btn-primary" style="width:100%;font-size:.82rem;" onclick="pullAllFromSheets()">🔄 Tarik Data Terbaru (Invoice + Aging + Log FU)</button>
       <div id="gs-last-update" style="margin-top:5px;font-size:.7rem;color:#1565c0;text-align:center;"></div>
+      <div style="margin-top:2px;font-size:.65rem;color:#5c6bc0;text-align:center;">Catatan: ini waktu <b>push terakhir ke Sheets</b> (bukan waktu upload file lokal).</div>
       <div id="gs-auto-sync" style="margin-top:4px;font-size:.68rem;color:#2e7d32;text-align:center;"></div>
     </div>
 
@@ -1029,6 +1030,13 @@ const PIC_ALIAS_MAP={AULIA:'AULYA'};
 const raw={};
 let adminPinHash='';
 const DEFAULT_GS_URL='https://script.google.com/macros/s/AKfycbxceyaegqXKadL-7V_hqBJmGXR3b96lwREQnaRcVDMiMYkc2zzBtTB65YxCkCMeCCOUfw/exec';
+
+function formatSheetsPushTime(isoString){
+  if(!isoString) return '';
+  const d=new Date(isoString);
+  if(Number.isNaN(d.getTime())) return String(isoString);
+  return d.toLocaleString('id-ID',{timeZone:'Asia/Jakarta'});
+}
 
 // ═══ INIT ═══
 let gsUrl='';
@@ -1555,6 +1563,7 @@ function resetData(){
   const banner=document.getElementById('aging-refresh-banner');
   if(banner) banner.style.display='none';
   localDraftMode=false;
+  clearAutoPushRetry();
   const postEl=document.getElementById('post-process-actions');
   if(postEl) postEl.style.display='none';
   document.getElementById('data-badge').textContent='Belum ada data';
@@ -3660,13 +3669,46 @@ function saveLogs(mode='append'){
 // ═══ GOOGLE SHEETS SYNC ═══
 let autoSyncTimer=null;
 let autoSyncBadgeTimer=null;
+let autoPushRetryTimer=null;
+let autoPushRetryCount=0;
+let autoPushRetryNextAt=0;
 let lastAutoSyncAt=0;
 let lastAutoSyncState='idle';
 let lastInvoiceUpdatedAt='';
 const AUTO_SYNC_MS = 20000;
 const AUTO_SYNC_BADGE_MS = 5000;
 const AUTO_SYNC_MIN_GAP_MS = 8000;
+const AUTO_PUSH_RETRY_MS = 60000;
+const AUTO_PUSH_RETRY_MAX = 10;
 let pullAllInFlightPromise=null;
+
+function clearAutoPushRetry(){
+  if(autoPushRetryTimer){
+    clearTimeout(autoPushRetryTimer);
+    autoPushRetryTimer=null;
+  }
+  autoPushRetryCount=0;
+  autoPushRetryNextAt=0;
+}
+
+function scheduleAutoPushRetry(reason){
+  if(!gsUrl || !localDraftMode) return;
+  if(autoPushRetryTimer) return;
+  if(autoPushRetryCount>=AUTO_PUSH_RETRY_MAX){
+    setGsStatus('⚠️ Auto-push gagal berulang. Silakan klik tombol Push Semua Data.','var(--orange)');
+    updateAutoSyncBadge('Auto-push butuh bantuan manual.');
+    return;
+  }
+  autoPushRetryCount+=1;
+  autoPushRetryNextAt=Date.now()+AUTO_PUSH_RETRY_MS;
+  setGsStatus('⚠️ Auto-push belum berhasil. Coba ulang otomatis '+autoPushRetryCount+'/'+AUTO_PUSH_RETRY_MAX+' dalam '+Math.round(AUTO_PUSH_RETRY_MS/1000)+' detik.','var(--orange)');
+  if(reason) updateAutoSyncBadge('Retry auto-push: '+reason);
+  autoPushRetryTimer=setTimeout(function(){
+    autoPushRetryTimer=null;
+    autoPushRetryNextAt=0;
+    pushAllDataToSheets({auto:true}).catch(function(){});
+  },AUTO_PUSH_RETRY_MS);
+}
 
 function updateAutoSyncBadge(extra){
   const el=document.getElementById('gs-auto-sync');
@@ -3677,7 +3719,12 @@ function updateAutoSyncBadge(extra){
     return;
   }
   if(localDraftMode){
-    el.textContent='Auto sync dijeda: ada data lokal baru yang belum dipush ke Sheets.';
+    if(autoPushRetryTimer && autoPushRetryNextAt){
+      const leftSec=Math.max(1,Math.ceil((autoPushRetryNextAt-Date.now())/1000));
+      el.textContent='Auto sync dijeda: menunggu auto-push ulang dalam '+leftSec+' detik ('+autoPushRetryCount+'/'+AUTO_PUSH_RETRY_MAX+').';
+    } else {
+      el.textContent='Auto sync dijeda: ada data lokal baru yang belum dipush ke Sheets.';
+    }
     el.style.color='var(--orange)';
     return;
   }
@@ -4055,8 +4102,9 @@ function pushAllDataToSheets(opts){
     .then(function(prev){
       if(prev===false) return false;
       var updEl=document.getElementById('gs-last-update');
-      if(updEl) updEl.textContent='Terakhir dipush ke Sheets: '+new Date().toLocaleString('id-ID');
+      if(updEl) updEl.textContent='Terakhir dipush ke Sheets (WIB): '+formatSheetsPushTime(new Date().toISOString());
       localDraftMode=false;
+      clearAutoPushRetry();
       lastAutoSyncAt=Date.now();
       lastAutoSyncState='ok';
       setGsStatus('✅ Semua data berhasil di-push ke Sheets — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
@@ -4066,7 +4114,11 @@ function pushAllDataToSheets(opts){
     })
     .catch(function(e){
       lastAutoSyncState='error';
-      setGsStatus('❌ Push semua data gagal: '+e.message,'var(--red)');
+      if(opts.auto){
+        scheduleAutoPushRetry(e&&e.message?e.message:'push gagal');
+      } else {
+        setGsStatus('❌ Push semua data gagal: '+e.message,'var(--red)');
+      }
       updateAutoSyncBadge('Push terakhir gagal.');
       toast('❌ Push semua data gagal: '+e.message);
       throw e;
@@ -4118,7 +4170,7 @@ function pullAllFromSheets(silent=false){
     if(rInvs.ok && rInvs.invs && rInvs.invs.length){
       invs=rInvs.invs.map(sanitizePersistedInvoiceRow);
       var updEl=document.getElementById('gs-last-update');
-      if(updEl&&rInvs.updatedAt) updEl.textContent='Terakhir dipush ke Sheets: '+new Date(rInvs.updatedAt).toLocaleString('id-ID');
+      if(updEl&&rInvs.updatedAt) updEl.textContent='Terakhir dipush ke Sheets (WIB): '+formatSheetsPushTime(rInvs.updatedAt);
       hasInvoiceChanged = prevInvCount!==invs.length || (!!rInvs.updatedAt && rInvs.updatedAt!==lastInvoiceUpdatedAt);
       if(rInvs.updatedAt) lastInvoiceUpdatedAt=rInvs.updatedAt;
       lastAutoSyncAt=Date.now();
