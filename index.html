@@ -3662,7 +3662,11 @@ let autoSyncTimer=null;
 let autoSyncBadgeTimer=null;
 let lastAutoSyncAt=0;
 let lastAutoSyncState='idle';
+let lastInvoiceUpdatedAt='';
 const AUTO_SYNC_MS = 20000;
+const AUTO_SYNC_BADGE_MS = 5000;
+const AUTO_SYNC_MIN_GAP_MS = 8000;
+let pullAllInFlightPromise=null;
 
 function updateAutoSyncBadge(extra){
   const el=document.getElementById('gs-auto-sync');
@@ -3710,7 +3714,7 @@ function startAutoSync(){
   }, AUTO_SYNC_MS);
   autoSyncBadgeTimer = setInterval(function(){
     updateAutoSyncBadge();
-  }, 1000);
+  }, AUTO_SYNC_BADGE_MS);
 }
 
 window.addEventListener('focus', function(){
@@ -4074,6 +4078,13 @@ function pushAllDataToSheets(opts){
 
 // ── PULL semua data dari Sheets (untuk TIM) ──
 function pullAllFromSheets(silent=false){
+  if(pullAllInFlightPromise){
+    return pullAllInFlightPromise;
+  }
+  const now=Date.now();
+  if(silent && lastAutoSyncAt && (now-lastAutoSyncAt)<AUTO_SYNC_MIN_GAP_MS){
+    return Promise.resolve(false);
+  }
   if(localDraftMode){
     if(!silent){
       setGsStatus('ℹ️ Auto sync dijeda sementara: data lokal baru belum dipush ke Sheets.','#ef6c00');
@@ -4085,9 +4096,17 @@ function pullAllFromSheets(silent=false){
   if(!gsUrl){ if(!silent) toast('⚠️ URL Google Sheets belum diisi!'); if(!silent) showPage('setup'); return; }
   if(!silent) setGsStatus('⏳ Mengambil semua data dari Sheets...','#1565c0');
   if(!silent) toast('⏳ Menarik data dari Sheets...');
+  var prevInvCount=invs.length;
+  var prevAgingCount=Object.keys(agMap||{}).length;
+  var prevAgingTotalsSig=JSON.stringify(agTotals||{});
+  var prevLogCount=logs.length;
+  var prevLatestLogKey=prevLogCount?((logs[0].ts||'')+'|'+(logs[0].inv||'')):'';
+  var hasInvoiceChanged=false;
+  var hasAgingChanged=false;
+  var hasLogsChanged=false;
 
   // Ambil invoice + aging + logs sekaligus
-  Promise.all([
+  pullAllInFlightPromise = Promise.all([
     fetchJsonWithTimeout(gsUrl+'?action=get_invs&t='+Date.now()),
     fetchJsonWithTimeout(gsUrl+'?action=get_aging&t='+Date.now()),
     fetchJsonWithTimeout(gsUrl+'?action=get_logs&t='+Date.now())
@@ -4100,6 +4119,8 @@ function pullAllFromSheets(silent=false){
       invs=rInvs.invs.map(sanitizePersistedInvoiceRow);
       var updEl=document.getElementById('gs-last-update');
       if(updEl&&rInvs.updatedAt) updEl.textContent='Terakhir dipush ke Sheets: '+new Date(rInvs.updatedAt).toLocaleString('id-ID');
+      hasInvoiceChanged = prevInvCount!==invs.length || (!!rInvs.updatedAt && rInvs.updatedAt!==lastInvoiceUpdatedAt);
+      if(rInvs.updatedAt) lastInvoiceUpdatedAt=rInvs.updatedAt;
       lastAutoSyncAt=Date.now();
       lastAutoSyncState='ok';
       updateAutoSyncBadge();
@@ -4115,6 +4136,7 @@ function pullAllFromSheets(silent=false){
       agTotals={b0:0,b30:0,b60:0,b90:0,b120:0,b150:0,b180:0,b210:0,bOld:0,hasData:false};
       window.fbl5nDocsMap={};
     }
+    hasAgingChanged = prevAgingCount!==Object.keys(agMap||{}).length || prevAgingTotalsSig!==JSON.stringify(agTotals||{});
 
     // Logs — merge dengan lokal
     if(rLogs.ok && rLogs.logs && rLogs.logs.length){
@@ -4124,11 +4146,15 @@ function pullAllFromSheets(silent=false){
       logs=Object.values(map).sort(function(a,b){return (b.ts||'')>(a.ts||'')?1:-1;});
       localStorage.setItem('fu_logs',JSON.stringify(logs));
     }
+    var latestLogKey=logs.length?((logs[0].ts||'')+'|'+(logs[0].inv||'')):'';
+    hasLogsChanged = prevLogCount!==logs.length || latestLogKey!==prevLatestLogKey;
 
     if(ok){
       document.getElementById('data-badge').textContent='☁️ '+TODAY;
       setGsStatus('✅ Data Sheets berhasil ditarik ke browser ini — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
-      renderQ(); renderH(); renderDash();
+      if(!silent || hasInvoiceChanged || hasAgingChanged || hasLogsChanged){
+        renderQ(); renderH(); renderDash();
+      }
       if(!silent) toast('✅ Data lengkap! '+invs.length+' invoice, '+Object.keys(agMap).length+' customer aging, '+logs.length+' log FU');
       if(!silent) showPage('dash');
     } else {
@@ -4142,7 +4168,10 @@ function pullAllFromSheets(silent=false){
     updateAutoSyncBadge('Gagal sinkron: '+e.message);
     if(!silent) setGsStatus('❌ Gagal: '+e.message,'var(--red)');
     if(!silent) toast('❌ Gagal tarik data: '+e.message);
+  }).finally(function(){
+    pullAllInFlightPromise=null;
   });
+  return pullAllInFlightPromise;
 }
 
 // ── Auto push setelah proses data (admin) ──
