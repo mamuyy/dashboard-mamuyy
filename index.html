@@ -829,6 +829,12 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
     <div class="kpi kb"><div class="kpi-ico">🔵</div><div class="kpi-lbl">FU Hari Ini</div><div class="kpi-val" id="dk-fuhari">–</div><div class="kpi-sub">Target ≥ 5/PIC</div><div class="kpi-prog"><div class="kpi-prog-fill" id="pk-fu" style="width:0%;background:#43a047;"></div></div></div>
   </div>
 
+
+  <div class="card" style="margin-top:2px;margin-bottom:14px;">
+    <h3>🔍 Transparansi KPI (Audit Cepat)</h3>
+    <div id="d-kpi-transparency" style="font-size:.75rem;color:var(--sub);line-height:1.5;">Memuat basis formula KPI…</div>
+  </div>
+
   <div class="card" style="margin-top:2px;margin-bottom:14px;">
     <h3>👥 KPI per PIC</h3>
     <div class="kpi-pic-meta">Skor adil berbasis <strong>hasil + proses + kualitas</strong>. Nilai saat ini memakai data log yang ada, dan otomatis fallback ke dummy jika data per PIC belum cukup.</div>
@@ -2946,6 +2952,22 @@ function renderDash(){
   document.getElementById('dk-bfu').textContent=belumFU||'–';
   document.getElementById('dk-janji').textContent=janjiOD||'0';
   document.getElementById('dk-fuhari').textContent=todayLogs.length||'0';
+
+  const kpiTransparency=document.getElementById('d-kpi-transparency');
+  if(kpiTransparency){
+    const ar90BasisLabel=agGrandTotal>0?'FBL5N (agGrandTotal)':'Fallback total unpaid invoice';
+    const ar90BasisVal=ar90base>0?fmt(ar90base):'Rp 0';
+    const ar90PctVal=ar90>0&&ar90base>0?((ar90/ar90base)*100).toFixed(2)+'%':'0.00%';
+    const suratKpiTarget='dailyLog: '+KPI_SURAT_TARGETS.dailyLog+' / outputDone: '+KPI_SURAT_TARGETS.outputDone;
+    const picWeights='Result '+Math.round(KPI_PIC_WEIGHTS.collectionResult*100)+'% • FU '+Math.round(KPI_PIC_WEIGHTS.followUpDiscipline*100)+'% • Overdue '+Math.round(KPI_PIC_WEIGHTS.overdueReduction*100)+'% • Pipeline '+Math.round(KPI_PIC_WEIGHTS.pipelineMovement*100)+'% • Data '+Math.round(KPI_PIC_WEIGHTS.dataQuality*100)+'%';
+    kpiTransparency.innerHTML=''
+      +'<div style="margin-bottom:6px;"><strong>AR &gt;90%</strong> = <code>AR90 / Basis × 100</code> = <strong>'+fmt(ar90)+'</strong> / <strong>'+ar90BasisVal+'</strong> = <strong>'+ar90PctVal+'</strong> <span style="color:#1565c0;">('+ar90BasisLabel+')</span></div>'
+      +'<div style="margin-bottom:6px;"><strong>Belum FU</strong> = jumlah invoice dengan status <code>collection_no_fu</code> = <strong>'+belumFU+'</strong></div>'
+      +'<div style="margin-bottom:6px;"><strong>Janji Jatuh Tempo</strong> = jumlah log <code>Janji Bayar</code> dengan tanggal janji &lt; hari ini = <strong>'+janjiOD+'</strong></div>'
+      +'<div style="margin-bottom:6px;"><strong>KPI Follow Up Weights</strong>: '+picWeights+'</div>'
+      +'<div style="margin-bottom:6px;"><strong>KPI Surat Targets</strong>: '+suratKpiTarget+'</div>'
+      +'<div><strong>Cut-off data</strong>: '+today+' (UTC) • Refresh otomatis saat render dashboard.</div>';
+  }
   const topUnpaid=document.getElementById('topkpi-unpaid');
   if(topUnpaid) topUnpaid.textContent=unpaid.length||'–';
   const topAr90=document.getElementById('topkpi-ar90');
