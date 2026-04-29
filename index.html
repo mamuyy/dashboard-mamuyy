@@ -294,6 +294,16 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 .kpi-badge.good2{background:#e3f2fd;color:#1565c0;}
 .kpi-badge.mid{background:#fff3e0;color:#e65100;}
 .kpi-badge.low{background:#ffebee;color:#c62828;}
+.kpi-detail-btn{padding:4px 8px;border:1px solid #c9d6eb;background:#fff;border-radius:999px;font-size:.62rem;font-weight:700;color:#1a237e;cursor:pointer;}
+.kpi-detail-btn:hover{background:#eef4ff;}
+.kpi-fair-note{font-size:.73rem;line-height:1.45;color:#455a64;background:#f8fbff;border-left:3px solid #1976d2;padding:8px 10px;border-radius:8px;margin-bottom:9px;}
+.kpi-legend{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 10px;}
+.kpi-legend .kpi-badge{font-size:.62rem;}
+.kpi-catchup{font-size:.72rem;color:#37474f;line-height:1.45;background:#fffaf2;border:1px solid #ffe0b2;border-radius:10px;padding:9px 10px;margin-bottom:10px;}
+.kpi-catchup ul{margin-left:16px;}
+.kpi-catchup li{margin:4px 0;}
+.kpi-trans-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+@media(max-width:700px){.kpi-trans-grid{grid-template-columns:1fr;}}
 
 /* Tim section header */
 .tim-section{width:100%;margin-bottom:16px;}
@@ -837,10 +847,20 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 
   <div class="card" style="margin-top:2px;margin-bottom:14px;">
     <h3>👥 KPI per PIC</h3>
+    <div class="kpi-fair-note">KPI ini adalah alat monitoring berbasis data hasil, proses, dan kualitas. Nilai digunakan untuk melihat posisi, gap, dan prioritas perbaikan. Jika data masih DUMMY/PARTIAL, nilai belum digunakan sebagai penilaian final individu.</div>
     <div class="kpi-pic-meta">Skor adil berbasis <strong>hasil + proses + kualitas</strong>. Nilai saat ini memakai data log yang ada, dan otomatis fallback ke dummy jika data per PIC belum cukup.</div>
     <div class="kpi-pic-wrap" id="d-kpi-pic">
       <div style="color:var(--sub);font-size:.78rem;padding:6px 0;">Memuat KPI per PIC…</div>
     </div>
+  </div>
+
+  <div class="card" style="margin-top:2px;margin-bottom:14px;">
+    <h3>🧭 Transparansi KPI</h3>
+    <div class="kpi-legend">
+      <span class="kpi-badge good">Excellent: ≥ 82</span><span class="kpi-badge good2">Good: 70 - 81.99</span><span class="kpi-badge mid">Watch: 58 - 69.99</span><span class="kpi-badge low">Critical: &lt; 58</span>
+    </div>
+    <div class="kpi-catchup"><strong>Cara Mengejar:</strong><ul><li>Collection Result rendah: fokus invoice nominal besar, overdue tinggi, dan janji bayar lewat jatuh tempo.</li><li>Follow Up Discipline rendah: update log follow up harian.</li><li>Pipeline Movement rendah: dorong pergerakan status ND/MIR7/Payment.</li><li>Data Quality rendah: lengkapi nomor dokumen, status, tanggal, dan PIC.</li><li>SLA Speed rendah (Tim Surat): selesaikan dokumen paling lama tertahan.</li><li>Backlog Control rendah: kurangi antrean dokumen belum selesai.</li><li>Update Discipline rendah: wajib update status harian.</li></ul></div>
+    <div id="d-kpi-transparency-v2" class="kpi-trans-grid" style="font-size:.73rem;color:#546e7a;"></div>
   </div>
 
   <!-- Charts -->
@@ -874,6 +894,14 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
   <!-- Export -->
   <div style="margin-top:4px;display:flex;gap:8px;flex-wrap:wrap;">
     <button class="btn btn-primary btn-sm" onclick="exportLaporan()">📥 Export Laporan Excel</button>
+  </div>
+</div>
+
+<div class="mbg" id="kpi-detail-bg" onclick="closeKpiDetail(event)">
+  <div class="modal" style="max-width:920px;">
+    <div class="mhead"><h3 id="kpi-detail-title">Detail Perhitungan KPI</h3><button class="mclose" onclick="closeKpiDetail()">✕</button></div>
+    <div class="mbody" id="kpi-detail-body"></div>
+    <div class="mfoot"><button class="btn btn-outline btn-sm" onclick="copyKpiDetail()">📋 Copy Detail KPI</button><button class="btn btn-primary btn-sm" onclick="closeKpiDetail()">Tutup</button></div>
   </div>
 </div>
 
@@ -1017,6 +1045,10 @@ const SAFE_PUSH_DROP_RATIO=0.5;
 const TODAY=new Date().toISOString().slice(0,10);
 const KPI_PIC_WEIGHTS={collectionResult:0.22,followUpDiscipline:0.24,overdueReduction:0.20,pipelineMovement:0.22,dataQuality:0.12};
 const KPI_SURAT_WEIGHTS={slaSpeed:0.30,backlogControl:0.25,outputProductivity:0.20,documentAccuracy:0.15,updateDiscipline:0.10};
+const KPI_FORMULA_DISPLAY={
+  followup:[['Collection Result',0.22,'collectionResult'],['Follow Up Discipline',0.24,'followUpDiscipline'],['Overdue Reduction',0.20,'overdueReduction'],['Pipeline Movement',0.22,'pipelineMovement'],['Data Quality',0.12,'dataQuality']],
+  surat:[['SLA Speed',0.34,'slaSpeed'],['Backlog Control',0.16,'backlogControl'],['Output Productivity',0.25,'outputProductivity'],['Document Accuracy',0.15,'documentAccuracy'],['Update Discipline',0.10,'updateDiscipline']]
+};
 const KPI_SURAT_TARGETS={dailyLog:2,outputDone:10};
 const KPI_PIC_DUMMY={
   RIZAL:{collectionResult:78,followUpDiscipline:84,overdueReduction:73,pipelineMovement:80,dataQuality:88},
@@ -2678,7 +2710,7 @@ function renderKpiPicTable(rows,kind){
     ?['SLA Speed','Backlog Control','Output Productivity','Document Accuracy','Update Discipline']
     :['Collection Result','Follow Up Discipline','Overdue Reduction','Pipeline Movement','Data Quality'];
   return '<table class="kpi-pic-tbl"><thead><tr>'
-    +'<th>PIC</th><th>'+cols[0]+'</th><th>'+cols[1]+'</th><th>'+cols[2]+'</th><th>'+cols[3]+'</th><th>'+cols[4]+'</th><th>Total Score</th><th>Source Type</th>'
+    +'<th>PIC</th><th>'+cols[0]+'</th><th>'+cols[1]+'</th><th>'+cols[2]+'</th><th>'+cols[3]+'</th><th>'+cols[4]+'</th><th>Total Score</th><th>Source Type</th><th>Detail</th>'
     +'</tr></thead><tbody>'
     +rows.map(function(r){
       const band=getKpiBand(r.totalScore);
@@ -2696,6 +2728,7 @@ function renderKpiPicTable(rows,kind){
         +'<td>'+c5.toFixed(1)+'</td>'
         +'<td class="kpi-pic-score">'+r.totalScore.toFixed(1)+' <span class="kpi-badge '+band.cls+'">'+band.label+'</span></td>'
         +'<td style="text-transform:uppercase;font-size:.62rem;color:#607d8b;">'+r.source.toUpperCase()+'</td>'
+        +'<td><button class="kpi-detail-btn" onclick="openKpiDetail(\''+kind+'\',\''+jsq(r.pic)+'\')">Lihat Perhitungan</button></td>'
         +'</tr>';
     }).join('')
     +'</tbody></table>';
@@ -2723,6 +2756,74 @@ function renderKpiPerPic(unpaid,paid){
     +'<div style="font-size:.67rem;color:var(--sub);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin:10px 0 5px;">Tim Surat</div>'
     +'<div style="font-size:.68rem;color:#7b1fa2;margin-bottom:6px;">*Formula surat memakai pendekatan rule-based dari data yang tersedia (SLA/backlog/output/akurasi/update).</div>'
     +renderKpiPicTable(suratRows,'surat');
+  window._kpiRowsByTeam={followup:followupRows,surat:suratRows};
+}
+function sourceLabelDetailed(src){
+  if(src==='dummy') return 'DUMMY';
+  if(src==='mixed') return 'PARTIAL';
+  return 'REAL';
+}
+function getKpiActionAdvice(key){
+  const map={collectionResult:'Prioritaskan invoice nominal besar, overdue tinggi, dan janji bayar lewat jatuh tempo.',followUpDiscipline:'Wajib update log follow up harian per invoice yang disentuh.',pipelineMovement:'Dorong progres ND/MIR7/Payment untuk percepat movement.',dataQuality:'Lengkapi nomor dokumen, status, tanggal, dan PIC agar data valid.',slaSpeed:'Fokus tuntaskan dokumen yang paling lama tertahan.',backlogControl:'Kurangi antrean dokumen belum selesai mulai dari aging tertinggi.',updateDiscipline:'Update status harian secara disiplin untuk semua dokumen aktif.'};
+  return map[key]||'Pertahankan tren komponen ini.';
+}
+function getKpiActiveWeights(team){
+  return team==='surat'?KPI_SURAT_WEIGHTS:KPI_PIC_WEIGHTS;
+}
+function openKpiDetail(team,pic){
+  const rows=((window._kpiRowsByTeam||{})[team]||[]);
+  const row=rows.find(function(r){ return canonicalPicName(r.pic)===canonicalPicName(pic); });
+  if(!row) return;
+  const formula=KPI_FORMULA_DISPLAY[team];
+  const activeWeights=getKpiActiveWeights(team);
+  const breakdown=formula.map(function(x){
+    const val=clampScore(row[x[2]]);
+    const w=activeWeights[x[2]];
+    const contrib=val*w;
+    return {label:x[0],weight:w,val:val,contrib:contrib,key:x[2]};
+  });
+  const weakest=breakdown.slice().sort(function(a,b){ return a.val-b.val; })[0];
+  const recommendation=getKpiActionAdvice(weakest.key);
+  const formulaText=formula.map(function(x){ return x[0]+' × '+Math.round(x[1]*100)+'%'; }).join(' + ');
+  window._kpiDetailCache={team,pic:row.pic,totalScore:row.totalScore,source:sourceLabelDetailed(row.source),cutoff:TODAY,breakdown:breakdown,weakest:weakest,recommendation:recommendation};
+  document.getElementById('kpi-detail-title').textContent='Detail KPI - '+row.pic;
+  document.getElementById('kpi-detail-body').innerHTML=
+    '<div class="irow"><span class="ilbl">Nama PIC</span><span class="ival">'+esc(row.pic)+'</span></div>'
+    +'<div class="irow"><span class="ilbl">Tim</span><span class="ival">'+(team==='surat'?'Surat':'Follow Up')+'</span></div>'
+    +'<div class="irow"><span class="ilbl">Total Score</span><span class="ival">'+row.totalScore.toFixed(1)+'</span></div>'
+    +'<div class="irow"><span class="ilbl">Status Data</span><span class="ival">'+sourceLabelDetailed(row.source)+'</span></div>'
+    +'<div class="irow"><span class="ilbl">Periode/Cut-off</span><span class="ival">'+TODAY+' (UTC)</span></div>'
+    +'<div class="irow"><span class="ilbl">Rumus Total Score</span><span class="ival">'+esc(formulaText)+'</span></div>'
+    +'<div style="margin-top:10px;overflow:auto;"><table class="kpi-pic-tbl" style="min-width:880px;"><thead><tr><th>Komponen KPI</th><th>Bobot</th><th>Nilai Komponen</th><th>Kontribusi</th><th>Sumber Data</th><th>Cara Hitung</th><th>Gap / Area Perbaikan</th><th>Rekomendasi Aksi</th></tr></thead><tbody>'
+    +breakdown.map(function(b){ return '<tr><td>'+b.label+'</td><td>'+(b.weight*100).toFixed(0)+'%</td><td>'+b.val.toFixed(1)+'</td><td>'+b.contrib.toFixed(1)+'</td><td>'+sourceLabelDetailed(row.source)+'</td><td>'+b.val.toFixed(1)+' × '+(b.weight*100).toFixed(0)+'% = '+b.contrib.toFixed(1)+'</td><td>'+(100-b.val).toFixed(1)+'</td><td>'+getKpiActionAdvice(b.key)+'</td></tr>'; }).join('')
+    +'</tbody></table></div><div style="font-size:.74rem;color:#455a64;margin-top:8px;"><strong>Komponen terendah:</strong> '+weakest.label+' ('+weakest.val.toFixed(1)+') → '+recommendation+'</div>';
+  document.getElementById('kpi-detail-bg').classList.add('open');
+}
+function copyKpiDetail(){
+  const d=window._kpiDetailCache;
+  if(!d) return toast('Buka detail KPI dulu.');
+  const lines=[
+    'DETAIL KPI PIC',
+    'PIC: '+d.pic,
+    'Tim: '+(d.team==='surat'?'Surat':'Follow Up'),
+    'Total Score: '+d.totalScore.toFixed(1),
+    'Status Data: '+d.source,
+    'Cut-off: '+d.cutoff+' (UTC)',
+    '',
+    'Breakdown Komponen:'
+  ].concat(d.breakdown.map(function(b){
+    return '- '+b.label+': '+b.val.toFixed(1)+' x '+(b.weight*100).toFixed(0)+'% = '+b.contrib.toFixed(1)+' | Gap '+(100-b.val).toFixed(1);
+  })).concat(['','Rekomendasi Aksi: '+d.recommendation]);
+  const txt=lines.join('\n');
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(function(){ toast('Detail KPI berhasil dicopy.'); }).catch(function(){ toast('Gagal copy ke clipboard.'); });
+  }else{
+    toast('Clipboard tidak tersedia di browser ini.');
+  }
+}
+function closeKpiDetail(evt){
+  if(evt&&evt.target!==evt.currentTarget) return;
+  document.getElementById('kpi-detail-bg').classList.remove('open');
 }
 function renderDash(){
   const today=TODAY;
@@ -2967,6 +3068,11 @@ function renderDash(){
       +'<div style="margin-bottom:6px;"><strong>KPI Follow Up Weights</strong>: '+picWeights+'</div>'
       +'<div style="margin-bottom:6px;"><strong>KPI Surat Targets</strong>: '+suratKpiTarget+'</div>'
       +'<div><strong>Cut-off data</strong>: '+today+' (UTC) • Refresh otomatis saat render dashboard.</div>';
+  }
+  const kpiTransparencyV2=document.getElementById('d-kpi-transparency-v2');
+  if(kpiTransparencyV2){
+    kpiTransparencyV2.innerHTML='<div><strong>Formula Follow Up:</strong><br>TOTAL SCORE = Collection Result × 22% + Follow Up Discipline × 24% + Overdue Reduction × 20% + Pipeline Movement × 22% + Data Quality × 12%</div>'
+      +'<div><strong>Formula Surat:</strong><br>TOTAL SCORE = SLA Speed × 34% + Backlog Control × 16% + Output Productivity × 25% + Document Accuracy × 15% + Update Discipline × 10%</div>';
   }
   const topUnpaid=document.getElementById('topkpi-unpaid');
   if(topUnpaid) topUnpaid.textContent=unpaid.length||'–';
