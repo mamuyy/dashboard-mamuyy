@@ -847,8 +847,9 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 
   <div class="card" style="margin-top:2px;margin-bottom:14px;">
     <h3>👥 KPI per PIC</h3>
+    <div class="kpi-pic-meta" style="margin-top:-4px;">KPI final hanya untuk pegawai organik. Output anak magang/support dihitung ke PIC organik penanggung jawab.</div>
     <div class="kpi-fair-note">KPI ini adalah alat monitoring berbasis data hasil, proses, dan kualitas. Nilai digunakan untuk melihat posisi, gap, dan prioritas perbaikan. Jika data masih DUMMY/PARTIAL, nilai belum digunakan sebagai penilaian final individu.</div>
-    <div class="kpi-pic-meta">Skor adil berbasis <strong>hasil + proses + kualitas</strong>. Nilai saat ini memakai data log yang ada, dan otomatis fallback ke dummy jika data per PIC belum cukup.</div>
+    <div class="kpi-pic-meta">Skor adil berbasis <strong>hasil + proses + kualitas</strong>. KPI ORGANIK/FINAL saat ini memakai <strong>PROXY sementara</strong> berbasis agregasi skor per PIC accountable (bukan rata-rata akhir anak magang saja) sambil menunggu data mentah owner final.</div>
     <div class="kpi-pic-wrap" id="d-kpi-pic">
       <div style="color:var(--sub);font-size:.78rem;padding:6px 0;">Memuat KPI per PIC…</div>
     </div>
@@ -1051,6 +1052,10 @@ const KPI_FORMULA_DISPLAY={
   surat:[['SLA Speed',0.34,'slaSpeed'],['Backlog Control',0.16,'backlogControl'],['Output Productivity',0.25,'outputProductivity'],['Document Accuracy',0.15,'documentAccuracy'],['Update Discipline',0.10,'updateDiscipline']]
 };
 const KPI_SURAT_TARGETS={dailyLog:2,outputDone:10};
+const KPI_EXCLUDED_PICS=['MAMU'];
+const KPI_ACCOUNTABLE_MAP={ACHMAD:'ACHMAD',TYAS:'ACHMAD',AFIS:'ACHMAD',RIZAL:'RIZAL',MASELLA:'RIZAL'};
+const KPI_FINAL_ORGANIC_PICS=['ACHMAD','RIZAL'];
+const KPI_SUPPORT_MONITOR_PICS=['TYAS','AFIS','MASELLA'];
 const KPI_PIC_DUMMY={
   RIZAL:{collectionResult:78,followUpDiscipline:84,overdueReduction:73,pipelineMovement:80,dataQuality:88},
   ACHMAD:{collectionResult:75,followUpDiscipline:82,overdueReduction:70,pipelineMovement:77,dataQuality:85},
@@ -2754,9 +2759,10 @@ function renderKpiPicTable(rows,kind){
 function renderKpiPerPic(unpaid,paid){
   const host=document.getElementById('d-kpi-pic');
   if(!host) return;
-  const followupNames=Array.from(new Set(TIM.followup.members.map(function(m){ return canonicalPicName(m); })));
+  const excludedSet=new Set(KPI_EXCLUDED_PICS.map(function(n){ return canonicalPicName(n); }));
+  const followupNames=Array.from(new Set(TIM.followup.members.map(function(m){ return canonicalPicName(m); }))).filter(function(n){ return !excludedSet.has(n); });
   const suratNames=Array.from(new Set(TIM.surat.members.map(function(m){ return canonicalPicName(m); })));
-  const logNames=Array.from(new Set(logs.map(function(l){ return canonicalPicName(l.pic||''); }).filter(Boolean)));
+  const logNames=Array.from(new Set(logs.map(function(l){ return canonicalPicName(l.pic||''); }).filter(Boolean))).filter(function(n){ return !excludedSet.has(n); });
   const followupPicNames=Array.from(new Set([].concat(followupNames,logNames.filter(function(name){ return getTimKey(name)==='followup'; })))).slice(0,12);
   const suratPicNames=Array.from(new Set([].concat(suratNames,logNames.filter(function(name){ return getTimKey(name)==='surat'; })))).slice(0,12);
   const paidValues=followupPicNames.map(function(name){
@@ -2765,18 +2771,32 @@ function renderKpiPerPic(unpaid,paid){
   });
   const followupRows=followupPicNames.map(function(name){
     return computeKpiByPic(name,unpaid,paid,{paidValues});
-  }).sort(function(a,b){ return b.totalScore-a.totalScore; });
+  }).filter(function(r){ return !excludedSet.has(canonicalPicName(r.pic)); }).sort(function(a,b){ return b.totalScore-a.totalScore; });
   const suratRows=suratPicNames.map(function(name){
     return computeKpiSuratByPic(name,invs);
   }).sort(function(a,b){ return b.totalScore-a.totalScore; });
-  host.innerHTML='<div style="font-size:.67rem;color:var(--sub);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;">Tim Follow Up</div>'
-    +renderKpiPicTable(followupRows,'followup')
-    +'<div style="font-size:.67rem;color:var(--sub);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin:10px 0 5px;">Tim Surat</div>'
-    +'<div style="font-size:.68rem;color:#7b1fa2;margin-bottom:6px;">*Formula surat memakai pendekatan rule-based dari data yang tersedia (SLA/backlog/output/akurasi/update).</div>'
-    +renderKpiPicTable(suratRows,'surat');
-  window._kpiRowsByTeam={followup:followupRows,surat:suratRows};
+  const followupByPic=Object.fromEntries(followupRows.map(function(r){ return [canonicalPicName(r.pic),r]; }));
+  const finalRows=KPI_FINAL_ORGANIC_PICS.map(function(org){
+    const owner=canonicalPicName(org);
+    const contributors=Object.keys(KPI_ACCOUNTABLE_MAP).filter(function(src){ return canonicalPicName(KPI_ACCOUNTABLE_MAP[src])===owner; });
+    const rows=contributors.map(function(src){ return followupByPic[canonicalPicName(src)]; }).filter(Boolean);
+    if(!rows.length) return null;
+    const totals=rows.reduce(function(acc,row){ acc.collectionResult+=row.collectionResult; acc.followUpDiscipline+=row.followUpDiscipline; acc.overdueReduction+=row.overdueReduction; acc.pipelineMovement+=row.pipelineMovement; acc.dataQuality+=row.dataQuality; return acc; },{collectionResult:0,followUpDiscipline:0,overdueReduction:0,pipelineMovement:0,dataQuality:0});
+    const n=rows.length;
+    const metrics={collectionResult:totals.collectionResult/n,followUpDiscipline:totals.followUpDiscipline/n,overdueReduction:totals.overdueReduction/n,pipelineMovement:totals.pipelineMovement/n,dataQuality:totals.dataQuality/n};
+    return {pic:owner,team:'followup',...metrics,totalScore:calcFollowupTotalKpiScore(metrics),source:'proxy',raw:{proxy:true,contributors:contributors.join(', ')}};
+  }).filter(Boolean);
+  const supportRows=KPI_SUPPORT_MONITOR_PICS.map(function(name){ return followupByPic[canonicalPicName(name)]; }).filter(Boolean);
+  host.innerHTML='<div style="font-size:.67rem;color:var(--sub);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;">KPI ORGANIK / FINAL</div>'
+    +'<div style="font-size:.68rem;color:#6d4c41;margin-bottom:6px;">PROXY sementara: TYAS/AFIS dihitung ke ACHMAD, MASELLA dihitung ke RIZAL (MAMU dikecualikan).</div>'
+    +renderKpiPicTable(finalRows,'followup')
+    +'<div style="font-size:.67rem;color:var(--sub);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin:10px 0 5px;">MONITORING SUPPORT / MAGANG</div>'
+    +'<div style="font-size:.68rem;color:#455a64;margin-bottom:6px;">TYAS → ACHMAD · AFIS → ACHMAD · MASELLA → RIZAL.</div>'
+    +renderKpiPicTable(supportRows,'followup');
+  window._kpiRowsByTeam={followup:[].concat(finalRows,supportRows),surat:suratRows};
 }
 function sourceLabelDetailed(src){
+  if(src==='proxy') return 'PROXY (Sementara - belum final dari data mentah)';
   if(src==='dummy') return 'DUMMY';
   if(src==='mixed') return 'PARTIAL';
   return 'REAL';
@@ -2808,6 +2828,7 @@ function openKpiDetail(team,pic){
   document.getElementById('kpi-detail-body').innerHTML=
     '<div class="irow"><span class="ilbl">Nama PIC</span><span class="ival">'+esc(row.pic)+'</span></div>'
     +'<div class="irow"><span class="ilbl">Tim</span><span class="ival">'+(team==='surat'?'Surat':'Follow Up')+'</span></div>'
+    +(row.raw&&row.raw.contributors?'<div class="irow"><span class="ilbl">Cakupan PIC</span><span class="ival">'+esc(row.raw.contributors)+'</span></div>':'')
     +'<div class="irow"><span class="ilbl">Total Score</span><span class="ival">'+row.totalScore.toFixed(1)+'</span></div>'
     +'<div class="irow"><span class="ilbl">Status Data</span><span class="ival">'+sourceLabelDetailed(row.source)+'</span></div>'
     +'<div class="irow"><span class="ilbl">Periode/Cut-off</span><span class="ival">'+TODAY+' (UTC)</span></div>'
