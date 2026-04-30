@@ -1040,6 +1040,7 @@ window.addEventListener('load', syncStickyTopbarHeight);
 
 let localDraftMode=false;
 let isPushingToSheets=false;
+const LOCAL_DRAFT_FLAG_KEY='fu_local_draft_pending';
 const SAFE_PUSH_MIN_INVOICE_COUNT=100;
 const SAFE_PUSH_DROP_RATIO=0.5;
 const TODAY=new Date().toISOString().slice(0,10);
@@ -1076,10 +1077,18 @@ function formatSheetsPushTime(isoString){
   return d.toLocaleString('id-ID',{timeZone:'Asia/Jakarta'});
 }
 
+function setLocalDraftMode(flag){
+  localDraftMode=!!flag;
+  if(localDraftMode) localStorage.setItem(LOCAL_DRAFT_FLAG_KEY,'1');
+  else localStorage.removeItem(LOCAL_DRAFT_FLAG_KEY);
+}
+
+
 // ═══ INIT ═══
 let gsUrl='';
 window.onload=()=>{
   try {
+    localDraftMode=localStorage.getItem(LOCAL_DRAFT_FLAG_KEY)==='1';
     const sl=localStorage.getItem('fu_logs');
     if(sl) {
       try{ logs=JSON.parse(sl); }catch(e){ logs=[]; }
@@ -1095,7 +1104,12 @@ window.onload=()=>{
       document.getElementById('gs-url').value=gsUrl;
       const cb=document.getElementById('cloud-badge');
       if(cb) cb.style.display='block';
-      pullAllFromSheets(true);
+      if(localDraftMode){
+        setGsStatus('⚠️ Ditemukan draft lokal belum dipush. Data cloud tidak ditarik otomatis agar tidak ketimpa.','#ef6c00');
+        updateAutoSyncBadge('Draft lokal terdeteksi saat startup.');
+      } else {
+        pullAllFromSheets(true);
+      }
       startAutoSync();
     }
 
@@ -1556,7 +1570,7 @@ function _doProsesData(opts){ opts=opts||{}; try{
 
   const un=invs.filter(i=>i.pay==='Unpaid').length;
   const unNP=invs.filter(i=>i.pay==='Unpaid'&&(i.type==='nonp2p'||i.type==='migrasi')).length;
-  localDraftMode=true;
+  setLocalDraftMode(true);
   document.getElementById('load-msg').textContent=`✅ Data lokal berhasil diproses: ${invs.length} invoice (${un} unpaid, ${unNP} non-P2P/migrasi). Sistem akan otomatis push ke Sheets jika hasilnya aman.`;
   if(opts.skipAutoPush){
     document.getElementById('load-msg').textContent=`✅ Aging lokal berhasil diterapkan: ${invs.length} invoice (${un} unpaid, ${unNP} non-P2P/migrasi). Jika sudah cocok, push manual ke Sheets.`;
@@ -1600,7 +1614,7 @@ function resetData(){
   document.getElementById('load-msg').textContent='';
   const banner=document.getElementById('aging-refresh-banner');
   if(banner) banner.style.display='none';
-  localDraftMode=false;
+  setLocalDraftMode(false);
   clearAutoPushRetry();
   const postEl=document.getElementById('post-process-actions');
   if(postEl) postEl.style.display='none';
@@ -3902,6 +3916,12 @@ document.addEventListener('visibilitychange', function(){
   }
 });
 
+window.addEventListener('beforeunload',function(e){
+  if(!localDraftMode) return;
+  e.preventDefault();
+  e.returnValue='';
+});
+
 function saveGsUrl(v){
   gsUrl=v.trim();
   localStorage.setItem('gs_url',gsUrl);
@@ -4231,7 +4251,7 @@ function pushAllDataToSheets(opts){
       if(prev===false) return false;
       var updEl=document.getElementById('gs-last-update');
       if(updEl) updEl.textContent='Terakhir dipush ke Sheets (WIB): '+formatSheetsPushTime(new Date().toISOString());
-      localDraftMode=false;
+      setLocalDraftMode(false);
       clearAutoPushRetry();
       lastAutoSyncAt=Date.now();
       lastAutoSyncState='ok';
