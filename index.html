@@ -1569,7 +1569,11 @@ function _doProsesData(opts){ opts=opts||{}; try{
   invs.filter(i=>i.pay==='Unpaid').forEach(i=>{ const o=document.createElement('option'); o.value=i.no+' — '+i.cust; dl.appendChild(o);});
 
   const un=invs.filter(i=>i.pay==='Unpaid').length;
-  const unNP=invs.filter(i=>i.pay==='Unpaid'&&(i.type==='nonp2p'||i.type==='migrasi')).length;
+  const unNP=invs.filter(i=>{
+    if(i.pay!=='Unpaid') return false;
+    const bc=getInvoiceBusinessClass(i);
+    return bc==='nonp2p_manual' || bc==='nonp2p_migrasi';
+  }).length;
   setLocalDraftMode(true);
   document.getElementById('load-msg').textContent=`✅ Data lokal berhasil diproses: ${invs.length} invoice (${un} unpaid, ${unNP} non-P2P/migrasi). Sistem akan otomatis push ke Sheets jika hasilnya aman.`;
   if(opts.skipAutoPush){
@@ -2858,7 +2862,7 @@ function renderDash(){
 
   // ── Breakdown: P2P | Non-P2P | Migrasi (Hanya yg inFBL5N / Piutang Sah) ──
   const p2pBilled=unpaid.filter(i=> i.type==='p2p' || (!i.type && i.sSrt==='Completed')); 
-  const unpaidNonP2P=unpaid.filter(i=> i.type==='nonp2p');
+  const unpaidNonP2P=unpaid.filter(i=> getInvoiceBusinessClass(i)==='nonp2p_manual');
   const unpaidMig=unpaid.filter(i=> i.type==='migrasi');
   const unpaidPymad=unpaid.filter(i=> i.type==='pymad' || i.type==='pymad_nonp2p');
   
