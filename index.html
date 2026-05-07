@@ -11,8 +11,10 @@
   --red:#e53935;--orange:#f57c00;--green:#43a047;--blue:#1976d2;
   --purple:#7b1fa2;--bg:#f0f2f5;--card:#fff;--dark:#1a237e;--sub:#757575;
   --topbar-h:52px;
+  --tabs-h:48px;
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html{scroll-padding-top:calc(var(--topbar-h) + var(--tabs-h) + 12px);}
 body{font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:#212121;min-height:100vh;}
 
 /* ── TOPBAR ── */
@@ -428,6 +430,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 .tl-badge.sla-warn{background:#fff3e0;color:#e65100;}
 .tl-badge.sla-bad{background:#fdecea;color:#b71c1c;}
 .tl-badge.next{background:#e3f2fd;color:#1565c0;}
+.hist-badge{display:inline-flex;align-items:center;padding:2px 7px;border-radius:999px;font-size:.58rem;font-weight:800;letter-spacing:.15px;background:#fce4ec;color:#ad1457;margin-top:6px;}
+.hist-mini{font-size:.62rem;color:#ad1457;font-weight:700;margin-top:4px;}
 .customer-actions{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
 .customer-inline-note{font-size:.64rem;color:var(--sub);}
 .customer-footer-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
@@ -517,6 +521,23 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
       <div class="di">📈</div>
       <div class="dl">AGING_SAP_EXPORT_YYYYMMDD.xlsx</div>
       <div class="fname wait" id="fn3">Belum dipilih (opsional)</div>
+    </div>
+
+    <label class="lbl">4. Histori Masalah TANOS 2025+ <span style="color:var(--sub);">opsional demo</span></label>
+    <div class="file-drop" onclick="document.getElementById('f4').click()" id="fd4">
+      <input type="file" id="f4" accept=".xlsx,.xls" onchange="loadIssueHistoryFile(this)">
+      <div class="di">🧷</div>
+      <div class="dl">HISTORI_MASALAH_TANOS_2025.xlsx</div>
+      <div class="fname wait" id="fn4">Belum dipilih (opsional)</div>
+    </div>
+    <div style="margin-top:6px;font-size:.72rem;color:var(--sub);display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <span id="issue-history-status">Histori masalah belum dimuat.</span>
+      <button class="btn btn-outline btn-sm" type="button" onclick="clearIssueHistory()">Hapus Histori Masalah</button>
+    </div>
+    <div id="issue-history-preview" style="display:none;margin-top:10px;padding:12px;border-radius:10px;background:#fff8fb;border:1px solid #f3d6e5;">
+      <div style="font-size:.75rem;font-weight:800;color:#ad1457;margin-bottom:8px;">🧷 Preview Histori Masalah</div>
+      <div id="issue-history-stats" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;"></div>
+      <div id="issue-history-samples" style="font-size:.72rem;color:#6a1b3f;line-height:1.55;"></div>
     </div>
 
     <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;">
@@ -1030,11 +1051,14 @@ function getTimInfo(name){ return TIM[getTimKey(name)]; }
 
 // ═══ STATE ═══
 let invs=[], bilMap={}, agMap={}, agTotals={b30:0,b60:0,b90:0,b120:0,b150:0,b180:0,b210:0,bOld:0,hasData:false}, logs=[], pic='', cf='a', csub='', hf='a';
+let issueHistoryMap={};
+let issueHistoryMeta={totalRows:0,stageCounts:{},samples:[]};
 
 function syncStickyTopbarHeight(){
   const topbar=document.querySelector('.topbar');
-  if(!topbar) return;
-  document.documentElement.style.setProperty('--topbar-h', topbar.offsetHeight+'px');
+  const tabs=document.querySelector('.tabs');
+  if(topbar) document.documentElement.style.setProperty('--topbar-h', topbar.offsetHeight+'px');
+  if(tabs) document.documentElement.style.setProperty('--tabs-h', tabs.offsetHeight+'px');
 }
 window.addEventListener('resize', syncStickyTopbarHeight);
 window.addEventListener('load', syncStickyTopbarHeight);
@@ -1044,6 +1068,8 @@ let isPushingToSheets=false;
 const LOCAL_DRAFT_FLAG_KEY='fu_local_draft_pending';
 const SAFE_PUSH_MIN_INVOICE_COUNT=100;
 const SAFE_PUSH_DROP_RATIO=0.5;
+const CLOUD_PULL_TIMEOUT_MS=45000;
+const CLOUD_LOGS_TIMEOUT_MS=20000;
 const TODAY=new Date().toISOString().slice(0,10);
 const KPI_PIC_WEIGHTS={collectionResult:0.22,followUpDiscipline:0.24,overdueReduction:0.20,pipelineMovement:0.22,dataQuality:0.12};
 const KPI_SURAT_WEIGHTS={slaSpeed:0.30,backlogControl:0.25,outputProductivity:0.20,documentAccuracy:0.15,updateDiscipline:0.10};
@@ -1073,6 +1099,7 @@ const KPI_SURAT_DUMMY={
 const PIC_ALIAS_MAP={AULIA:'AULYA'};
 const raw={};
 let adminPinHash='';
+let adminSessionUnlocked=false;
 const DEFAULT_GS_URL='https://script.google.com/macros/s/AKfycbxceyaegqXKadL-7V_hqBJmGXR3b96lwREQnaRcVDMiMYkc2zzBtTB65YxCkCMeCCOUfw/exec';
 
 function formatSheetsPushTime(isoString){
@@ -1097,6 +1124,14 @@ window.onload=()=>{
     const sl=localStorage.getItem('fu_logs');
     if(sl) {
       try{ logs=JSON.parse(sl); }catch(e){ logs=[]; }
+    }
+    const sih=localStorage.getItem('issue_history_map');
+    if(sih){
+      try{ issueHistoryMap=JSON.parse(sih)||{}; }catch(e){ issueHistoryMap={}; }
+    }
+    const sim=localStorage.getItem('issue_history_meta');
+    if(sim){
+      try{ issueHistoryMeta=JSON.parse(sim)||issueHistoryMeta; }catch(e){ issueHistoryMeta={totalRows:0,stageCounts:{},samples:[]}; }
     }
 
     const sp=localStorage.getItem('fu_pic');
@@ -1128,6 +1163,7 @@ window.onload=()=>{
     if(document.getElementById('ql-date')) document.getElementById('ql-date').value=TODAY;
     if(document.getElementById('m-date')) document.getElementById('m-date').value=TODAY;
 
+    updateIssueHistoryStatus();
     renderH();
     renderDash();
   } catch(e) {
@@ -1165,6 +1201,260 @@ function showAgingRefreshPending(message){
   if(agingBannerTimer) clearTimeout(agingBannerTimer);
   banner.innerHTML='<span class="aging-spinner"></span>'+message;
   banner.style.display='block';
+}
+function normalizeIssueKey(value){
+  return String(value||'').trim().replace(/\s+/g,'').toUpperCase();
+}
+function normalizeIssueStage(value){
+  const low=s(value).toLowerCase();
+  if(low.includes('mir7')) return 'MIR7';
+  if(low.includes('nota')) return 'NOTA';
+  if(low.includes('surat')) return 'SURAT';
+  if(low.includes('ba')) return 'BA';
+  return s(value).toUpperCase();
+}
+function normalizeIssueStatus(value){
+  const low=s(value).toLowerCase();
+  if(low.includes('reject')||low.includes('tolak')) return 'Rejected';
+  if(low.includes('complete')||low.includes('done')||low.includes('selesai')) return 'Completed';
+  if(low.includes('progress')||low.includes('proses')||low.includes('draft')||low.includes('open')) return 'In Progress';
+  if(low.includes('belum')||low.includes('pending')) return 'Belum Dibuat';
+  return s(value)||'-';
+}
+function saveIssueHistory(){
+  localStorage.setItem('issue_history_map',JSON.stringify(issueHistoryMap));
+  localStorage.setItem('issue_history_meta',JSON.stringify(issueHistoryMeta));
+  updateIssueHistoryStatus();
+}
+function updateIssueHistoryStatus(){
+  const count=Object.keys(issueHistoryMap).length;
+  const el=document.getElementById('issue-history-status');
+  const preview=document.getElementById('issue-history-preview');
+  const statsEl=document.getElementById('issue-history-stats');
+  const samplesEl=document.getElementById('issue-history-samples');
+  if(el){
+    el.textContent=count
+      ? 'Histori masalah aktif: '+count+' key referensi tersimpan terpisah dari data harian.'
+      : 'Histori masalah belum dimuat.';
+  }
+  if(preview && statsEl && samplesEl){
+    if(count){
+      preview.style.display='block';
+      const stageCounts=issueHistoryMeta.stageCounts||{};
+      const statOrder=['BA Rejected','SURAT Rejected','NOTA Rejected','MIR7 Rejected'];
+      statsEl.innerHTML=statOrder.map(function(label){
+        return '<div style="padding:6px 10px;border-radius:999px;background:#fde7f1;color:#ad1457;font-size:.68rem;font-weight:800;">'+label+': '+(stageCounts[label]||0)+'</div>';
+      }).join('');
+      const samples=(issueHistoryMeta.samples||[]).slice(0,6);
+      samplesEl.innerHTML=samples.length
+        ? '<div style="font-weight:700;margin-bottom:4px;">Contoh terdeteksi:</div>'+samples.map(function(row){
+            return '<div>• '+esc(row.invoiceNo||'-')+' — '+esc(row.stage||'-')+' '+esc(row.status||'-')+(row.customer?' • '+esc(row.customer):'')+'</div>';
+          }).join('')
+        : '<div>Preview belum punya sampel.</div>';
+    } else {
+      preview.style.display='none';
+      statsEl.innerHTML='';
+      samplesEl.innerHTML='';
+    }
+  }
+}
+function clearIssueHistory(){
+  issueHistoryMap={};
+  issueHistoryMeta={totalRows:0,stageCounts:{},samples:[]};
+  localStorage.removeItem('issue_history_map');
+  localStorage.removeItem('issue_history_meta');
+  const fn=document.getElementById('fn4');
+  if(fn){ fn.textContent='Belum dipilih (opsional)'; fn.className='fname wait'; }
+  const inp=document.getElementById('f4');
+  if(inp) inp.value='';
+  updateIssueHistoryStatus();
+  renderQ();
+  renderDash();
+  toast('🧹 Histori masalah dibersihkan dari browser ini.');
+}
+function mergeIssueSummary(key, payload){
+  if(!key) return;
+  if(!issueHistoryMap[key]){
+    issueHistoryMap[key]={
+      invoiceNo:'',
+      referenceNo:'',
+      baRejectEver:false,
+      baRejectCount:0,
+      baRejectLastDate:'',
+      baRejectLastNote:'',
+      lastStage:'',
+      lastStatus:'',
+      lastUpdate:''
+    };
+  }
+  const target=issueHistoryMap[key];
+  if(payload.invoiceNo) target.invoiceNo=payload.invoiceNo;
+  if(payload.referenceNo) target.referenceNo=payload.referenceNo;
+  if(payload.lastStage) target.lastStage=payload.lastStage;
+  if(payload.lastStatus) target.lastStatus=payload.lastStatus;
+  if(payload.lastUpdate && (!target.lastUpdate || payload.lastUpdate > target.lastUpdate)) target.lastUpdate=payload.lastUpdate;
+  if(payload.baRejectEver) target.baRejectEver=true;
+  if(Number(payload.baRejectCount)||0) target.baRejectCount=Math.max(target.baRejectCount||0, Number(payload.baRejectCount)||0);
+  if(payload.baRejectLastDate && (!target.baRejectLastDate || payload.baRejectLastDate > target.baRejectLastDate)) target.baRejectLastDate=payload.baRejectLastDate;
+  if(payload.baRejectLastNote && (!target.baRejectLastNote || payload.baRejectLastDate >= (target.baRejectLastDate||''))) target.baRejectLastNote=payload.baRejectLastNote;
+}
+function loadIssueHistoryFile(inp){
+  const f=inp.files[0]; if(!f) return;
+  const el=document.getElementById('fn4');
+  el.textContent='⏳ '+f.name; el.className='fname wait';
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array',cellDates:false});
+      const sh=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(sh,{defval:'',raw:false});
+      const freshMap={};
+      const meta={totalRows:rows.length,stageCounts:{},samples:[]};
+      function bumpStage(label){
+        meta.stageCounts[label]=(meta.stageCounts[label]||0)+1;
+      }
+      const isResumeNotaFormat=rows.length && (
+        Object.prototype.hasOwnProperty.call(rows[0],'Doc No Invoice') ||
+        Object.prototype.hasOwnProperty.call(rows[0],'Status BA') ||
+        Object.prototype.hasOwnProperty.call(rows[0],'Status Surat Tagihan')
+      );
+      function mergeFresh(key,payload){
+        if(!key) return;
+        if(!freshMap[key]){
+          freshMap[key]={
+            invoiceNo:'',
+            referenceNo:'',
+            baRejectEver:false,
+            baRejectCount:0,
+            baRejectLastDate:'',
+            baRejectLastNote:'',
+            lastStage:'',
+            lastStatus:'',
+            lastUpdate:''
+          };
+        }
+        const target=freshMap[key];
+        if(payload.invoiceNo) target.invoiceNo=payload.invoiceNo;
+        if(payload.referenceNo) target.referenceNo=payload.referenceNo;
+        if(payload.lastStage) target.lastStage=payload.lastStage;
+        if(payload.lastStatus) target.lastStatus=payload.lastStatus;
+        if(payload.lastUpdate && (!target.lastUpdate || payload.lastUpdate > target.lastUpdate)) target.lastUpdate=payload.lastUpdate;
+        if(payload.baRejectEver) target.baRejectEver=true;
+        if(Number(payload.baRejectCount)||0) target.baRejectCount=Math.max(target.baRejectCount||0, Number(payload.baRejectCount)||0);
+        if(payload.baRejectLastDate && (!target.baRejectLastDate || payload.baRejectLastDate > target.baRejectLastDate)) target.baRejectLastDate=payload.baRejectLastDate;
+        if(payload.baRejectLastNote && (!target.baRejectLastNote || payload.baRejectLastDate >= (target.baRejectLastDate||''))) target.baRejectLastNote=payload.baRejectLastNote;
+      }
+      if(isResumeNotaFormat){
+        rows.forEach(function(r){
+          const invoiceNo=s(r['Doc No Invoice']||r['Invoice No']||r['Document No']||'');
+          const customer=s(r['Customer']||'');
+          const baNo=s(r['Nomor BA']||'');
+          const suratNo=s(r['Nomor Surat Tagihan']||'');
+          const notaNo=s(r['Nomor Nota DInas']||r['Nomor Nota Dinas']||'');
+          const mirNo=s(r['Nomor MIR7']||'');
+          const statusRows=[
+            {stage:'BA', status:normalizeIssueStatus(r['Status BA']||''), ref:baNo},
+            {stage:'SURAT', status:normalizeIssueStatus(r['Status Surat Tagihan']||''), ref:suratNo},
+            {stage:'NOTA', status:normalizeIssueStatus(r['Status Nota Dinas']||r['Status Nota DInas']||''), ref:notaNo},
+            {stage:'MIR7', status:normalizeIssueStatus(r['Status MIR7']||''), ref:mirNo}
+          ];
+          const keys=[
+            normalizeIssueKey(invoiceNo),
+            normalizeIssueKey(baNo),
+            normalizeIssueKey(suratNo),
+            normalizeIssueKey(notaNo),
+            normalizeIssueKey(mirNo)
+          ].filter(Boolean);
+          if(!keys.length) return;
+          let lastStage='', lastStatus='';
+          statusRows.forEach(function(item){
+            if(item.status && item.status!=='-' && item.status!=='Belum Dibuat'){
+              lastStage=item.stage;
+              lastStatus=item.status;
+            }
+          });
+          const baRejected=statusRows[0].status==='Rejected';
+          statusRows.forEach(function(item){
+            if(item.status==='Rejected'){
+              bumpStage(item.stage+' Rejected');
+              if(meta.samples.length<6){
+                meta.samples.push({invoiceNo:invoiceNo, stage:item.stage, status:item.status, customer:customer});
+              }
+            }
+          });
+          const payload={
+            invoiceNo,
+            referenceNo:baNo||suratNo||notaNo||mirNo,
+            lastStage:lastStage,
+            lastStatus:lastStatus,
+            lastUpdate:'',
+            baRejectEver:baRejected,
+            baRejectCount:baRejected?1:0,
+            baRejectLastDate:'',
+            baRejectLastNote:baRejected?'Terdeteksi dari snapshot resume nota p2p 2025.': ''
+          };
+          keys.forEach(function(key){ mergeFresh(key,payload); });
+        });
+      } else {
+        rows.forEach(function(r){
+          const invoiceNo=s(r['Invoice No']||r['Doc No Invoice']||r['Document No']||r['Invoice']||'');
+          const referenceNo=s(r['Reference']||r['Doc Reference']||r['Reference No']||r['Nomor Referensi']||'');
+          const stage=normalizeIssueStage(r['Stage']||r['Tahap']||r['Document Type']||r['Jenis Masalah']||'');
+          const status=normalizeIssueStatus(r['Status']||r['Status Terakhir']||r['Current Status']||'');
+          const note=s(r['Note']||r['Notes']||r['Keterangan']||r['Reject Note']||'');
+          const rejectCount=n(r['Reject Count']||r['Jumlah Reject']||r['Count Reject']||0);
+          const date=s(r['Last Reject Date']||r['Tanggal Reject Terakhir']||r['Status Date']||r['Tanggal Status']||r['Last Update']||'');
+          const keys=[normalizeIssueKey(invoiceNo), normalizeIssueKey(referenceNo)].filter(Boolean);
+          if(!keys.length) return;
+          if(status==='Rejected'){
+            bumpStage(stage+' Rejected');
+            if(meta.samples.length<6){
+              meta.samples.push({invoiceNo:invoiceNo||referenceNo, stage:stage, status:status, customer:''});
+            }
+          }
+          const payload={
+            invoiceNo,
+            referenceNo,
+            lastStage:stage,
+            lastStatus:status,
+            lastUpdate:date,
+            baRejectEver:stage==='BA' && status==='Rejected',
+            baRejectCount:(stage==='BA' && status==='Rejected') ? Math.max(1,rejectCount||0) : rejectCount,
+            baRejectLastDate:(stage==='BA' && status==='Rejected') ? date : '',
+            baRejectLastNote:(stage==='BA' && status==='Rejected') ? note : ''
+          };
+          keys.forEach(function(key){ mergeFresh(key,payload); });
+        });
+      }
+      issueHistoryMap=freshMap;
+      issueHistoryMeta=meta;
+      saveIssueHistory();
+      el.textContent='✅ '+f.name; el.className='fname ok';
+      renderQ();
+      renderDash();
+      toast(isResumeNotaFormat
+        ? '🧷 Resume nota p2p 2025 terbaca langsung sebagai layer histori masalah.'
+        : '🧷 Histori masalah dimuat. Badge invoice akan memakai layer terpisah ini.');
+    }catch(ex){
+      el.textContent='❌ '+ex.message; el.className='fname';
+      toast('❌ Gagal membaca file histori masalah: '+ex.message);
+    }
+  };
+  reader.readAsArrayBuffer(f);
+}
+function getIssueHistoryForInvoice(inv){
+  if(!inv) return null;
+  const keys=[
+    normalizeIssueKey(inv.no),
+    normalizeIssueKey(inv.noBA),
+    normalizeIssueKey(inv.noSrt),
+    normalizeIssueKey(inv.noMIR),
+    normalizeIssueKey(inv.sNota)
+  ].filter(Boolean);
+  for(let i=0;i<keys.length;i++){
+    if(issueHistoryMap[keys[i]]) return issueHistoryMap[keys[i]];
+  }
+  return null;
 }
 function loadF(n,inp){ 
   const f=inp.files[0]; if(!f) return;
@@ -1216,18 +1506,6 @@ function autoBackupLog(){
 // ═══ PROCESS ═══
 function prosesData(opts){
   opts=opts||{};
-  if(!opts.skipPin && !adminPinHash){
-    alert('⚠️ PIN Admin Lokal belum diatur.\nBuka tab Data → isi "PIN Admin Lokal" terlebih dulu.');
-    showPage('setup');
-    return;
-  }
-  if(!opts.skipPin){
-    const pin = prompt('⛔ AKSES KHUSUS ADMIN ⛔\nMasukkan Kunci Rahasia / PIN untuk merubah Master Data:');
-    if(hashPin(pin||'') !== adminPinHash) {
-      alert('❌ Akses Ditolak!\nMaaf, hanya Admin yang mendelegasikan wewenang ini. Tim silakan gunakan tombol "Tarik Data" saja.');
-      return;
-    }
-  }
   // Tampilkan loading dulu, proses berat dijalankan setelah UI update
   document.getElementById('load-msg').textContent=opts.loadingText||'⏳ Memproses data...';
   document.getElementById('btn-proses').disabled=true;
@@ -2031,6 +2309,7 @@ function renderQ(append=false){
   const html = slice.map(item => {
     const i = item.inv, prog=item.prog, pr = item.p, fu = item.fu, ac=i.amt>100000000?'amt-big':i.amt>30000000?'amt-med':'';
     const done=getLogs(i.no).find(l=>l.hasil==='Paid');
+    const issue=getIssueHistoryForInvoice(i);
     const tone=getProgressTone(prog);
     const toneCls={reject:'bk-reject',pending:'bk-pending',collection:'bk-collection',overdue:'bk-overdue',paid:'bk-paid'}[tone]||'';
     const ownerCls={operasi:'own-operasi',surat:'own-surat',followup:'own-followup',done:'own-done'}[prog.team]||'own-followup';
@@ -2038,6 +2317,7 @@ function renderQ(append=false){
     return`<div class="inv-card p${pr} ${toneCls}${done?' done':''}" onclick="openM('${jsq(i.no)}')">
       <div class="inv-head"><div><div class="inv-no">${invNoEsc}</div><div class="inv-pic-sub">${picBEsc}</div><div class="inv-owner ${ownerCls}">${esc(prog.ownerTeam)}</div></div><div class="inv-amt ${ac}">${fmt(i.amt)}</div></div>
       <div class="inv-cust">${custEsc}</div>
+      ${issue&&issue.baRejectEver?`<div class="hist-badge">Pernah BA Reject${issue.baRejectCount?` · ${issue.baRejectCount}x`:''}</div>`:''}
       <div class="inv-desc">${descEsc}</div>
       <div class="inv-foot">${stagePills(i)}<span class="fu-tag ${fu.d?'d':fu.w?'w':''}">${fu.t}</span></div>
     </div>`;
@@ -2057,6 +2337,7 @@ function renderQ(append=false){
 }
 function stagePills(i){
   const prog=getInvoiceProgress(i);
+  const issue=getIssueHistoryForInvoice(i);
   const stageBadge='<span class="sp" style="background:#eceff1;color:#37474f;">'+esc(prog.label)+'</span>';
   const bizClass=getInvoiceBusinessClass(i);
   // Non-P2P manual: tetap lewat Surat sampai handoff-ready
@@ -2082,6 +2363,7 @@ function stagePills(i){
   else if(sMIR==='Rejected') p+=`<span class="sp sp-nd">MIR7:Reject</span>`;
   else if(sMIR==='In Progress') p+=`<span class="sp sp-ip">MIR7:Proses</span>`;
   else if(sNota==='Completed') p+=`<span class="sp sp-su">MIR7:Belum</span>`;
+  if(issue&&issue.baRejectEver) p+=`<span class="sp" style="background:#fce4ec;color:#ad1457;">Hist BA Reject</span>`;
   p+=stageBadge;
   p+=`<span class="sp ${normalizePayStatus(i.pay)==='Paid'?'sp-pd':'sp-un'}">${normalizePayStatus(i.pay)}</span>`;
   return p;
@@ -2091,6 +2373,7 @@ function stagePills(i){
 function openM(no){
   const i=invs.find(x=>x.no===no); if(!i) return;
   const prog=getInvoiceProgress(i);
+  const issue=getIssueHistoryForInvoice(i);
   const mode=detectModalMode(i,prog);
   document.getElementById('m-title').textContent=no;
   document.getElementById('m-inv').value=no;
@@ -2109,6 +2392,8 @@ function openM(no){
     <div class="irow"><span class="ilbl">Penanggung Jawab</span><span class="ival">${esc(prog.ownerPerson)}</span></div>
     <div class="irow"><span class="ilbl">Tim</span><span class="ival">${esc(prog.ownerTeam)}</span></div>
     <div class="irow"><span class="ilbl">PIC Billing</span><span class="ival">${esc(i.picB||'—')}</span></div>
+    ${issue&&issue.baRejectEver?`<div class="irow"><span class="ilbl">Histori BA</span><span class="ival">Pernah Reject${issue.baRejectCount?` (${esc(String(issue.baRejectCount))}x)`:''}${issue.baRejectLastDate?`<br><span style="font-size:.68rem;color:#ad1457;">Terakhir ${esc(issue.baRejectLastDate)}</span>`:''}</span></div>`:''}
+    ${issue&&issue.lastStage?`<div class="irow"><span class="ilbl">Histori Terakhir</span><span class="ival">${esc(issue.lastStage)} • ${esc(issue.lastStatus||'-')}${issue.lastUpdate?`<br><span style="font-size:.68rem;color:#607d8b;">${esc(issue.lastUpdate)}</span>`:''}</span></div>`:''}
     <div class="irow"><span class="ilbl">Payment</span><span class="ival">${esc(i.pay)}</span></div>
     <div class="irow"><span class="ilbl">Deskripsi</span><span class="ival" style="font-size:.72rem;">${esc(i.desc.slice(0,70))}${i.desc.length>70?'...':''}</span></div>`;
   const st=[{n:'BA/BAST',v:prog.sBA},{n:'Surat',v:prog.sSrt},{n:'Nota Dinas',v:prog.sNota},{n:'MIR7/SAP',v:prog.sMIR},{n:'Payment',v:prog.pay}];
@@ -2868,6 +3153,7 @@ function renderDash(){
   const today=TODAY;
   const todayLogs=logs.filter(l => (l.date || (l.ts?l.ts.slice(0,10):'')) === today);
   const unpaid=invs.filter(i=>i.pay==='Unpaid');
+  const actionableUnpaid=unpaid.filter(function(i){ return i.type!=='migrasi'; });
   const paid=invs.filter(i=>i.pay==='Paid');
   renderKpiPerPic(unpaid,paid);
   const unpaidProgress=unpaid.map(function(i){ return {inv:i, prog:getInvoiceProgress(i)}; });
@@ -2903,7 +3189,7 @@ function renderDash(){
   document.getElementById('ds-piutang').textContent=totCoverage>0?fmt(totCoverage):'Rp 0';
   document.getElementById('ds-pymad').textContent=totPymad>0?fmt(totPymad):'Rp 0';
   document.getElementById('ds-ar90').textContent=ar90>0?fmt(ar90):'Upload Aging';
-  document.getElementById('ds-unpaid').textContent=unpaid.length||'–';
+  document.getElementById('ds-unpaid').textContent=actionableUnpaid.length||'–';
 
   const rekonEl=document.getElementById('d-rekon');
   if(rekonEl){
@@ -3035,23 +3321,23 @@ function renderDash(){
     });
   }
 
-  document.getElementById('dp-prn').textContent=notaBelum||'–';
+  document.getElementById('dp-prn').textContent=String(notaBelum||0);
   const notaParts=stageStatusParts(notaItems,'sNota');
   document.getElementById('dp-prn-meta').innerHTML=metaLinks('p5',notaParts,'Status Nota Dinas');
   document.getElementById('dp-prn-val').textContent=valLabel(notaParts);
-  document.getElementById('dp-ba').textContent=baItems.length||'–';
+  document.getElementById('dp-ba').textContent=String(baItems.length||0);
   const baParts=stageStatusParts(baItems,'sBA');
   document.getElementById('dp-ba-meta').innerHTML=metaLinks('p1',baParts,'Status BA');
   document.getElementById('dp-ba-val').textContent=valLabel(baParts);
-  document.getElementById('dp-srt').textContent=srtBelum||'–';
+  document.getElementById('dp-srt').textContent=String(srtBelum||0);
   const srtParts=stageStatusParts(srtItems,'sSrt');
   document.getElementById('dp-srt-meta').innerHTML=metaLinks('p2',srtParts,'Status Surat Tagihan');
   document.getElementById('dp-srt-val').textContent=valLabel(srtParts);
-  document.getElementById('dp-mir').textContent=mirBelum||'–';
+  document.getElementById('dp-mir').textContent=String(mirBelum||0);
   const mirParts=stageStatusParts(mirItems,'sMIR');
   document.getElementById('dp-mir-meta').innerHTML=metaLinks('p4',mirParts,'Status MIR7');
   document.getElementById('dp-mir-val').textContent=valLabel(mirParts);
-  document.getElementById('dp-fu').textContent=fuCount||'–';
+  document.getElementById('dp-fu').textContent=String(fuCount||0);
   document.getElementById('dp-fu-meta').innerHTML=metaLinksByKey('p3',[
     {count:fuNoItems.length,label:'Belum FU',key:'belum_fu'},
     {count:fuActiveItems.length,label:'Sudah FU',key:'sudah_fu'},
@@ -3062,20 +3348,20 @@ function renderDash(){
     {value:sumInvs(fuActiveItems),label:'Proses'},
     {value:sumInvs(fuOverdueItems),label:'Janji JT'}
   ]);
-  document.getElementById('dp-np-manual').textContent=manualItems.length||'–';
+  document.getElementById('dp-np-manual').textContent=String(manualItems.length||0);
   document.getElementById('dp-np-manual-val').textContent=manualItems.length?fmt(manualVal):'Rp 0';
   document.getElementById('dp-np-manual-meta').textContent='Ops '+manualOpsItems.length+' • Surat '+manualSuratItems.length+' • FU '+manualFuItems.length;
-  document.getElementById('dp-np-manual-ready').textContent=manualProgress.filter(function(x){
+  document.getElementById('dp-np-manual-ready').textContent=String(manualProgress.filter(function(x){
     return isSapEnteredForManual(x.inv) && x.prog.key==='direct_no_fu';
-  }).length||'–';
-  document.getElementById('dp-np-manual-fu').textContent=manualProgress.filter(function(x){
+  }).length||0);
+  document.getElementById('dp-np-manual-fu').textContent=String(manualProgress.filter(function(x){
     return isSapEnteredForManual(x.inv) && ['direct_active','direct_janji_overdue'].includes(x.prog.key);
-  }).length||'–';
-  document.getElementById('dp-np-migrasi').textContent=migrasiItems.length||'–';
+  }).length||0);
+  document.getElementById('dp-np-migrasi').textContent=String(migrasiItems.length||0);
   document.getElementById('dp-np-migrasi-val').textContent=migrasiItems.length?fmt(migrasiVal):'Rp 0';
-  document.getElementById('dp-np-migrasi-ready').textContent=migrasiProgress.filter(function(x){ return x.prog.key==='direct_no_fu'; }).length||'–';
-  document.getElementById('dp-np-migrasi-fu').textContent=migrasiProgress.filter(function(x){ return ['direct_active','direct_janji_overdue'].includes(x.prog.key); }).length||'–';
-  document.getElementById('dp-paid').textContent=paid.length||'–';
+  document.getElementById('dp-np-migrasi-ready').textContent=String(migrasiProgress.filter(function(x){ return x.prog.key==='direct_no_fu'; }).length||0);
+  document.getElementById('dp-np-migrasi-fu').textContent=String(migrasiProgress.filter(function(x){ return ['direct_active','direct_janji_overdue'].includes(x.prog.key); }).length||0);
+  document.getElementById('dp-paid').textContent=String(paid.length||0);
   document.getElementById('dp-paid-val').textContent=paid.length?fmt(paidVal):'Rp 0';
 
   // KPIs
@@ -3114,7 +3400,7 @@ function renderDash(){
       +'<div><strong>Formula Surat:</strong><br>TOTAL SCORE = SLA Speed × 34% + Backlog Control × 16% + Output Productivity × 25% + Document Accuracy × 15% + Update Discipline × 10%</div>';
   }
   const topUnpaid=document.getElementById('topkpi-unpaid');
-  if(topUnpaid) topUnpaid.textContent=unpaid.length||'–';
+  if(topUnpaid) topUnpaid.textContent=actionableUnpaid.length||'–';
   const topAr90=document.getElementById('topkpi-ar90');
   if(topAr90) topAr90.textContent=ar90>0?fmt(ar90):'Upload Aging';
   const topBfu=document.getElementById('topkpi-bfu');
@@ -3981,13 +4267,28 @@ function saveAdminPin(v){
     if(pin.length===0){
       localStorage.removeItem('admin_pin_hash');
       adminPinHash='';
+      adminSessionUnlocked=false;
       setGsStatus('ℹ️ PIN admin lokal dihapus.','var(--sub)');
     }
     return;
   }
   adminPinHash=hashPin(pin);
+  adminSessionUnlocked=false;
   localStorage.setItem('admin_pin_hash',adminPinHash);
   setGsStatus('✅ PIN admin lokal diperbarui.','var(--green)');
+}
+
+function ensureAdminAccess(actionLabel){
+  if(!adminPinHash) return true;
+  if(adminSessionUnlocked) return true;
+  const pin=prompt('⛔ AKSES KHUSUS ADMIN ⛔\nMasukkan PIN untuk '+(actionLabel||'melanjutkan')+':');
+  if(hashPin(pin||'') !== adminPinHash){
+    alert('❌ Akses Ditolak!\nPIN admin tidak cocok.');
+    return false;
+  }
+  adminSessionUnlocked=true;
+  setGsStatus('✅ Akses admin aktif untuk sesi browser ini.','var(--green)');
+  return true;
 }
 
 function setGsStatus(msg,color){
@@ -4146,6 +4447,7 @@ function downloadJsonAuditFile(filename,payload){
 
 function runOneTimeInvoiceCleanupPush(){
   if(!gsUrl){ toast('⚠️ URL belum diisi!'); return; }
+  if(!ensureAdminAccess('audit + cleanup invoice di Sheets')) return;
   setGsStatus('⏳ Audit invoice tersimpan di Sheets...','#1565c0');
   return fetchJsonWithTimeout(gsUrl+'?action=get_invs&t='+Date.now()).then(function(res){
     if(!res||!res.ok||!Array.isArray(res.invs)||!res.invs.length){
@@ -4192,7 +4494,7 @@ function runOneTimeInvoiceCleanupPush(){
 
 function getCloudInvoiceCount(){
   if(!gsUrl) return Promise.resolve(0);
-  return fetchJsonWithTimeout(gsUrl+'?action=get_invs&t='+Date.now()).then(function(res){
+  return fetchJsonWithTimeout(gsUrl+'?action=get_invs&t='+Date.now(),{},CLOUD_PULL_TIMEOUT_MS).then(function(res){
     if(res && res.ok && Array.isArray(res.invs)) return res.invs.length;
     return 0;
   }).catch(function(){
@@ -4221,6 +4523,7 @@ function pushInvsToSheets(opts){
   opts=opts||{};
   if(!gsUrl){ toast('⚠️ URL belum diisi!'); return; }
   if(!invs.length){ toast('ℹ️ Belum ada data invoice. Proses data dulu.'); return; }
+  if(!opts.skipAdminCheck && !ensureAdminAccess('push data invoice ke Sheets')) return Promise.resolve(false);
   if(isPushingToSheets&&!opts.allowWhileBusy){
     toast('ℹ️ Push ke Sheets masih berjalan...');
     return Promise.resolve(false);
@@ -4250,6 +4553,7 @@ function pushInvsToSheets(opts){
 function pushAgingToSheets(){
   if(!gsUrl){ toast('⚠️ URL belum diisi!'); return; }
   if(!agTotals.hasData){ toast('ℹ️ Belum ada data aging. Upload File 3 dulu.'); return; }
+  if(!ensureAdminAccess('push data aging ke Sheets')) return Promise.resolve(false);
   setGsStatus('⏳ Push aging ke Sheets...','#1565c0');
   return postGsAction('push_aging',{agMap:agMap}).then(function(){
     setGsStatus('✅ Aging di-push — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
@@ -4261,6 +4565,7 @@ function pushAllDataToSheets(opts){
   opts=opts||{};
   if(!gsUrl){ toast('⚠️ URL belum diisi!'); return; }
   if(!invs.length){ toast('ℹ️ Belum ada data invoice. Proses data dulu.'); return; }
+  if(!opts.skipAdminCheck && !ensureAdminAccess('push semua data ke Sheets')) return Promise.resolve(false);
   if(isPushingToSheets&&!opts.allowWhileBusy){
     toast('ℹ️ Push ke Sheets masih berjalan...');
     return Promise.resolve(false);
@@ -4269,7 +4574,7 @@ function pushAllDataToSheets(opts){
   setGsStatus('⏳ Push semua data ke Sheets...','#1565c0');
   return Promise.resolve()
     .then(function(){
-      return pushInvsToSheets({skipGuard:!!opts.skipGuard,allowWhileBusy:true});
+      return pushInvsToSheets({skipGuard:!!opts.skipGuard,allowWhileBusy:true,skipAdminCheck:true});
     })
     .then(function(ok){
       if(ok===false) return false;
@@ -4341,9 +4646,9 @@ function pullAllFromSheets(silent=false){
 
   // Ambil invoice + aging + logs sekaligus
   pullAllInFlightPromise = Promise.all([
-    fetchJsonWithTimeout(gsUrl+'?action=get_invs&t='+Date.now()),
-    fetchJsonWithTimeout(gsUrl+'?action=get_aging&t='+Date.now()),
-    fetchJsonWithTimeout(gsUrl+'?action=get_logs&t='+Date.now())
+    fetchJsonWithTimeout(gsUrl+'?action=get_invs&t='+Date.now(),{},CLOUD_PULL_TIMEOUT_MS),
+    fetchJsonWithTimeout(gsUrl+'?action=get_aging&t='+Date.now(),{},CLOUD_PULL_TIMEOUT_MS),
+    fetchJsonWithTimeout(gsUrl+'?action=get_logs&t='+Date.now(),{},CLOUD_LOGS_TIMEOUT_MS)
   ]).then(function(results){
     var rInvs=results[0], rAging=results[1], rLogs=results[2];
     var ok=true;
@@ -4414,6 +4719,9 @@ function showPage(p){
   document.querySelectorAll('.tab').forEach(e=>e.classList.remove('active'));
   document.getElementById('page-'+p).classList.add('active');
   document.getElementById('tab-'+p).classList.add('active');
+  requestAnimationFrame(function(){
+    window.scrollTo({top:0,behavior:'auto'});
+  });
   if(p==='dash') setTimeout(renderDash,50);
   if(p==='history') renderH();
 }
