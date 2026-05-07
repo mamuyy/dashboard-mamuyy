@@ -1909,11 +1909,11 @@ function _doProsesData(opts){ opts=opts||{}; try{
 
   // datalist
   const dl=document.getElementById('inv-dl'); dl.innerHTML='';
-  invs.filter(i=>i.pay==='Unpaid').forEach(i=>{ const o=document.createElement('option'); o.value=i.no+' — '+i.cust; dl.appendChild(o);});
+  invs.filter(isInvoiceUnpaid).forEach(i=>{ const o=document.createElement('option'); o.value=i.no+' — '+i.cust; dl.appendChild(o);});
 
-  const un=invs.filter(i=>i.pay==='Unpaid').length;
+  const un=invs.filter(isInvoiceUnpaid).length;
   const unNP=invs.filter(i=>{
-    if(i.pay!=='Unpaid') return false;
+    if(!isInvoiceUnpaid(i)) return false;
     const bc=getInvoiceBusinessClass(i);
     return bc==='nonp2p_manual' || bc==='nonp2p_migrasi';
   }).length;
@@ -1986,6 +1986,12 @@ function normalizePayStatus(value){
   if(low.includes('partial')||low.includes('sebagian')) return 'Unpaid';
   if(low.includes('paid')||low.includes('lunas')) return 'Paid';
   return 'Unpaid';
+}
+function isInvoiceUnpaid(inv){
+  return normalizePayStatus(inv&&inv.pay)==='Unpaid';
+}
+function isInvoicePaid(inv){
+  return normalizePayStatus(inv&&inv.pay)==='Paid';
 }
 function getInvoiceLogs(invNo){
   return logs
@@ -2306,7 +2312,7 @@ function renderQ(append=false){
     return true;
   }
 
-  let list=invs.filter(i=>i.pay==='Unpaid');
+  let list=invs.filter(isInvoiceUnpaid);
   if(cf==='b') list=list.filter(i=>getLogs(i.no).length===0);
   if(cf==='c') list=list.filter(i=>fastPrio(i)==='c');
   if(cf==='j'){ const js=new Set(logs.filter(l=>l.hasil==='Janji Bayar').map(l=>l.inv)); list=list.filter(i=>js.has(i.no)); }
@@ -2329,7 +2335,7 @@ function renderQ(append=false){
   
   if(!append) {
     renderStageSubfilters();
-    const all=invs.filter(i=>i.pay==='Unpaid');
+    const all=invs.filter(isInvoiceUnpaid);
     document.getElementById('sq-tot').textContent=all.length;
     document.getElementById('sq-bfu').textContent=all.filter(i=>getLogs(i.no).length===0).length;
     document.getElementById('sq-tdy').textContent=new Set(logs.filter(l=>l.date===TODAY).map(l=>l.inv)).size;
@@ -2500,7 +2506,7 @@ function getTimelineSlaBadge(log){
 function getCustomerSnapshot(cust){
   const key=customerKey(cust);
   const related=invs.filter(i=>customerKey(i.cust)===key);
-  const unpaid=related.filter(i=>i.pay==='Unpaid');
+  const unpaid=related.filter(isInvoiceUnpaid);
   const invNos=new Set(related.map(i=>i.no));
   const relatedLogs=logs.filter(l=>invNos.has(l.inv)).sort((a,b)=>(b.ts||b.date||'').localeCompare(a.ts||a.date||''));
   const totalAmt=unpaid.reduce((s,i)=>s+(Number(i.amt)||0),0);
@@ -3212,11 +3218,11 @@ function closeKpiDetail(evt){
 function renderDash(){
   const today=TODAY;
   const todayLogs=logs.filter(l => (l.date || (l.ts?l.ts.slice(0,10):'')) === today);
-  const unpaid=invs.filter(i=>i.pay==='Unpaid');
+  const unpaid=invs.filter(isInvoiceUnpaid);
   const actionableUnpaid=unpaid.filter(function(i){
     return getInvoiceBusinessClass(i)!=='nonp2p_migrasi';
   });
-  const paid=invs.filter(i=>i.pay==='Paid');
+  const paid=invs.filter(isInvoicePaid);
   renderKpiPerPic(unpaid,paid);
   const unpaidProgress=unpaid.map(function(i){ return {inv:i, prog:getInvoiceProgress(i)}; });
   const syncBadge=document.getElementById('dash-sync-badge');
@@ -4003,7 +4009,7 @@ function toggleAlertDetail(type){
   }
 }
 function buildAlertDetail(type){
-  const unpaid=invs.filter(i=>i.pay==='Unpaid');
+  const unpaid=invs.filter(isInvoiceUnpaid);
   function timBadge(name){
     const t=getTimInfo(name);
     return '<span style="font-size:.62rem;background:'+t.bg+';color:'+t.color+';border:1px solid '+t.color+'55;border-radius:4px;padding:1px 5px;white-space:nowrap;">'+t.icon+' '+t.label+'</span>';
@@ -4156,7 +4162,7 @@ function exportLaporan(){
   const ws=XLSX.utils.json_to_sheet(d); const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'Log FU');
   if(invs.length){
-    const u=invs.filter(i=>i.pay==='Unpaid').map(i=>({'Invoice':i.no,'Customer':i.cust,'Jumlah':i.amt,'Status BA':i.sBA,'Status Surat':i.sSrt,'Status MIR7':i.sMIR,'Payment':i.pay,'PIC Billing':i.picB}));
+    const u=invs.filter(isInvoiceUnpaid).map(i=>({'Invoice':i.no,'Customer':i.cust,'Jumlah':i.amt,'Status BA':i.sBA,'Status Surat':i.sSrt,'Status MIR7':i.sMIR,'Payment':normalizePayStatus(i.pay),'PIC Billing':i.picB}));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(u),'Unpaid Invoice');
   }
   XLSX.writeFile(wb,'Laporan_Penagihan_'+TODAY.replace(/-/g,'')+'.xlsx'); toast('✅ Laporan diekspor!');
