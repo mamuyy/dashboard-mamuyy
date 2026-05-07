@@ -4017,6 +4017,15 @@ function postGsAction(action,payload){
   });
 }
 
+function getLogMergeKey(log){
+  if(!log) return '';
+  const idPart=log.id!==undefined&&log.id!==null?String(log.id):'';
+  const tsPart=String(log.ts||'').trim();
+  if(idPart) return 'id:'+idPart;
+  if(tsPart) return ['ts',tsPart,String(log.inv||''),String(log.hasil||''),String(log.pic||''),String(log.note||''),String(log.jt||''),String(log.jn||'')].join('|');
+  return ['fallback',String(log.date||''),String(log.inv||''),String(log.hasil||''),String(log.pic||''),String(log.note||''),String(log.jt||''),String(log.jn||'')].join('|');
+}
+
 // Tarik semua log dari Google Sheets (merge dengan lokal)
 function syncFromSheets(silent){
   if(!gsUrl){ if(!silent) toast('⚠️ URL belum diisi!'); return; }
@@ -4028,8 +4037,8 @@ function syncFromSheets(silent){
       if(!remote.length){ if(!silent) setGsStatus('ℹ️ Belum ada log di Sheets.','var(--sub)'); return; }
       // Merge: gabung lokal+remote, deduplikat berdasarkan ts+inv
       const map={};
-      logs.forEach(function(l){ map[(l.ts||'')+'|'+(l.inv||'')]=l; });
-      remote.forEach(function(l){ const k=(l.ts||'')+'|'+(l.inv||''); if(!map[k]) map[k]=l; });
+      logs.forEach(function(l){ map[getLogMergeKey(l)]=l; });
+      remote.forEach(function(l){ const k=getLogMergeKey(l); if(!map[k]) map[k]=l; });
       logs=Object.values(map).sort(function(a,b){ return (b.ts||'')>(a.ts||'')?1:-1; });
       localStorage.setItem('fu_logs',JSON.stringify(logs));
       setGsStatus('✅ Sinkron '+logs.length+' log — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
@@ -4366,8 +4375,8 @@ function pullAllFromSheets(silent=false){
     // Logs — merge dengan lokal
     if(rLogs.ok && rLogs.logs && rLogs.logs.length){
       var map={};
-      logs.forEach(function(l){ map[(l.ts||'')+'|'+(l.inv||'')]=l; });
-      rLogs.logs.forEach(function(l){ var k=(l.ts||'')+'|'+(l.inv||''); if(!map[k]) map[k]=l; });
+      logs.forEach(function(l){ map[getLogMergeKey(l)]=l; });
+      rLogs.logs.forEach(function(l){ var k=getLogMergeKey(l); if(!map[k]) map[k]=l; });
       logs=Object.values(map).sort(function(a,b){return (b.ts||'')>(a.ts||'')?1:-1;});
       localStorage.setItem('fu_logs',JSON.stringify(logs));
     }
