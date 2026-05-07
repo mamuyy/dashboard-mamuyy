@@ -1672,12 +1672,15 @@ function _doProsesData(opts){ opts=opts||{}; try{
 
   // === STRATEGI KLASIFIKASI PIUTANG SAH VS PYMAD ===
   invs.forEach(i => {
-     if(i.pay === 'Unpaid') {
+     if(isInvoiceUnpaid(i)) {
         const noSrtValid = (i.noSrt && String(i.noSrt).trim() !== '' && String(i.noSrt).trim() !== 'N/A' && String(i.noSrt).trim() !== '-');
+        const baStatus = normalizeDocStatus(i.sBA);
+        const srtStatus = normalizeDocStatus(i.sSrt);
         
         if(!i.type || i.type === 'p2p') {
-           // Logika P2P: Harus Completed Surat Dinas DAN ada No Surat untuk menjadi Piutang Sah FBL5N
-           if(i.sSrt === 'Completed' && noSrtValid) {
+           // Logika P2P: BA dan Surat harus completed agar diakui sebagai piutang sah.
+           // Selama BA belum complete / belum dibuat / masih proses, invoice tetap masuk PYMAD.
+           if(baStatus === 'Completed' && srtStatus === 'Completed' && noSrtValid) {
               i.type = 'p2p'; 
            } else {
               i.type = 'pymad'; // Jika belum complete/draft, murni masuk PYMAD (Unbilled)
