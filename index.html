@@ -1070,6 +1070,8 @@ const SAFE_PUSH_MIN_INVOICE_COUNT=100;
 const SAFE_PUSH_DROP_RATIO=0.5;
 const CLOUD_PULL_TIMEOUT_MS=45000;
 const CLOUD_LOGS_TIMEOUT_MS=20000;
+const CLOUD_PUSH_TIMEOUT_MS=90000;
+const CLOUD_PUSH_LOGS_TIMEOUT_MS=45000;
 const TODAY=new Date().toISOString().slice(0,10);
 const KPI_PIC_WEIGHTS={collectionResult:0.22,followUpDiscipline:0.24,overdueReduction:0.20,pipelineMovement:0.22,dataQuality:0.12};
 const KPI_SURAT_WEIGHTS={slaSpeed:0.30,backlogControl:0.25,outputProductivity:0.20,documentAccuracy:0.15,updateDiscipline:0.10};
@@ -1100,7 +1102,7 @@ const PIC_ALIAS_MAP={AULIA:'AULYA'};
 const raw={};
 let adminPinHash='';
 let adminSessionUnlocked=false;
-const DEFAULT_GS_URL='https://script.google.com/macros/s/AKfycbxceyaegqXKadL-7V_hqBJmGXR3b96lwREQnaRcVDMiMYkc2zzBtTB65YxCkCMeCCOUfw/exec';
+const DEFAULT_GS_URL='https://script.google.com/macros/s/AKfycbxVGkV8mQDG-OxmUa-UM27r0id0Pp_u0IHVC6WfoT_Kyz7qT3jlLQYxYDGK6kuhmc5m6A/exec';
 
 function formatSheetsPushTime(isoString){
   if(!isoString) return '';
@@ -1533,7 +1535,41 @@ function refreshAgingOnly(autoTriggered){
 function _doProsesData(opts){ opts=opts||{}; try{
   const nb=raw[1]; const ns=nb.Sheets[nb.SheetNames[0]];
   const rows=XLSX.utils.sheet_to_json(ns,{defval:''});
-  invs=rows.map(r=>({
+  const isMonitoringP2PFormat=rows.length && (
+    Object.prototype.hasOwnProperty.call(rows[0],'Document Number Tanos') &&
+    Object.prototype.hasOwnProperty.call(rows[0],'Progress P2P Document')
+  );
+  function parseMonitoringP2PRow(r){
+    const rawDoc=s(r['Document Number Tanos']||r['Document No Tanos']||'');
+    const rawProgress=s(r['Progress P2P Document']||'');
+    const invMatch=rawDoc.match(/AR-\d{4}-\d+/i);
+    const invoiceNo=invMatch ? invMatch[0].toUpperCase() : '';
+    const cust=invoiceNo ? rawDoc.replace(invoiceNo,'').trim() : rawDoc;
+    const progress=rawProgress.replace(/\s+/g,' ').trim();
+    const baMatch=progress.match(/BA-\d{4}-\d+/i);
+    const suratMatch=progress.match(/SD-\d{4}-\d+/i);
+    const notaMatch=progress.match(/ND-\d{4}-\d+/i);
+    const mirMatch=progress.match(/MIR\s*7\s*SAP\s*([A-Z0-9-]+)/i);
+    const payMatch=progress.match(/Payment\s*Status\s*(Paid|Unpaid)/i);
+    const mirCandidate=mirMatch && mirMatch[1] && !/^payment$/i.test(mirMatch[1]) ? mirMatch[1] : '';
+    return {
+      no:invoiceNo,
+      desc:progress,
+      cust:cust,
+      amt:0,
+      sBA:baMatch?'Completed':'',
+      sSrt:suratMatch?'Completed':'',
+      sNota:notaMatch?'Completed':'',
+      sMIR:mirCandidate?'Completed':'',
+      pay:payMatch?payMatch[1]:'Unpaid',
+      picB:'',
+      noBA:baMatch?baMatch[0]:'',
+      noSrt:suratMatch?suratMatch[0]:'',
+      noMIR:mirCandidate,
+      type:'p2p'
+    };
+  }
+  invs=(isMonitoringP2PFormat ? rows.map(parseMonitoringP2PRow) : rows.map(r=>({
     no:s(r['Doc No Invoice']||r['Document No']),
     desc:s(r['Description']||''), cust:s(r['Customer']),
     amt:n(r['AMOUNT AFTER TAX']||r['Amount After Tax']||r['Grand Total']||0),
@@ -1542,9 +1578,10 @@ function _doProsesData(opts){ opts=opts||{}; try{
     sMIR:s(r['Status MIR7']||''), pay:s(r['Payment Status']||''), picB:'',
     noBA:s(r['Nomor BA']||''),noSrt:s(r['Nomor Surat Tagihan']||''),
     noMIR:s(r['Nomor MIR7']||''),
-  })).filter(r=>r.no.startsWith('AR'));
+  }))).filter(r=>r.no.startsWith('AR'));
 
   bilMap={};
+  const financeInvoiceMap={};
   const coveredSAPNos=new Set(); // SAP doc numbers dari Finance Accounting
   // Kumpulkan semua doc number P2P dari File 1 untuk pencocokan
   const p2pNos=new Set(invs.map(function(i){return i.no;}));
@@ -1554,11 +1591,21 @@ function _doProsesData(opts){ opts=opts||{}; try{
     XLSX.utils.sheet_to_json(bsh,{defval:'',range:1}).forEach(r=>{
       const k=s(r['Document No']||r['Doc No']||'');
       const cb=s(r['Created By']||r['Created by']||'');
-      if(k) bilMap[k]={cb};
+      const amt=n(r['Grand Total']||r['Total Amount']||r['Amount']||0);
+      const payStatus=s(r['Payment Status']||'');
+      const customerName=s(r['Customer']||r['Customer Name']||'');
+      if(k){
+        bilMap[k]={cb};
+        financeInvoiceMap[k]={
+          cb,
+          amt,
+          pay:payStatus,
+          cust:customerName
+        };
+      }
       // Simpan SAP Document Number untuk pencocokan migrasi FBL5N
       const addCov = (v) => { if(v&&v!=='-'&&v!=='0') { coveredSAPNos.add(v); coveredSAPNos.add(v.replace(/^0+/,'')); } };
       const sapNo=s(r['Document Number SAP']||r['Document No SAP']||r['SAP Document No']||r['Doc No SAP']||'');
-      const amt=n(r['Grand Total']||r['Total Amount']||r['Amount']||0);
       const revSAP=s(r['Document Reverse SAP']||r['Doc Reverse SAP']||'');
       const statusStr=s(r['Status']||r['Doc Status']||'').toLowerCase();
       
@@ -1608,7 +1655,20 @@ function _doProsesData(opts){ opts=opts||{}; try{
      uniqueMap.set(i.no, i);
   });
   invs = Array.from(uniqueMap.values());
-  invs.forEach(function(i){ if(i.no){ coveredSAPNos.add(i.no); coveredSAPNos.add(i.no.replace(/^0+/,'')); } const b=bilMap[i.no]; if(b&&!i.picB) i.picB=b.cb; });
+  invs.forEach(function(i){
+    if(i.no){
+      coveredSAPNos.add(i.no);
+      coveredSAPNos.add(i.no.replace(/^0+/,'')); 
+    }
+    const b=bilMap[i.no];
+    if(b&&!i.picB) i.picB=b.cb;
+    const fm=financeInvoiceMap[i.no];
+    if(fm){
+      if(!(Number(i.amt)||0) && (Number(fm.amt)||0)) i.amt=Number(fm.amt)||0;
+      if(!i.cust && fm.cust) i.cust=fm.cust;
+      if((!i.pay || i.pay==='Unpaid') && fm.pay) i.pay=fm.pay;
+    }
+  });
 
   // === STRATEGI KLASIFIKASI PIUTANG SAH VS PYMAD ===
   invs.forEach(i => {
@@ -4311,12 +4371,12 @@ function fetchJsonWithTimeout(url, opts={}, timeoutMs=12000){
     .finally(function(){ clearTimeout(t); });
 }
 
-function postGsAction(action,payload){
+function postGsAction(action,payload,timeoutMs){
   return fetchJsonWithTimeout(gsUrl,{
     method:'POST',
     headers:{'Content-Type':'text/plain;charset=utf-8'},
     body:JSON.stringify({action,...payload})
-  }).then(function(res){
+  },timeoutMs||CLOUD_PUSH_TIMEOUT_MS).then(function(res){
     if(!res || res.ok!==true) throw new Error(res && res.error ? res.error : 'Respon backend tidak valid');
     return res;
   });
@@ -4359,7 +4419,7 @@ function pushLastLogToSheets(){
 
   const l = logs[0];
 
-  postGsAction('add',{log:l})
+  postGsAction('add',{log:l},CLOUD_PUSH_LOGS_TIMEOUT_MS)
   .then(function(){
     setGsStatus('☁️ Log terbaru dikirim ke Sheets — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
   })
@@ -4373,7 +4433,7 @@ function pushLastLogToSheets(){
 function pushAllToSheets(silent=false){
   if(!gsUrl){ if(!silent) toast('⚠️ URL belum diisi!'); return; }
   setGsStatus('⏳ Mengupload '+logs.length+' log ke Sheets...','#1565c0');
-  return postGsAction('sync',{logs:logs}).then(function(){
+  return postGsAction('sync',{logs:logs},CLOUD_PUSH_LOGS_TIMEOUT_MS).then(function(){
     setGsStatus('✅ '+logs.length+' log diupload — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
     if(!silent) toast('✅ Semua log diupload ke Sheets!');
   }).catch(function(e){ setGsStatus('❌ Gagal: '+e.message,'var(--red)'); throw e; });
@@ -4480,7 +4540,7 @@ function runOneTimeInvoiceCleanupPush(){
       return false;
     }
     setGsStatus('⏳ Menulis ulang invoice bersih ke Sheets...','#1565c0');
-    return postGsAction('push_invs',{invs:cleanedRows,updatedAt:new Date().toISOString()}).then(function(){
+    return postGsAction('push_invs',{invs:cleanedRows,updatedAt:new Date().toISOString()},CLOUD_PUSH_TIMEOUT_MS).then(function(){
       const reportName='invoice-cleanup-audit-'+cleanupTs.replace(/[:.]/g,'-')+'.json';
       downloadJsonAuditFile(reportName,backupPayload);
       invs=cleanedRows.slice();
@@ -4545,7 +4605,7 @@ function pushInvsToSheets(opts){
       return false;
     }
     setGsStatus('⏳ Push '+invs.length+' invoice ke Sheets...','#1565c0');
-    return postGsAction('push_invs',{invs:payload,updatedAt:new Date().toISOString()}).then(function(){
+    return postGsAction('push_invs',{invs:payload,updatedAt:new Date().toISOString()},CLOUD_PUSH_TIMEOUT_MS).then(function(){
     setGsStatus('✅ '+invs.length+' invoice di-push — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
     toast('✅ Data invoice di-push ke Sheets!');
     return true;
@@ -4559,7 +4619,7 @@ function pushAgingToSheets(){
   if(!agTotals.hasData){ toast('ℹ️ Belum ada data aging. Upload File 3 dulu.'); return; }
   if(!ensureAdminAccess('push data aging ke Sheets')) return Promise.resolve(false);
   setGsStatus('⏳ Push aging ke Sheets...','#1565c0');
-  return postGsAction('push_aging',{agMap:agMap}).then(function(){
+  return postGsAction('push_aging',{agMap:agMap},CLOUD_PUSH_TIMEOUT_MS).then(function(){
     setGsStatus('✅ Aging di-push — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
     toast('✅ Data aging di-push ke Sheets!');
   }).catch(function(e){ setGsStatus('❌ Gagal: '+e.message,'var(--red)'); throw e; });
@@ -4583,12 +4643,12 @@ function pushAllDataToSheets(opts){
     .then(function(ok){
       if(ok===false) return false;
       if(!agTotals.hasData) return null;
-      return postGsAction('push_aging',{agMap:agMap});
+      return postGsAction('push_aging',{agMap:agMap},CLOUD_PUSH_TIMEOUT_MS);
     })
     .then(function(prev){
       if(prev===false) return false;
       if(!logs.length) return null;
-      return postGsAction('sync',{logs:logs});
+      return postGsAction('sync',{logs:logs},CLOUD_PUSH_LOGS_TIMEOUT_MS);
     })
     .then(function(prev){
       if(prev===false) return false;
