@@ -854,6 +854,24 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
     </div>
   </div>
 
+
+  <div class="card" id="insentif-export-card" style="margin-top:2px;margin-bottom:14px;display:none;">
+    <details id="insentif-export-details">
+      <summary style="cursor:pointer;font-size:.82rem;font-weight:700;color:var(--dark);">📁 EXPORT REKAP INSENTIF SDM (Admin)</summary>
+      <div style="margin-top:10px;">
+        <div style="font-size:.74rem;color:var(--sub);line-height:1.45;margin-bottom:8px;">Panel ini khusus admin/export. Nominal insentif tidak ditampilkan di dashboard umum dan hanya dihitung saat export.</div>
+        <label class="lbl">Periode</label>
+        <input type="text" id="insentif-periode" value="April" placeholder="Contoh: April 2026">
+        <label class="lbl">Plafon insentif organik per orang (Rp)</label>
+        <input type="number" id="insentif-plafon" min="0" step="1000" placeholder="Contoh: 2000000">
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button class="btn btn-green btn-sm" onclick="exportRekapInsentifSDM()">📥 Export Excel Rekap Insentif SDM</button>
+          <span id="insentif-export-note" style="font-size:.7rem;color:var(--sub);"></span>
+        </div>
+      </div>
+    </details>
+  </div>
+
   <div class="card" style="margin-top:2px;margin-bottom:14px;">
     <h3>🧭 Transparansi KPI</h3>
     <div class="kpi-legend">
@@ -1083,11 +1101,19 @@ function setLocalDraftMode(flag){
   else localStorage.removeItem(LOCAL_DRAFT_FLAG_KEY);
 }
 
+function applySdmAdminVisibility(){
+  const card=document.getElementById('insentif-export-card');
+  if(!card) return;
+  const params=new URLSearchParams(window.location.search||'');
+  card.style.display=params.get('admin')==='sdm'?'block':'none';
+}
+
 
 // ═══ INIT ═══
 let gsUrl='';
-window.onload=()=>{
+window.addEventListener('load',()=>{
   try {
+    applySdmAdminVisibility();
     localDraftMode=localStorage.getItem(LOCAL_DRAFT_FLAG_KEY)==='1';
     const sl=localStorage.getItem('fu_logs');
     if(sl) {
@@ -1128,7 +1154,7 @@ window.onload=()=>{
   } catch(e) {
     alert("Startup Error: " + e.message);
   }
-};;
+}); 
 
 // ═══ PIC ═══
 function selPIC(n){ if(!n.trim()) return; pic=n.trim(); localStorage.setItem('fu_pic',pic); updPIC();
@@ -2769,12 +2795,21 @@ function renderKpiPerPic(unpaid,paid){
   const suratRows=suratPicNames.map(function(name){
     return computeKpiSuratByPic(name,invs);
   }).sort(function(a,b){ return b.totalScore-a.totalScore; });
-  host.innerHTML='<div style="font-size:.67rem;color:var(--sub);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;">Tim Follow Up</div>'
-    +renderKpiPicTable(followupRows,'followup')
+
+  const followupRowsVisible=followupRows.filter(function(r){ return r.source!=='dummy'; });
+  const suratRowsVisible=suratRows.filter(function(r){ return r.source!=='dummy'; });
+  const hiddenDummyCount=(followupRows.length-followupRowsVisible.length)+(suratRows.length-suratRowsVisible.length);
+  const hiddenNote=hiddenDummyCount>0
+    ?'<div style="font-size:.67rem;color:#607d8b;margin:0 0 8px;">'+hiddenDummyCount+' baris KPI dummy disembunyikan agar yang tampil hanya data real/partial terbaru.</div>'
+    :'';
+
+  host.innerHTML=hiddenNote
+    +'<div style="font-size:.67rem;color:var(--sub);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;">Tim Follow Up</div>'
+    +renderKpiPicTable(followupRowsVisible,'followup')
     +'<div style="font-size:.67rem;color:var(--sub);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin:10px 0 5px;">Tim Surat</div>'
     +'<div style="font-size:.68rem;color:#7b1fa2;margin-bottom:6px;">*Formula surat memakai pendekatan rule-based dari data yang tersedia (SLA/backlog/output/akurasi/update).</div>'
-    +renderKpiPicTable(suratRows,'surat');
-  window._kpiRowsByTeam={followup:followupRows,surat:suratRows};
+    +renderKpiPicTable(suratRowsVisible,'surat');
+  window._kpiRowsByTeam={followup:followupRowsVisible,surat:suratRowsVisible};
 }
 function sourceLabelDetailed(src){
   if(src==='dummy') return 'DUMMY';
@@ -3773,6 +3808,85 @@ function goPipeline(filter){
 }
 
 // ═══ EXPORT ═══
+
+function getInsentifFactor(score){
+  const n=Number(score)||0;
+  if(n>=85) return 1;
+  if(n>=75) return 0.85;
+  if(n>=65) return 0.7;
+  if(n>=55) return 0.5;
+  return 0;
+}
+function formatPct(v){ return (v*100).toFixed(v===1?0:0)+'%'; }
+function getOrganikInsentifRows(){
+  const followupRows=((window._kpiRowsByTeam||{}).followup)||[];
+  const getRow=function(name){
+    return followupRows.find(function(r){ return canonicalPicName(r.pic)===name; })||null;
+  };
+  const achmadRow=getRow('ACHMAD');
+  const rizalRow=getRow('RIZAL');
+  return [
+    {picOrganik:'ACHMAD',statusPegawai:'Organik',cakupanPic:'ACHMAD, TYAS, AFIS',row:achmadRow},
+    {picOrganik:'RIZAL',statusPegawai:'Organik',cakupanPic:'RIZAL, MASELLA',row:rizalRow}
+  ];
+}
+function exportRekapInsentifSDM(){
+  const periodeEl=document.getElementById('insentif-periode');
+  const plafonEl=document.getElementById('insentif-plafon');
+  const noteEl=document.getElementById('insentif-export-note');
+  const periode=(periodeEl&&periodeEl.value?periodeEl.value:'April').trim()||'April';
+  const plafon=Math.max(0,Number((plafonEl&&plafonEl.value)||0)||0);
+  if(plafon<=0){ toast('⚠️ Isi plafon insentif dulu.'); return; }
+
+  const baseRows=getOrganikInsentifRows();
+  const expRows=baseRows.map(function(item){
+    const score=item.row?Number(item.row.totalScore)||0:0;
+    const source=item.row?sourceLabelDetailed(item.row.source):'NO_DATA';
+    const factor=getInsentifFactor(score);
+    const est=Math.round(plafon*factor);
+    return {
+      'Periode':periode,
+      'PIC Organik':item.picOrganik,
+      'Status Pegawai':item.statusPegawai,
+      'Cakupan PIC':item.cakupanPic,
+      'Skor KPI':score?score.toFixed(1):'0.0',
+      'Source Type':source,
+      'Faktor Insentif':formatPct(factor),
+      'Plafon Insentif':plafon,
+      'Estimasi Insentif':est,
+      'Keterangan':'Rekap ini digunakan untuk usulan insentif KPI pegawai organik. Support/magang tidak menjadi penerima insentif KPI utama dan dapat diberikan apresiasi terpisah sesuai kebijakan manajemen.'
+    };
+  });
+
+  const filename='Rekap_Insentif_SDM_'+periode.replace(/\s+/g,'_')+'_'+TODAY.replace(/-/g,'')+'.xlsx';
+  if(typeof XLSX!=='undefined'&&XLSX.utils){
+    const ws=XLSX.utils.json_to_sheet(expRows);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'Rekap Insentif SDM');
+    XLSX.writeFile(wb,filename);
+    if(noteEl) noteEl.textContent='✅ Export selesai ('+expRows.length+' baris).';
+    toast('✅ Rekap insentif SDM diexport.');
+    return;
+  }
+
+  const headers=Object.keys(expRows[0]||{});
+  const esc=function(v){ return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'; };
+  const csv=[headers.map(esc).join(',')].concat(expRows.map(function(r){
+    return headers.map(function(h){ return esc(r[h]); }).join(',');
+  })).join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=filename.replace(/\.xlsx$/,'.csv');
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  if(noteEl) noteEl.textContent='✅ Export CSV fallback ('+expRows.length+' baris).';
+  toast('✅ Rekap insentif SDM diexport (CSV fallback).');
+}
+
 function exportLog(){
   if(!logs.length){toast('⚠ Belum ada log');return;}
   const d=logs.map(l=>({'Tanggal':l.date,'Invoice No':l.inv,'Customer':l.cust||'','Jumlah':l.amt||0,'PIC':l.pic||'','Channel':l.ch||'','Hasil':l.hasil||'','Catatan':l.note||'','Janji Tgl':l.jt||'','Janji Nominal':l.jn||0}));
