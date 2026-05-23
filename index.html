@@ -3052,6 +3052,8 @@ function getDummySuratKpiMetrics(picName){
 }
 
 function resolveKpiCutoffDate(){
+  const periodRange=resolveActiveKpiPeriodRange();
+  if(periodRange&&periodRange.end) return periodRange.end;
   const logDates=[];
   logs.forEach(function(l){
     const d=(l&&l.date)||((l&&l.ts)?String(l.ts).slice(0,10):'');
@@ -3072,6 +3074,28 @@ function resolveKpiCutoffDate(){
   const latestInvoiceDate=invoiceDates[invoiceDates.length-1];
   return latestInvoiceDate>TODAY?TODAY:latestInvoiceDate;
 }
+function resolveActiveKpiPeriodRange(){
+  const periodeEl=document.getElementById('insentif-periode');
+  const raw=(periodeEl&&periodeEl.value?periodeEl.value:'').trim();
+  if(!raw) return null;
+  const map={januari:0,februari:1,maret:2,april:3,mei:4,juni:5,juli:6,agustus:7,september:8,oktober:9,november:10,desember:11,january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,october:9,december:11};
+  const m=raw.toLowerCase().replace(/\s+/g,' ').match(/^([a-z]+)(?:\s+(\d{4}))?$/);
+  if(!m) return null;
+  const month=map[m[1]];
+  if(month===undefined) return null;
+  const year=Number(m[2]||TODAY.slice(0,4));
+  if(!Number.isFinite(year)||year<2000||year>2100) return null;
+  const start=new Date(Date.UTC(year,month,1));
+  const end=new Date(Date.UTC(year,month+1,0));
+  const startIso=start.toISOString().slice(0,10);
+  const endIso=end.toISOString().slice(0,10);
+  return {start:startIso,end:endIso>TODAY?TODAY:endIso};
+}
+function isDateInPeriod(dateIso,period){
+  if(!period) return true;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(dateIso||'')) return false;
+  return dateIso>=period.start && dateIso<=period.end;
+}
 
 function calcPercentileRank(values,current){
   if(!values.length) return 50;
@@ -3082,7 +3106,11 @@ function calcPercentileRank(values,current){
 }
 function computeKpiByPic(picName,unpaid,paid,ctx){
   const dummy=getDummyKpiMetrics(picName);
-  const picLogs=logs.filter(function(l){ return isPicMatch(l.pic,picName); });
+  const periodRange=resolveActiveKpiPeriodRange();
+  const picLogs=logs.filter(function(l){
+    const d=(l.date||(l.ts?l.ts.slice(0,10):''));
+    return isPicMatch(l.pic,picName)&&isDateInPeriod(d,periodRange);
+  });
   const kpiCutoff=resolveKpiCutoffDate();
   const todayPicLogs=picLogs.filter(function(l){ return (l.date||(l.ts?l.ts.slice(0,10):''))===kpiCutoff; });
   const paidByPic=picLogs.filter(function(l){ return l.hasil==='Paid'; }).reduce(function(s,l){ return s+(Number(l.amt)||0); },0);
@@ -3110,7 +3138,11 @@ function computeKpiByPic(picName,unpaid,paid,ctx){
 }
 function computeKpiSuratByPic(picName,invoices){
   const dummy=getDummySuratKpiMetrics(picName);
-  const picLogs=logs.filter(function(l){ return isPicMatch(l.pic,picName); });
+  const periodRange=resolveActiveKpiPeriodRange();
+  const picLogs=logs.filter(function(l){
+    const d=(l.date||(l.ts?l.ts.slice(0,10):''));
+    return isPicMatch(l.pic,picName)&&isDateInPeriod(d,periodRange);
+  });
   const kpiCutoff=resolveKpiCutoffDate();
   const todayPicLogs=picLogs.filter(function(l){ return (l.date||(l.ts?l.ts.slice(0,10):''))===kpiCutoff; });
   const assigned=invoices.filter(function(i){ return isPicMatch(i.picB,picName); });
