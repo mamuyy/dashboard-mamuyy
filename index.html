@@ -3050,6 +3050,29 @@ function getDummyKpiMetrics(picName){
 function getDummySuratKpiMetrics(picName){
   return KPI_SURAT_DUMMY[picName]||{slaSpeed:74,backlogControl:72,outputProductivity:70,documentAccuracy:84,updateDiscipline:78};
 }
+
+function resolveKpiCutoffDate(){
+  const logDates=[];
+  logs.forEach(function(l){
+    const d=(l&&l.date)||((l&&l.ts)?String(l.ts).slice(0,10):'');
+    if(/^\d{4}-\d{2}-\d{2}$/.test(d)) logDates.push(d);
+  });
+  if(logDates.length){
+    logDates.sort();
+    const latestLogDate=logDates[logDates.length-1];
+    return latestLogDate>TODAY?TODAY:latestLogDate;
+  }
+  const invoiceDates=[];
+  invs.forEach(function(inv){
+    const d=s(inv&&inv.date);
+    if(/^\d{4}-\d{2}-\d{2}$/.test(d)) invoiceDates.push(d);
+  });
+  if(!invoiceDates.length) return TODAY;
+  invoiceDates.sort();
+  const latestInvoiceDate=invoiceDates[invoiceDates.length-1];
+  return latestInvoiceDate>TODAY?TODAY:latestInvoiceDate;
+}
+
 function calcPercentileRank(values,current){
   if(!values.length) return 50;
   const sorted=[...values].sort(function(a,b){ return a-b; });
@@ -3060,7 +3083,8 @@ function calcPercentileRank(values,current){
 function computeKpiByPic(picName,unpaid,paid,ctx){
   const dummy=getDummyKpiMetrics(picName);
   const picLogs=logs.filter(function(l){ return isPicMatch(l.pic,picName); });
-  const todayPicLogs=picLogs.filter(function(l){ return (l.date||(l.ts?l.ts.slice(0,10):''))===TODAY; });
+  const kpiCutoff=resolveKpiCutoffDate();
+  const todayPicLogs=picLogs.filter(function(l){ return (l.date||(l.ts?l.ts.slice(0,10):''))===kpiCutoff; });
   const paidByPic=picLogs.filter(function(l){ return l.hasil==='Paid'; }).reduce(function(s,l){ return s+(Number(l.amt)||0); },0);
   const totalPaid=paid.reduce(function(s,i){ return s+(Number(i.amt)||0); },0);
   const shareScore=totalPaid>0?clampScore((paidByPic/totalPaid)*100):dummy.collectionResult;
@@ -3081,13 +3105,14 @@ function computeKpiByPic(picName,unpaid,paid,ctx){
     ...metrics,
     totalScore:calcFollowupTotalKpiScore(metrics),
     source:picLogs.length?(paidByPic>0?'real':'mixed'):'dummy',
-    raw:{logCount:picLogs.length,todayLogCount:todayPicLogs.length,paidByPic,totalPaid,overdueTouched,overduePool:overdueInv.length,qualityHits}
+    raw:{logCount:picLogs.length,todayLogCount:todayPicLogs.length,kpiCutoff,paidByPic,totalPaid,overdueTouched,overduePool:overdueInv.length,qualityHits}
   };
 }
 function computeKpiSuratByPic(picName,invoices){
   const dummy=getDummySuratKpiMetrics(picName);
   const picLogs=logs.filter(function(l){ return isPicMatch(l.pic,picName); });
-  const todayPicLogs=picLogs.filter(function(l){ return (l.date||(l.ts?l.ts.slice(0,10):''))===TODAY; });
+  const kpiCutoff=resolveKpiCutoffDate();
+  const todayPicLogs=picLogs.filter(function(l){ return (l.date||(l.ts?l.ts.slice(0,10):''))===kpiCutoff; });
   const assigned=invoices.filter(function(i){ return isPicMatch(i.picB,picName); });
   const readyDocs=assigned.filter(function(i){ return i.sBA==='Completed'; });
   const pendingDocs=readyDocs.filter(function(i){ return i.sSrt!=='Completed'; });
@@ -3110,7 +3135,7 @@ function computeKpiSuratByPic(picName,invoices){
     ...metrics,
     totalScore:calcTotalKpiScore(metrics,KPI_SURAT_WEIGHTS),
     source:(readyDocs.length||picLogs.length)?'real':'dummy',
-    raw:{assigned:assigned.length,readyDocs:readyDocs.length,pendingDocs:pendingDocs.length,rejectedDocs:rejectedDocs.length,doneDocs:doneDocs.length,logCount:picLogs.length,todayLogCount:todayPicLogs.length}
+    raw:{assigned:assigned.length,readyDocs:readyDocs.length,pendingDocs:pendingDocs.length,rejectedDocs:rejectedDocs.length,doneDocs:doneDocs.length,logCount:picLogs.length,todayLogCount:todayPicLogs.length,kpiCutoff}
   };
 }
 function renderKpiPicTable(rows,kind){
@@ -3238,7 +3263,8 @@ function openKpiDetail(team,pic){
   const weakest=breakdown.slice().sort(function(a,b){ return a.val-b.val; })[0];
   const recommendation=getKpiActionAdvice(weakest.key);
   const formulaText=formula.map(function(x){ return x[0]+' × '+Math.round(x[1]*100)+'%'; }).join(' + ');
-  window._kpiDetailCache={team,pic:row.pic,totalScore:row.totalScore,source:sourceLabelDetailed(row.source),cutoff:TODAY,breakdown:breakdown,weakest:weakest,recommendation:recommendation};
+  const kpiCutoff=(row.raw&&row.raw.kpiCutoff)||resolveKpiCutoffDate();
+  window._kpiDetailCache={team,pic:row.pic,totalScore:row.totalScore,source:sourceLabelDetailed(row.source),cutoff:kpiCutoff,breakdown:breakdown,weakest:weakest,recommendation:recommendation};
   document.getElementById('kpi-detail-title').textContent='Detail KPI - '+row.pic;
   document.getElementById('kpi-detail-body').innerHTML=
     '<div class="irow"><span class="ilbl">Nama PIC</span><span class="ival">'+esc(row.pic)+'</span></div>'
@@ -3246,7 +3272,7 @@ function openKpiDetail(team,pic){
     +(row.raw&&row.raw.contributors?'<div class="irow"><span class="ilbl">Cakupan PIC</span><span class="ival">'+esc(row.raw.contributors)+'</span></div>':'')
     +'<div class="irow"><span class="ilbl">Total Score</span><span class="ival">'+row.totalScore.toFixed(1)+'</span></div>'
     +'<div class="irow"><span class="ilbl">Status Data</span><span class="ival">'+sourceLabelDetailed(row.source)+'</span></div>'
-    +'<div class="irow"><span class="ilbl">Periode/Cut-off</span><span class="ival">'+TODAY+' (UTC)</span></div>'
+    +'<div class="irow"><span class="ilbl">Periode/Cut-off</span><span class="ival">'+kpiCutoff+' (UTC)</span></div>'
     +'<div class="irow"><span class="ilbl">Rumus Total Score</span><span class="ival">'+esc(formulaText)+'</span></div>'
     +'<div style="margin-top:10px;overflow:auto;"><table class="kpi-pic-tbl" style="min-width:880px;"><thead><tr><th>Komponen KPI</th><th>Bobot</th><th>Nilai Komponen</th><th>Kontribusi</th><th>Sumber Data</th><th>Cara Hitung</th><th>Gap / Area Perbaikan</th><th>Rekomendasi Aksi</th></tr></thead><tbody>'
     +breakdown.map(function(b){ return '<tr><td>'+b.label+'</td><td>'+(b.weight*100).toFixed(0)+'%</td><td>'+b.val.toFixed(1)+'</td><td>'+b.contrib.toFixed(1)+'</td><td>'+sourceLabelDetailed(row.source)+'</td><td>'+b.val.toFixed(1)+' × '+(b.weight*100).toFixed(0)+'% = '+b.contrib.toFixed(1)+'</td><td>'+(100-b.val).toFixed(1)+'</td><td>'+getKpiActionAdvice(b.key)+'</td></tr>'; }).join('')
