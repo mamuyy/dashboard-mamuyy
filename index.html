@@ -889,6 +889,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
         <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
           <button class="btn btn-green btn-sm" onclick="exportRekapInsentifSDM()">📥 Export Excel Rekap Insentif SDM</button>
           <span id="insentif-export-note" style="font-size:.7rem;color:var(--sub);"></span>
+        <div style="font-size:.7rem;color:#8d6e63;margin-top:8px;">Skor mengikuti data dashboard yang sedang aktif. Pastikan data yang dimuat sudah sesuai periode sebelum export.</div>
+        <div id="insentif-preview-wrap" style="margin-top:8px;overflow:auto;"></div>
         </div>
       </div>
     </details>
@@ -1148,6 +1150,11 @@ let gsUrl='';
 window.addEventListener('load',()=>{
   try {
     applySdmAdminVisibility();
+    const periodeEl=document.getElementById('insentif-periode');
+    if(periodeEl) periodeEl.addEventListener('input',renderInsentifPreviewTable);
+    const plafonEl=document.getElementById('insentif-plafon');
+    if(plafonEl) plafonEl.addEventListener('input',renderInsentifPreviewTable);
+    renderInsentifPreviewTable();
     localDraftMode=localStorage.getItem(LOCAL_DRAFT_FLAG_KEY)==='1';
     const sl=localStorage.getItem('fu_logs');
     if(sl) {
@@ -3201,6 +3208,7 @@ function renderKpiPerPic(unpaid,paid){
     +renderKpiPicTable(suratRowsVisible,'surat');
 
   window._kpiRowsByTeam={followup:[].concat(finalRows,supportRows),surat:suratRowsVisible};
+  renderInsentifPreviewTable();
 }
 function sourceLabelDetailed(src){
   if(src==='proxy') return 'PROXY (Sementara - belum final dari data mentah)';
@@ -4228,16 +4236,18 @@ function getOrganikInsentifRows(){
     {picOrganik:'RIZAL',statusPegawai:'Organik',cakupanPic:'RIZAL, MASELLA',row:rizalRow}
   ];
 }
-function exportRekapInsentifSDM(){
+
+function fmtRp(n){
+  const v=Math.max(0,Number(n)||0);
+  return 'Rp '+v.toLocaleString('id-ID');
+}
+function buildRekapInsentifSDMRows(){
   const periodeEl=document.getElementById('insentif-periode');
   const plafonEl=document.getElementById('insentif-plafon');
-  const noteEl=document.getElementById('insentif-export-note');
   const periode=(periodeEl&&periodeEl.value?periodeEl.value:'April').trim()||'April';
   const plafon=Math.max(0,Number((plafonEl&&plafonEl.value)||0)||0);
-  if(plafon<=0){ toast('⚠️ Isi plafon insentif dulu.'); return; }
-
   const baseRows=getOrganikInsentifRows();
-  const expRows=baseRows.map(function(item){
+  const rows=baseRows.map(function(item){
     const score=item.row?Number(item.row.totalScore)||0:0;
     const source=item.row?sourceLabelDetailed(item.row.source):'NO_DATA';
     const factor=getInsentifFactor(score);
@@ -4245,7 +4255,7 @@ function exportRekapInsentifSDM(){
     return {
       'Periode':periode,
       'PIC Organik':item.picOrganik,
-      'Status Pegawai':item.statusPegawai,
+      'Status Pegawai':'Organik',
       'Cakupan PIC':item.cakupanPic,
       'Skor KPI':score?score.toFixed(1):'0.0',
       'Source Type':source,
@@ -4255,6 +4265,36 @@ function exportRekapInsentifSDM(){
       'Keterangan':'Rekap ini digunakan untuk usulan insentif KPI pegawai organik. Support/magang tidak menjadi penerima insentif KPI utama dan dapat diberikan apresiasi terpisah sesuai kebijakan manajemen.'
     };
   });
+  return {rows:rows,plafon:plafon};
+}
+function renderInsentifPreviewTable(){
+  const wrap=document.getElementById('insentif-preview-wrap');
+  if(!wrap) return;
+  const params=new URLSearchParams(window.location.search||'');
+  if(params.get('admin')!=='sdm'){
+    wrap.innerHTML='';
+    return;
+  }
+  const built=buildRekapInsentifSDMRows();
+  const rows=built.rows;
+  const plafon=built.plafon;
+  wrap.innerHTML='<div style="font-size:.73rem;font-weight:700;color:var(--dark);margin:8px 0 6px;">Preview Rekap Insentif SDM (Admin Only)</div>'
+    +'<table class="kpi-pic-tbl" style="min-width:980px;"><thead><tr>'
+    +'<th>Periode</th><th>PIC Organik</th><th>Cakupan PIC</th><th>Skor KPI</th><th>Source Type</th><th>Faktor Insentif</th><th>Plafon Insentif</th><th>Estimasi Insentif</th>'
+    +'</tr></thead><tbody>'
+    +rows.map(function(r){
+      return '<tr><td>'+esc(r['Periode'])+'</td><td>'+esc(r['PIC Organik'])+'</td><td>'+esc(r['Cakupan PIC'])+'</td><td>'+esc(r['Skor KPI'])+'</td><td>'+esc(r['Source Type'])+'</td><td>'+esc(r['Faktor Insentif'])+'</td><td>'+fmtRp(r['Plafon Insentif'])+'</td><td>'+(plafon>0?fmtRp(r['Estimasi Insentif']):'-')+'</td></tr>';
+    }).join('')
+    +'</tbody></table>';
+}
+
+function exportRekapInsentifSDM(){
+  const noteEl=document.getElementById('insentif-export-note');
+  const built=buildRekapInsentifSDMRows();
+  const expRows=built.rows;
+  const plafon=built.plafon;
+  const periode=(expRows[0]&&expRows[0]['Periode'])||'April';
+  if(plafon<=0){ toast('⚠️ Isi plafon insentif dulu.'); return; }
 
   const filename='Rekap_Insentif_SDM_'+periode.replace(/\s+/g,'_')+'_'+TODAY.replace(/-/g,'')+'.xlsx';
   if(typeof XLSX!=='undefined'&&XLSX.utils){
@@ -4268,9 +4308,9 @@ function exportRekapInsentifSDM(){
   }
 
   const headers=Object.keys(expRows[0]||{});
-  const esc=function(v){ return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'; };
-  const csv=[headers.map(esc).join(',')].concat(expRows.map(function(r){
-    return headers.map(function(h){ return esc(r[h]); }).join(',');
+  const escCsv=function(v){ return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'; };
+  const csv=[headers.map(escCsv).join(',')].concat(expRows.map(function(r){
+    return headers.map(function(h){ return escCsv(r[h]); }).join(',');
   })).join('\n');
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
   const url=URL.createObjectURL(blob);
