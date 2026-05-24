@@ -883,11 +883,12 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
       <div style="margin-top:10px;">
         <div style="font-size:.74rem;color:var(--sub);line-height:1.45;margin-bottom:8px;">Panel ini khusus admin/export. Nominal insentif tidak ditampilkan di dashboard umum dan hanya dihitung saat export.</div>
         <label class="lbl">Periode</label>
-        <input type="text" id="insentif-periode" value="April" placeholder="Contoh: April 2026">
+        <input type="text" id="insentif-periode" value="" placeholder="Contoh: April 2026">
         <label class="lbl">Plafon insentif organik per orang (Rp)</label>
         <input type="number" id="insentif-plafon" min="0" step="1000" placeholder="Contoh: 2000000">
         <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
           <button class="btn btn-green btn-sm" onclick="exportRekapInsentifSDM()">📥 Export Excel Rekap Insentif SDM</button>
+          <button class="btn btn-outline btn-sm" onclick="exportKpiSnapshotBulanan()">🗂 Export KPI Snapshot Bulanan</button>
           <span id="insentif-export-note" style="font-size:.7rem;color:var(--sub);"></span>
         <div style="font-size:.7rem;color:#8d6e63;margin-top:8px;">Skor mengikuti data dashboard yang sedang aktif. Pastikan data yang dimuat sudah sesuai periode sebelum export.</div>
         <div id="insentif-preview-wrap" style="margin-top:8px;overflow:auto;"></div>
@@ -3052,8 +3053,16 @@ function getDummySuratKpiMetrics(picName){
 }
 
 function resolveKpiCutoffDate(){
-  const periodRange=resolveActiveKpiPeriodRange();
-  if(periodRange&&periodRange.end) return periodRange.end;
+  const periodeEl=document.getElementById('insentif-periode');
+  const rawPeriode=(periodeEl&&periodeEl.value?periodeEl.value:'').trim();
+  const isSdmAdmin=new URLSearchParams(window.location.search||'').get('admin')==='sdm';
+  const hasExplicitPeriode=/\d{4}/.test(rawPeriode);
+  // Hindari KPI harian "terkunci" ke akhir bulan default.
+  // Periode manual hanya dipakai jika admin SDM benar-benar mengisi periode eksplisit (dengan tahun).
+  if(isSdmAdmin&&hasExplicitPeriode){
+    const periodRange=resolveActiveKpiPeriodRange();
+    if(periodRange&&periodRange.end) return periodRange.end;
+  }
   const logDates=[];
   logs.forEach(function(l){
     const d=(l&&l.date)||((l&&l.ts)?String(l.ts).slice(0,10):'');
@@ -4381,6 +4390,74 @@ function exportRekapInsentifSDM(){
   URL.revokeObjectURL(url);
   if(noteEl) noteEl.textContent='✅ Export CSV fallback ('+expRows.length+' baris).';
   toast('✅ Rekap insentif SDM diexport (CSV fallback).');
+}
+
+function buildKpiSnapshotBulananRows(){
+  const periodeEl=document.getElementById('insentif-periode');
+  const periode=(periodeEl&&periodeEl.value?periodeEl.value:'').trim()||'Periode Belum Diisi';
+  const cutoff=resolveKpiCutoffDate();
+  const baseRows=getOrganikInsentifRows();
+  return baseRows.map(function(item){
+    const row=item.row||{};
+    const score=Number(row.totalScore)||0;
+    const factor=getInsentifFactor(score);
+    return {
+      'Periode':periode,
+      'Tanggal Cut-off':cutoff,
+      'PIC Organik':item.picOrganik,
+      'Cakupan PIC':item.cakupanPic,
+      'Skor KPI':score.toFixed(1),
+      'Source Type':sourceLabelDetailed(row.source||'NO_DATA'),
+      'Collection Result':Number(row.collectionResult)||0,
+      'Follow Up Discipline':Number(row.followUpDiscipline)||0,
+      'Overdue Reduction':Number(row.overdueReduction)||0,
+      'Pipeline Movement':Number(row.pipelineMovement)||0,
+      'Data Quality':Number(row.dataQuality)||0,
+      'Faktor Insentif':formatPct(factor),
+      'Keterangan':'Snapshot audit KPI final bulanan (admin only). MAMU dikecualikan; TYAS/AFIS/MASELLA masuk cakupan kontribusi, bukan penerima utama.'
+    };
+  });
+}
+
+function exportKpiSnapshotBulanan(){
+  const params=new URLSearchParams(window.location.search||'');
+  if(params.get('admin')!=='sdm'){
+    toast('⚠️ Fitur ini hanya untuk admin SDM.');
+    return;
+  }
+  const noteEl=document.getElementById('insentif-export-note');
+  const rows=buildKpiSnapshotBulananRows();
+  if(!rows.length){
+    toast('⚠️ Data KPI belum siap untuk diexport.');
+    return;
+  }
+  const periode=(rows[0]&&rows[0]['Periode'])||'Periode';
+  const filename='KPI_Snapshot_Bulanan_'+periode.replace(/\s+/g,'_')+'_'+TODAY.replace(/-/g,'')+'.xlsx';
+  if(typeof XLSX!=='undefined'&&XLSX.utils){
+    const ws=XLSX.utils.json_to_sheet(rows);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'KPI Snapshot Bulanan');
+    XLSX.writeFile(wb,filename);
+    if(noteEl) noteEl.textContent='✅ Export KPI snapshot bulanan selesai ('+rows.length+' baris).';
+    toast('✅ KPI snapshot bulanan diexport.');
+    return;
+  }
+  const headers=Object.keys(rows[0]||{});
+  const escCsv=function(v){ return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'; };
+  const csv=[headers.map(escCsv).join(',')].concat(rows.map(function(r){
+    return headers.map(function(h){ return escCsv(r[h]); }).join(',');
+  })).join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=filename.replace(/\.xlsx$/,'.csv');
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  if(noteEl) noteEl.textContent='✅ Export KPI snapshot bulanan (CSV fallback) selesai ('+rows.length+' baris).';
+  toast('✅ KPI snapshot bulanan diexport (CSV fallback).');
 }
 
 function exportLog(){
