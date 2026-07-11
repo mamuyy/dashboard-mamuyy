@@ -560,9 +560,6 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
     <label class="lbl">URL Google Apps Script</label>
     <input type="text" id="gs-url" placeholder="https://script.google.com/macros/s/.../exec"
       style="font-size:.75rem;" oninput="saveGsUrl(this.value)">
-    <label class="lbl">Token Akses Backend (wajib, minta ke admin)</label>
-    <input type="password" id="gs-token" placeholder="Token rahasia dari admin"
-      style="font-size:.75rem;" oninput="saveGsToken(this.value)">
     <label class="lbl">PIN Admin Lokal (opsional, untuk proses master data)</label>
     <input type="password" id="admin-pin" placeholder="Set PIN admin perangkat ini"
       style="font-size:.75rem;" oninput="saveAdminPin(this.value)">
@@ -1101,7 +1098,7 @@ const KPI_PIC_WEIGHTS={collectionResult:0.22,followUpDiscipline:0.24,overdueRedu
 const KPI_SURAT_WEIGHTS={slaSpeed:0.30,backlogControl:0.25,outputProductivity:0.20,documentAccuracy:0.15,updateDiscipline:0.10};
 const KPI_FORMULA_DISPLAY={
   followup:[['Collection Result',0.22,'collectionResult'],['Follow Up Discipline',0.24,'followUpDiscipline'],['Overdue Reduction',0.20,'overdueReduction'],['Pipeline Movement',0.22,'pipelineMovement'],['Data Quality',0.12,'dataQuality']],
-  surat:[['SLA Speed',0.30,'slaSpeed'],['Backlog Control',0.25,'backlogControl'],['Output Productivity',0.20,'outputProductivity'],['Document Accuracy',0.15,'documentAccuracy'],['Update Discipline',0.10,'updateDiscipline']]
+  surat:[['SLA Speed',0.34,'slaSpeed'],['Backlog Control',0.16,'backlogControl'],['Output Productivity',0.25,'outputProductivity'],['Document Accuracy',0.15,'documentAccuracy'],['Update Discipline',0.10,'updateDiscipline']]
 };
 const KPI_SURAT_TARGETS={dailyLog:2,outputDone:10};
 const KPI_EXCLUDED_PICS=['MAMU'];
@@ -1126,7 +1123,7 @@ const PIC_ALIAS_MAP={AULIA:'AULYA'};
 const raw={};
 let adminPinHash='';
 let adminSessionUnlocked=false;
-const DEFAULT_GS_URL='https://script.google.com/macros/s/AKfycbxnW9D0DkUpPnkId4H_RzY1GL7hyD92lOL6LXOj-rV9YMSe1K91oEZFI6wJ1Md6mBec/exec';
+const DEFAULT_GS_URL='https://script.google.com/macros/s/AKfycbxVGkV8mQDG-OxmUa-UM27r0id0Pp_u0IHVC6WfoT_Kyz7qT3jlLQYxYDGK6kuhmc5m6A/exec';
 
 function formatSheetsPushTime(isoString){
   if(!isoString) return '';
@@ -1151,7 +1148,6 @@ function applySdmAdminVisibility(){
 
 // ═══ INIT ═══
 let gsUrl='';
-let gsToken='';
 window.addEventListener('load',()=>{
   try {
     applySdmAdminVisibility();
@@ -1176,9 +1172,6 @@ window.addEventListener('load',()=>{
 
     const sp=localStorage.getItem('fu_pic');
     if(sp){ pic=sp; updPIC(); }
-
-    const st=localStorage.getItem('gs_token');
-    if(st){ gsToken=st; document.getElementById('gs-token').value=gsToken; }
 
     const su=localStorage.getItem('gs_url');
     gsUrl=(su||DEFAULT_GS_URL).trim();
@@ -3296,11 +3289,6 @@ function getKpiActionAdvice(key){
 function getKpiActiveWeights(team){
   return team==='surat'?KPI_SURAT_WEIGHTS:KPI_PIC_WEIGHTS;
 }
-function formatKpiFormula(team){
-  const formula=KPI_FORMULA_DISPLAY[team];
-  const weights=getKpiActiveWeights(team);
-  return formula.map(function(x){ return x[0]+' × '+Math.round(weights[x[2]]*100)+'%'; }).join(' + ');
-}
 function openKpiDetail(team,pic){
   const rows=((window._kpiRowsByTeam||{})[team]||[]);
   const row=rows.find(function(r){ return canonicalPicName(r.pic)===canonicalPicName(pic); });
@@ -3609,8 +3597,8 @@ function renderDash(){
   }
   const kpiTransparencyV2=document.getElementById('d-kpi-transparency-v2');
   if(kpiTransparencyV2){
-    kpiTransparencyV2.innerHTML='<div><strong>Formula Follow Up:</strong><br>TOTAL SCORE = '+formatKpiFormula('followup')+'</div>'
-      +'<div><strong>Formula Surat:</strong><br>TOTAL SCORE = '+formatKpiFormula('surat')+'</div>';
+    kpiTransparencyV2.innerHTML='<div><strong>Formula Follow Up:</strong><br>TOTAL SCORE = Collection Result × 22% + Follow Up Discipline × 24% + Overdue Reduction × 20% + Pipeline Movement × 22% + Data Quality × 12%</div>'
+      +'<div><strong>Formula Surat:</strong><br>TOTAL SCORE = SLA Speed × 34% + Backlog Control × 16% + Output Productivity × 25% + Document Accuracy × 15% + Update Discipline × 10%</div>';
   }
   const topUnpaid=document.getElementById('topkpi-unpaid');
   if(topUnpaid) topUnpaid.textContent=actionableUnpaid.length||'–';
@@ -4625,11 +4613,6 @@ window.addEventListener('beforeunload',function(e){
   e.returnValue='';
 });
 
-function saveGsToken(v){
-  gsToken=v.trim();
-  localStorage.setItem('gs_token',gsToken);
-}
-
 function saveGsUrl(v){
   gsUrl=v.trim();
   localStorage.setItem('gs_url',gsUrl);
@@ -4708,7 +4691,7 @@ function postGsAction(action,payload,timeoutMs){
   return fetchJsonWithTimeout(gsUrl,{
     method:'POST',
     headers:{'Content-Type':'text/plain;charset=utf-8'},
-    body:JSON.stringify({action,token:gsToken,...payload})
+    body:JSON.stringify({action,...payload})
   },timeoutMs||CLOUD_PUSH_TIMEOUT_MS).then(function(res){
     if(!res || res.ok!==true) throw new Error(res && res.error ? res.error : 'Respon backend tidak valid');
     return res;
@@ -4728,7 +4711,7 @@ function getLogMergeKey(log){
 function syncFromSheets(silent){
   if(!gsUrl){ if(!silent) toast('⚠️ URL belum diisi!'); return; }
   if(!silent) setGsStatus('⏳ Mengambil data dari Google Sheets...','#1565c0');
-  fetchJsonWithTimeout(gsUrl+'?t='+Date.now()+'&token='+encodeURIComponent(gsToken))
+  fetchJsonWithTimeout(gsUrl+'?t='+Date.now())
     .then(function(d){
       if(!d.ok){ setGsStatus('❌ Error: '+d.error,'var(--red)'); return; }
       const remote=d.logs||[];
@@ -4846,7 +4829,7 @@ function runOneTimeInvoiceCleanupPush(){
   if(!gsUrl){ toast('⚠️ URL belum diisi!'); return; }
   if(!ensureAdminAccess('audit + cleanup invoice di Sheets')) return;
   setGsStatus('⏳ Audit invoice tersimpan di Sheets...','#1565c0');
-  return fetchJsonWithTimeout(gsUrl+'?action=get_invs&t='+Date.now()+'&token='+encodeURIComponent(gsToken)).then(function(res){
+  return fetchJsonWithTimeout(gsUrl+'?action=get_invs&t='+Date.now()).then(function(res){
     if(!res||!res.ok||!Array.isArray(res.invs)||!res.invs.length){
       throw new Error('Data invoice di Sheets tidak ditemukan.');
     }
@@ -4891,7 +4874,7 @@ function runOneTimeInvoiceCleanupPush(){
 
 function getCloudInvoiceCount(){
   if(!gsUrl) return Promise.resolve(0);
-  return fetchJsonWithTimeout(gsUrl+'?action=get_invs&t='+Date.now()+'&token='+encodeURIComponent(gsToken),{},CLOUD_PULL_TIMEOUT_MS).then(function(res){
+  return fetchJsonWithTimeout(gsUrl+'?action=get_invs&t='+Date.now(),{},CLOUD_PULL_TIMEOUT_MS).then(function(res){
     if(res && res.ok && Array.isArray(res.invs)) return res.invs.length;
     return 0;
   }).catch(function(){
@@ -5043,9 +5026,9 @@ function pullAllFromSheets(silent=false){
 
   // Ambil invoice + aging + logs sekaligus
   pullAllInFlightPromise = Promise.all([
-    fetchJsonWithTimeout(gsUrl+'?action=get_invs&t='+Date.now()+'&token='+encodeURIComponent(gsToken),{},CLOUD_PULL_TIMEOUT_MS),
-    fetchJsonWithTimeout(gsUrl+'?action=get_aging&t='+Date.now()+'&token='+encodeURIComponent(gsToken),{},CLOUD_PULL_TIMEOUT_MS),
-    fetchJsonWithTimeout(gsUrl+'?action=get_logs&t='+Date.now()+'&token='+encodeURIComponent(gsToken),{},CLOUD_LOGS_TIMEOUT_MS)
+    fetchJsonWithTimeout(gsUrl+'?action=get_invs&t='+Date.now(),{},CLOUD_PULL_TIMEOUT_MS),
+    fetchJsonWithTimeout(gsUrl+'?action=get_aging&t='+Date.now(),{},CLOUD_PULL_TIMEOUT_MS),
+    fetchJsonWithTimeout(gsUrl+'?action=get_logs&t='+Date.now(),{},CLOUD_LOGS_TIMEOUT_MS)
   ]).then(function(results){
     var rInvs=results[0], rAging=results[1], rLogs=results[2];
     var ok=true;
@@ -5308,7 +5291,7 @@ function safeDisplayValue(value,fieldName){
   return String(value);
 }
 function esc(v){ return String(v??'').replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
-function jsq(v){ return String(v??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+function jsq(v){ return String(v??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
 function s(v){ return v===undefined||v===null?'':String(v).trim(); }
 function n(v){ const x=parseFloat(String(v).replace(/[^0-9.-]/g,'')); return isNaN(x)?0:x; }
 let tt; function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(tt); tt=setTimeout(()=>t.classList.remove('show'),2500); }
