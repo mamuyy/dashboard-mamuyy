@@ -687,6 +687,10 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 
     <label class="lbl">Catatan</label>
     <textarea id="ql-note" rows="3" placeholder="Ringkasan hasil..."></textarea>
+    <label class="lbl">Bukti Tindak Lanjut</label>
+    <input type="url" id="ql-bukti" placeholder="Link Drive/foto bukti (opsional)">
+    <input type="file" id="ql-bukti-file" accept="image/*" style="margin-top:6px;font-size:.72rem;" onchange="uploadBuktiFile('ql',this)">
+    <div id="ql-bukti-status" style="font-size:.68rem;color:var(--sub);margin-top:3px;"></div>
     <div style="margin-top:12px;display:flex;gap:8px;">
       <button class="btn btn-green" onclick="saveQL()" style="flex:1;">💾 Simpan</button>
       <button class="btn btn-outline" onclick="clearQL()">↺</button>
@@ -876,6 +880,18 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
     </div>
   </div>
 
+  <div class="card" style="margin-top:2px;margin-bottom:14px;">
+    <h3>📋 KPI Resmi (Formulir Triwulan) — Rizal &amp; Achmad</h3>
+    <div class="kpi-pic-meta" style="margin-top:-4px;">Berdasarkan Formulir Monitoring KPI Triwulan resmi per jabatan (Staff Penagihan / Staf Keuangan). Item bertanda MANUAL tidak punya sumber data di dashboard ini (mis. pranota, uang muka) — diisi admin.</div>
+    <div style="margin:8px 0;">
+      <label class="lbl" style="margin-top:0;">Kuartal</label>
+      <select id="kpi-official-quarter" onchange="renderKpiOfficial()"></select>
+    </div>
+    <div id="d-kpi-official">
+      <div style="color:var(--sub);font-size:.78rem;padding:6px 0;">Memuat KPI resmi…</div>
+    </div>
+  </div>
+
 
   <div class="card" id="insentif-export-card" style="margin-top:2px;margin-bottom:14px;display:none;">
     <details id="insentif-export-details">
@@ -990,6 +1006,10 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
         </div>
         <label class="lbl">Catatan</label>
         <textarea id="m-note" rows="2" placeholder="Ringkasan hasil..."></textarea>
+        <label class="lbl">Bukti Tindak Lanjut</label>
+        <input type="url" id="m-bukti" placeholder="Link Drive/foto bukti (opsional)">
+        <input type="file" id="m-bukti-file" accept="image/*" style="margin-top:6px;font-size:.72rem;" onchange="uploadBuktiFile('m',this)">
+        <div id="m-bukti-status" style="font-size:.68rem;color:var(--sub);margin-top:3px;"></div>
       </div>
       <div id="m-prev" style="margin-top:10px;"></div>
     </div>
@@ -1105,6 +1125,48 @@ const KPI_EXCLUDED_PICS=['MAMU'];
 const KPI_ACCOUNTABLE_MAP={ACHMAD:'ACHMAD',TYAS:'ACHMAD',AFIS:'ACHMAD',RIZAL:'RIZAL',MASELLA:'RIZAL'};
 const KPI_FINAL_ORGANIC_PICS=['ACHMAD','RIZAL'];
 const KPI_SUPPORT_MONITOR_PICS=['TYAS','AFIS','MASELLA'];
+
+// ═══ KPI RESMI (Formulir Monitoring KPI Triwulan) ═══
+// Sumber: Formulir Penetapan Kinerja Individu per jabatan (ditandatangani Mamu Yuwono).
+// Bobot & daftar item resmi per role - beda jabatan beda item/bobot.
+const KPI_OFFICIAL_ROLES={RIZAL:'penagihan',ACHMAD:'keuangan'};
+// penagihan: masih dari Formulir TW I Rizal (folder TRIWULAN II Rizal di Drive masih kosong,
+// belum ada formulir resmi TW II - tinggal ganti begitu tersedia).
+// keuangan: dari Formulir Monitoring KPI Triwulan - Achmad Mujiarto TW II
+// ("20260716 KPI ACHMAD MUJIARTO TW II.pdf"), ditandatangani 16 Juli 2026.
+// bucketCode = dihitung via snapshot baseline->resolved (computeBucketResolvedScore), sesuai
+// metodologi asli sheet REKAP P2P (skor = % invoice bucket-masalah yg sudah resolve sejak
+// baseline). Sudah tervalidasi: bucket A3 (Mir7 Rejected) utk Achmad menghasilkan 98.31%,
+// PERSIS sama dgn angka di formulir resmi TW II dia. Butuh "Set Baseline" dulu tiap kuartal
+// (tombol admin di UI) - kalau belum ada baseline, item ini tampil "Belum ada baseline".
+const KPI_OFFICIAL_ITEMS={
+  penagihan:[
+    {code:'A1',label:'Menerbitkan nota tagihan',weight:0.25,periode:'Bulanan',source:'auto',bucketCode:'A1',formula:'% invoice bucket "Surat tagihan belum dibuat" yg sudah resolve sejak baseline'},
+    {code:'A2',label:'Melakukan revisi nota tagihan',weight:0.25,periode:'Bulanan',source:'auto',bucketCode:'A2',formula:'% invoice bucket "Nota Dinas bermasalah" yg sudah resolve sejak baseline'},
+    {code:'A3',label:'Pemenuhan kekurangan lampiran tagihan',weight:0.20,periode:'Bulanan',source:'auto',bucketCode:'A3',formula:'% invoice bucket "MIR7 Rejected" yg sudah resolve sejak baseline'},
+    {code:'A4',label:'Follow up terhadap tagihan reject',weight:0.20,periode:'Bulanan',source:'auto',bucketCode:'A4',formula:'% invoice bucket "Selesai verifikasi belum terbayar" yg sudah lunas sejak baseline'},
+    {code:'A5',label:'Proses MIR7 untuk user',weight:0.10,periode:'Bulanan',source:'auto',metricKey:'mir7Selesai',formula:'(asumsi, snapshot kondisi terkini) % invoice dengan MIR7 selesai - tidak ada kode bucket A1-A4 yg cocok utk item ini di REKAP P2P'}
+  ],
+  // A1 (pranota) & A5 (ICOFR) tetap MANUAL - datanya di luar cakupan resume_nota_p2p sama sekali.
+  // A2/A3/A4 pakai bucketCode yg sama seperti Rizal - tervalidasi cocok (A3=98.31% pas formulir asli).
+  keuangan:[
+    {code:'A1',label:'Penerbitan nota tagihan',weight:0.25,periode:'Bulanan',source:'manual',formula:'rata-rata (Jumlah Tagihan Terbit / Jumlah Pranota Terbit) × 100% - data pranota tidak ada di app'},
+    {code:'A2',label:'Follow up terhadap tagihan periode berjalan ke User',weight:0.25,periode:'Bulanan',source:'auto',bucketCode:'A2',formula:'% invoice bucket "Nota Dinas bermasalah" yg sudah resolve sejak baseline'},
+    {code:'A3',label:'Pemenuhan dan pembetulan untuk tagihan reject ke Divisi Operasional',weight:0.20,periode:'Bulanan',source:'auto',bucketCode:'A3',formula:'% invoice bucket "MIR7 Rejected" yg sudah resolve sejak baseline (tervalidasi = 98.31% di TW II asli)'},
+    {code:'A4',label:'Memastikan penerimaan kas terhadap MIR7 periode berjalan',weight:0.25,periode:'Bulanan',source:'auto',bucketCode:'A4',formula:'% invoice bucket "Selesai verifikasi belum terbayar" yg sudah lunas sejak baseline'},
+    {code:'A5',label:'Implementasi ICOFR di lingkungan PT Pelabuhan Indonesia (Persero)',weight:0.05,periode:'Tahunan',source:'manual',formula:'(Realisasi SOP Expend & Revenue / Jumlah Keseluruhan SOP Expend & Revenue) × 100% - dinilai tahunan, di luar cakupan data AR'}
+  ]
+};
+// Kuartal yang didukung - mulai TW II 2026. Tambah entri baru saat kuartal berikutnya berjalan.
+const KPI_OFFICIAL_QUARTERS={
+  'TW II 2026':{start:'2026-04-01',end:'2026-06-30'},
+  'TW III 2026':{start:'2026-07-01',end:'2026-09-30'}
+};
+// TW II sudah lewat & tervalidasi manual (89.77/94.49 cocok formulir asli Achmad).
+// TW III = kuartal berjalan - basis snapshot/baseline dimulai dari sini.
+const KPI_OFFICIAL_DEFAULT_QUARTER='TW III 2026';
+const KPI_MANUAL_SCORES_KEY='kpi_manual_scores';
+const KPI_SNAPSHOTS_KEY='kpi_snapshots';
 const KPI_PIC_DUMMY={
   RIZAL:{collectionResult:78,followUpDiscipline:84,overdueReduction:73,pipelineMovement:80,dataQuality:88},
   ACHMAD:{collectionResult:75,followUpDiscipline:82,overdueReduction:70,pipelineMovement:77,dataQuality:85},
@@ -1531,7 +1593,7 @@ function loadF(n,inp){
 function autoBackupLog(){
   if(!logs.length) return;
   try{
-    const d=logs.map(l=>({'Tanggal':l.date,'Invoice No':l.inv,'Customer':l.cust||'','Jumlah':l.amt||0,'PIC':l.pic||'','Channel':l.ch||'','Hasil':l.hasil||'','Catatan':l.note||'','Janji Tgl':l.jt||'','Janji Nominal':l.jn||0}));
+    const d=logs.map(l=>({'Tanggal':l.date,'Invoice No':l.inv,'Customer':l.cust||'','Jumlah':l.amt||0,'PIC':l.pic||'','Channel':l.ch||'','Hasil':l.hasil||'','Catatan':l.note||'','Bukti Tindak Lanjut':l.bukti||'','Janji Tgl':l.jt||'','Janji Nominal':l.jn||0}));
     const ws=XLSX.utils.json_to_sheet(d); const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,'Log FU');
     XLSX.writeFile(wb,'BACKUP_Log_FU_'+TODAY.replace(/-/g,'')+'.xlsx');
@@ -1610,6 +1672,10 @@ function _doProsesData(opts){ opts=opts||{}; try{
     sBA:s(r['Status BA']||''), sSrt:s(r['Status Surat Tagihan']||''),
     sNota:s(r['Status Nota Dinas']||r['Status Nota DInas']||''),
     sMIR:s(r['Status MIR7']||''), pay:s(r['Payment Status']||''), picB:'',
+    // picResume = kolom "PIC" mentah dari resume_nota_p2p (pemilik buku akun customer, dipakai
+    // Tim Follow Up/KPI Resmi). Sengaja BEDA dari picB ("PIC Billing" milik Tim Surat, diisi dari
+    // BILLING_EXPORT "Created By") - jangan digabung, keduanya punya arti berbeda.
+    picResume:s(r['PIC']||''),
     noBA:s(r['Nomor BA']||''),noSrt:s(r['Nomor Surat Tagihan']||''),
     noMIR:s(r['Nomor MIR7']||''),
   }))).filter(r=>r.no.startsWith('AR'));
@@ -2129,6 +2195,21 @@ function getInvoiceProgress(inv){
   if(!invLogs.length) return pack('collection_no_fu','Unpaid Pasca MIR7: Belum FU','followup','collection');
   return pack('collection_active','Unpaid Pasca MIR7: Sudah FU','followup','collection');
 }
+// Kode bucket KPI Resmi (A1-A4), sesuai sheet REKAP P2P manual yang selama ini dipakai
+// (surat/nota dinas/mir7/verifikasi-belum-terbayar). null = invoice di luar 4 bucket ini
+// (mis. sudah Paid, atau masih di tahap BA).
+function getKpiBucketCode(inv){
+  const sBA=normalizeDocStatus(inv.sBA);
+  const sSrt=normalizeDocStatus(inv.sSrt);
+  const sNota=normalizeDocStatus(inv.sNota);
+  const sMIR=normalizeDocStatus(inv.sMIR);
+  const pay=normalizePayStatus(inv.pay);
+  if(sBA==='Completed'&&sSrt==='Belum Dibuat') return 'A1';
+  if(sSrt==='Completed'&&(sNota==='Belum Dibuat'||sNota==='In Progress'||sNota==='Rejected'||(sNota==='Completed'&&sMIR==='Belum Dibuat'))) return 'A2';
+  if(sNota==='Completed'&&sMIR==='Rejected') return 'A3';
+  if(sBA==='Completed'&&sSrt==='Completed'&&sNota==='Completed'&&sMIR==='Completed'&&pay==='Unpaid') return 'A4';
+  return null;
+}
 function getProgressTone(prog){
   if(!prog) return 'pending';
   if(prog.key==='paid') return 'paid';
@@ -2483,8 +2564,9 @@ function openM(no){
   document.getElementById('m-mode').value=mode;
   document.getElementById('m-date').value=TODAY;
   ['m-ch','m-hs'].forEach(id=>document.getElementById(id).value='');
-  ['m-note','m-next'].forEach(id=>document.getElementById(id).value='');
+  ['m-note','m-next','m-bukti','m-bukti-file'].forEach(id=>document.getElementById(id).value='');
   ['m-jt','m-jn'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('m-bukti-status').textContent='';
   applyModalMode(mode);
   document.querySelectorAll('#mbg .rbtn').forEach(b=>b.classList.remove('sel'));
   jBox('m',false);
@@ -2882,6 +2964,7 @@ function saveMLog(){
   logs.unshift({id:Date.now(),inv:no,date:document.getElementById('m-date').value||TODAY,
     pic,ch:document.getElementById('m-ch').value,hasil:hs,
     note:document.getElementById('m-note').value,
+    bukti:document.getElementById('m-bukti')?document.getElementById('m-bukti').value:'',
     jt:document.getElementById('m-jt').value,
     jn:n(document.getElementById('m-jn').value),
     mode:mode,
@@ -2907,14 +2990,16 @@ function saveQL(){
   logs.unshift({id:Date.now(),inv:no,date:document.getElementById('ql-date').value||TODAY,
     pic,ch:document.getElementById('ql-ch').value,hasil:hs,
     note:document.getElementById('ql-note').value,
+    bukti:document.getElementById('ql-bukti')?document.getElementById('ql-bukti').value:'',
     jt:document.getElementById('ql-jt').value,
     jn:n(document.getElementById('ql-jn').value),
     cust:i.cust||'',amt:i.amt||0,ts:new Date().toISOString()});
   saveLogs(); clearQL(); renderQ(); renderH(); renderDash(); toast('✅ Log disimpan!');
 }
 function clearQL(){
-  ['ql-inv','ql-ch','ql-hs','ql-note'].forEach(id=>document.getElementById(id).value='');
+  ['ql-inv','ql-ch','ql-hs','ql-note','ql-bukti','ql-bukti-file'].forEach(id=>document.getElementById(id).value='');
   ['ql-jt','ql-jn'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('ql-bukti-status').textContent='';
   document.getElementById('ql-info').style.display='none';
   document.querySelectorAll('#page-log .rbtn').forEach(b=>b.classList.remove('sel'));
   jBox('ql',false);
@@ -2985,6 +3070,7 @@ function renderH(){
       ${l.ch?`<span style="font-size:.65rem;color:var(--sub);margin-left:5px;">via ${esc(l.ch)}</span>`:''}
       ${l.cust?`<div style="font-size:.72rem;color:var(--sub);margin-top:2px;">${esc(l.cust)} · ${fmt(l.amt||0)}</div>`:''}
       ${l.note?`<div style="font-size:.72rem;color:var(--sub);margin-top:3px;">${esc(l.note)}</div>`:''}
+      ${l.bukti&&/^https?:\/\//i.test(l.bukti)?`<div style="font-size:.72rem;margin-top:3px;"><a href="${esc(l.bukti)}" target="_blank" rel="noopener">📎 Bukti Tindak Lanjut</a></div>`:''}
       ${l.jt?`<div style="font-size:.72rem;color:var(--blue);margin-top:3px;">📅 ${l.jt}${l.jn?' · '+fmt(l.jn):''}</div>`:''}
     </div>
   `).join('');
@@ -3179,6 +3265,288 @@ function computeKpiSuratByPic(picName,invoices){
     raw:{assigned:assigned.length,readyDocs:readyDocs.length,pendingDocs:pendingDocs.length,rejectedDocs:rejectedDocs.length,doneDocs:doneDocs.length,logCount:picLogs.length,todayLogCount:todayPicLogs.length,kpiCutoff}
   };
 }
+
+// ═══ KPI RESMI (Formulir Monitoring KPI Triwulan) - Rizal & Achmad ═══
+function getKpiOfficialQuarterRange(quarterKey){
+  return KPI_OFFICIAL_QUARTERS[quarterKey]||KPI_OFFICIAL_QUARTERS[KPI_OFFICIAL_DEFAULT_QUARTER];
+}
+function loadKpiManualScores(){
+  try{ return JSON.parse(localStorage.getItem(KPI_MANUAL_SCORES_KEY)||'{}'); }catch(e){ return {}; }
+}
+function getKpiManualScore(picName,quarterKey,code){
+  const all=loadKpiManualScores();
+  const key=canonicalPicName(picName);
+  const v=all[key]&&all[key][quarterKey]&&all[key][quarterKey][code];
+  return typeof v==='number'&&isFinite(v)?v:null;
+}
+function saveKpiManualScore(picName,quarterKey,code,value){
+  const all=loadKpiManualScores();
+  const key=canonicalPicName(picName);
+  all[key]=all[key]||{};
+  all[key][quarterKey]=all[key][quarterKey]||{};
+  all[key][quarterKey][code]=clampScore(value);
+  localStorage.setItem(KPI_MANUAL_SCORES_KEY,JSON.stringify(all));
+}
+// Metrik berbasis status dokumen (BA/Surat/Nota Dinas/MIR7) - snapshot kondisi terkini,
+// sama seperti pendekatan sheet "REKAP P2P" manual (bukan difilter per tanggal invoice
+// karena data resume nota P2P tidak selalu punya tanggal invoice yang valid).
+// Invoice "milik" PIC ini: gabungan dari picB (isi cuma kalau BILLING_EXPORT diupload),
+// invoice yang pernah di-log FU oleh PIC ini, dan hasil resolusi ownership dinamis yang
+// sudah dipakai app (getInvoiceProgress().ownerPerson) - picB saja tidak cukup karena
+// kosong untuk anggota Tim Follow Up pada import resume_nota_p2p standar.
+function getOfficialAssignedInvoices(picName){
+  const touchedInv=new Set(logs.filter(function(l){ return isPicMatch(l.pic,picName); }).map(function(l){ return l.inv; }).filter(Boolean));
+  return invs.filter(function(i){
+    // picResume (kolom "PIC" mentah dari resume_nota_p2p) = sumber paling otoritatif,
+    // sama seperti basis yang dipakai sheet REKAP P2P manual selama ini.
+    if(i.picResume&&isPicMatch(i.picResume,picName)) return true;
+    if(i.picResume) return false;
+    if(isPicMatch(i.picB,picName)) return true;
+    if(touchedInv.has(i.no)) return true;
+    return isPicMatch(getInvoiceProgress(i).ownerPerson,picName);
+  });
+}
+
+// ═══ SNAPSHOT KPI (baseline → resolved-over-time, sesuai metodologi REKAP P2P) ═══
+function loadKpiSnapshots(){
+  try{ return JSON.parse(localStorage.getItem(KPI_SNAPSHOTS_KEY)||'{}'); }catch(e){ return {}; }
+}
+function getKpiSnapshot(picName,quarterKey){
+  const all=loadKpiSnapshots();
+  const key=canonicalPicName(picName);
+  return (all[key]&&all[key][quarterKey])||null;
+}
+// Ambil kondisi invoice assigned PIC ini SEKARANG, kelompokkan per bucket A1-A4, simpan
+// sebagai baseline. Skor ke depan dihitung dari berapa banyak invoice di daftar baseline ini
+// yang SUDAH KELUAR dari bucket-nya (statusnya maju) dibanding masih nyangkut.
+function setKpiBaseline(picName,quarterKey){
+  const key=canonicalPicName(picName);
+  const existing=getKpiSnapshot(picName,quarterKey);
+  if(existing&&!confirm('Baseline '+key+' - '+quarterKey+' sudah ada (tanggal '+existing.baselineDate+'). Timpa dengan kondisi hari ini? Pengukuran periode ini akan direset dari awal.')){
+    return;
+  }
+  const assigned=getOfficialAssignedInvoices(picName);
+  const buckets={A1:[],A2:[],A3:[],A4:[]};
+  assigned.forEach(function(i){
+    const code=getKpiBucketCode(i);
+    if(code) buckets[code].push(i.no);
+  });
+  const all=loadKpiSnapshots();
+  all[key]=all[key]||{};
+  all[key][quarterKey]={baselineDate:TODAY,buckets:buckets};
+  localStorage.setItem(KPI_SNAPSHOTS_KEY,JSON.stringify(all));
+  toast('📌 Baseline '+key+' ('+quarterKey+') diset: A1 '+buckets.A1.length+' · A2 '+buckets.A2.length+' · A3 '+buckets.A3.length+' · A4 '+buckets.A4.length);
+  renderKpiOfficial();
+}
+// Skor = (jumlah baseline - yang masih nyangkut di bucket sama) / jumlah baseline.
+// Invoice yang sudah tidak ada lagi di data (referensi hilang) di-exclude dari itung-itungan,
+// bukan dianggap otomatis selesai.
+function computeBucketResolvedScore(picName,quarterKey,code){
+  const snap=getKpiSnapshot(picName,quarterKey);
+  if(!snap||!snap.buckets||!snap.buckets[code]||!snap.buckets[code].length) return null;
+  const baselineNos=snap.buckets[code];
+  const invByNo={};
+  invs.forEach(function(i){ invByNo[i.no]=i; });
+  let verifiable=0, stillStuck=0;
+  baselineNos.forEach(function(no){
+    const i=invByNo[no];
+    if(!i) return; // referensi hilang, exclude
+    verifiable++;
+    if(getKpiBucketCode(i)===code) stillStuck++;
+  });
+  if(!verifiable) return null;
+  return clampScore(((verifiable-stillStuck)/verifiable)*100);
+}
+function computeOfficialDocMetrics(picName){
+  const assigned=getOfficialAssignedInvoices(picName);
+  const suratEligible=assigned.filter(function(i){ return normalizeDocStatus(i.sBA)==='Completed'; });
+  const suratDone=suratEligible.filter(function(i){ return normalizeDocStatus(i.sSrt)==='Completed'; });
+  const suratTerbit=suratEligible.length?clampScore((suratDone.length/suratEligible.length)*100):100;
+
+  const notaEligible=assigned.filter(function(i){ return normalizeDocStatus(i.sSrt)==='Completed'; });
+  const notaDone=notaEligible.filter(function(i){ return normalizeDocStatus(i.sNota)==='Completed'; });
+  const notaDinasBeres=notaEligible.length?clampScore((notaDone.length/notaEligible.length)*100):100;
+
+  const mirEligible=assigned.filter(function(i){ return normalizeDocStatus(i.sNota)==='Completed'; });
+  const mirNotRejected=mirEligible.filter(function(i){ return normalizeDocStatus(i.sMIR)!=='Rejected'; });
+  const mirCompleted=mirEligible.filter(function(i){ return normalizeDocStatus(i.sMIR)==='Completed'; });
+  const mir7TidakReject=mirEligible.length?clampScore((mirNotRejected.length/mirEligible.length)*100):100;
+  const mir7Selesai=mirEligible.length?clampScore((mirCompleted.length/mirEligible.length)*100):100;
+
+  // "Tagihan Bermasalah" (proxy) = invoice yang pernah Rejected di salah satu tahap dokumen.
+  const everRejected=assigned.filter(function(i){
+    return normalizeDocStatus(i.sBA)==='Rejected'||normalizeDocStatus(i.sSrt)==='Rejected'||normalizeDocStatus(i.sNota)==='Rejected'||normalizeDocStatus(i.sMIR)==='Rejected';
+  });
+  // A4 Rizal / A2 Achmad (asumsi "konfirmasi"): sudah ada aktivitas FU pada invoice bermasalah tsb.
+  const rejectedFollowed=everRejected.filter(function(i){ return getInvoiceLogs(i.no).length>0; });
+  const fuTagihanReject=everRejected.length?clampScore((rejectedFollowed.length/everRejected.length)*100):100;
+  // A3 Achmad (asumsi "konfirmasi dan BA"): BA invoice bermasalah tsb sudah diselesaikan (bukan Rejected lagi).
+  const rejectedBaResolved=everRejected.filter(function(i){ return normalizeDocStatus(i.sBA)==='Completed'; });
+  const tagihanBermasalahBA=everRejected.length?clampScore((rejectedBaResolved.length/everRejected.length)*100):100;
+
+  return {
+    suratTerbit,notaDinasBeres,mir7TidakReject,mir7Selesai,
+    fuTagihanReject,tagihanBermasalahKonfirmasi:fuTagihanReject,tagihanBermasalahBA,
+    raw:{assigned:assigned.length,suratEligible:suratEligible.length,notaEligible:notaEligible.length,mirEligible:mirEligible.length,mirCompleted:mirCompleted.length,everRejected:everRejected.length,rejectedFollowed:rejectedFollowed.length,rejectedBaResolved:rejectedBaResolved.length}
+  };
+}
+// Metrik berbasis log FU dalam rentang kuartal aktif (tanggal log reliabel, beda dgn tanggal invoice).
+function computeOfficialLogMetrics(picName,quarterKey){
+  const range=getKpiOfficialQuarterRange(quarterKey);
+  const assigned=getOfficialAssignedInvoices(picName);
+  const periodLogs=logs.filter(function(l){
+    const d=l.date||(l.ts?String(l.ts).slice(0,10):'');
+    return isPicMatch(l.pic,picName)&&isDateInPeriod(d,range);
+  });
+  const paidAmt=periodLogs.filter(function(l){ return l.hasil==='Paid'; }).reduce(function(sum,l){ return sum+(Number(l.amt)||0); },0);
+  // A4 Achmad: "Jumlah Penerimaan Kas Periode Berjalan / Jumlah MIR7 Complete" - denominator = nilai
+  // invoice assigned yang MIR7-nya sudah Completed (siap ditagih), bukan seluruh assigned.
+  const mir7CompleteAmt=assigned.filter(function(i){ return normalizeDocStatus(i.sMIR)==='Completed'; })
+    .reduce(function(sum,i){ return sum+(Number(i.amt)||0); },0);
+  const penerimaanKasVsMir7=mir7CompleteAmt>0?clampScore((paidAmt/mir7CompleteAmt)*100):0;
+  return {
+    penerimaanKasVsMir7,
+    raw:{periodLogCount:periodLogs.length,assigned:assigned.length,paidAmt,mir7CompleteAmt}
+  };
+}
+function computeOfficialKpiForPic(picName,quarterKey){
+  quarterKey=quarterKey||KPI_OFFICIAL_DEFAULT_QUARTER;
+  const roleKey=KPI_OFFICIAL_ROLES[canonicalPicName(picName)];
+  if(!roleKey) return null;
+  const items=KPI_OFFICIAL_ITEMS[roleKey]||[];
+  const docMetrics=computeOfficialDocMetrics(picName);
+  const logMetrics=computeOfficialLogMetrics(picName,quarterKey);
+  const autoMetrics=Object.assign({},docMetrics,logMetrics);
+  const breakdown=items.map(function(item){
+    let realisasi,filled,needsBaseline=false;
+    if(item.bucketCode){
+      const bucketScore=computeBucketResolvedScore(picName,quarterKey,item.bucketCode);
+      if(bucketScore!==null){
+        realisasi=bucketScore; filled=true; needsBaseline=false;
+      } else {
+        // Belum ada baseline utk kuartal ini (mis. TW II - sudah lewat, baseline nggak bisa
+        // diset mundur) - fallback ke input manual spt item manual biasa, supaya kuartal lama
+        // yg sudah tervalidasi manual tetap bisa diisi manual.
+        const manual=getKpiManualScore(picName,quarterKey,item.code);
+        realisasi=manual===null?0:clampScore(manual);
+        filled=manual!==null;
+        needsBaseline=true;
+      }
+    } else if(item.source==='auto'){
+      realisasi=clampScore(autoMetrics[item.metricKey]);
+      filled=true;
+    } else {
+      const manual=getKpiManualScore(picName,quarterKey,item.code);
+      realisasi=manual===null?0:clampScore(manual);
+      filled=manual!==null;
+    }
+    const autoEstimate=(!item.bucketCode&&item.metricKey&&autoMetrics[item.metricKey]!==undefined)?clampScore(autoMetrics[item.metricKey]):null;
+    return Object.assign({},item,{realisasi:realisasi,skor:realisasi*item.weight,filled:filled,needsBaseline:needsBaseline,autoEstimate:autoEstimate});
+  });
+  // Total Skor mentah = jumlah kontribusi semua item (skala 0-100, sesuai kolom "Skor" di formulir resmi).
+  const rawScore=breakdown.reduce(function(sum,b){ return sum+(b.realisasi*b.weight); },0);
+  // Item Tahunan (mis. A5 ICOFR Achmad) belum jatuh tempo tiap kuartal - dikeluarkan dari basis
+  // bobot pembagi, persis seperti "Total Bobot Tertimbang" & "Total Skor KPI Kolegial (Tertimbang)"
+  // di formulir resmi (mis. Achmad TW II: 89.77 / 95% = 94.49).
+  const weightedBase=breakdown.reduce(function(sum,b){ return sum+(b.periode==='Tahunan'?0:b.weight); },0);
+  const totalScore=weightedBase>0?clampScore(rawScore/weightedBase):rawScore;
+  return {
+    pic:canonicalPicName(picName),
+    role:roleKey,
+    quarterKey:quarterKey,
+    items:breakdown,
+    rawScore:rawScore,
+    totalScore:totalScore,
+    band:getKpiBand(totalScore),
+    raw:{doc:docMetrics.raw,log:logMetrics.raw}
+  };
+}
+function isKpiAdmin(){
+  return new URLSearchParams(window.location.search||'').get('admin')==='sdm';
+}
+function getSelectedKpiOfficialQuarter(){
+  const sel=document.getElementById('kpi-official-quarter');
+  return (sel&&sel.value)||KPI_OFFICIAL_DEFAULT_QUARTER;
+}
+function populateKpiOfficialQuarterOptions(){
+  const sel=document.getElementById('kpi-official-quarter');
+  if(!sel||sel.options.length) return;
+  Object.keys(KPI_OFFICIAL_QUARTERS).forEach(function(q){
+    const opt=document.createElement('option');
+    opt.value=q; opt.textContent=q;
+    sel.appendChild(opt);
+  });
+  sel.value=KPI_OFFICIAL_DEFAULT_QUARTER;
+}
+function onKpiManualInput(picName,quarterKey,code,value){
+  const num=Number(value);
+  if(value!==''&&!isFinite(num)){ toast('⚠️ Nilai harus angka 0-100'); return; }
+  saveKpiManualScore(picName,quarterKey,code,value===''?0:Math.max(0,Math.min(100,num)));
+  renderKpiOfficial();
+  renderInsentifPreviewTable();
+}
+function renderKpiOfficialTable(result){
+  const admin=isKpiAdmin();
+  const roleLabel=result.role==='penagihan'?'Staff Penagihan':'Staf Keuangan';
+  const rows=result.items.map(function(item){
+    let realisasiCell;
+    const estimateHint=item.autoEstimate!==null?'<div style="font-size:.62rem;color:#8d6e63;">≈estimasi app: '+item.autoEstimate.toFixed(1)+'% (belum tentu akurat, cek manual)</div>':'';
+    const baselineHint='<div style="font-size:.62rem;color:#e65100;">⚠️ Belum ada baseline kuartal ini - isi manual dulu</div>';
+    if(item.bucketCode&&item.needsBaseline&&admin){
+      const val=item.filled?item.realisasi.toFixed(1):'';
+      realisasiCell='<input type="number" min="0" max="100" step="0.1" value="'+val+'" placeholder="isi %" style="width:64px;" '
+        +'onchange="onKpiManualInput(\''+jsq(result.pic)+'\',\''+jsq(result.quarterKey)+'\',\''+jsq(item.code)+'\',this.value)">'+baselineHint;
+    } else if(item.bucketCode&&item.needsBaseline){
+      realisasiCell=(item.filled?item.realisasi.toFixed(1)+'% ':'')+baselineHint;
+    } else if(item.bucketCode){
+      realisasiCell=item.realisasi.toFixed(1)+'%';
+    } else if(item.source==='manual'&&admin){
+      const val=item.filled?item.realisasi.toFixed(1):'';
+      realisasiCell='<input type="number" min="0" max="100" step="0.1" value="'+val+'" placeholder="isi %" style="width:64px;" '
+        +'onchange="onKpiManualInput(\''+jsq(result.pic)+'\',\''+jsq(result.quarterKey)+'\',\''+jsq(item.code)+'\',this.value)">'+estimateHint;
+    } else if(item.source==='manual'&&!item.filled){
+      realisasiCell='<span style="color:#c62828;">Belum diisi</span>'+estimateHint;
+    } else {
+      realisasiCell=item.realisasi.toFixed(1)+'%';
+    }
+    const periodeTag=item.periode==='Tahunan'?' <span style="color:#8d6e63;">(Tahunan)</span>':'';
+    const sourceLabel=item.bucketCode?(item.needsBaseline?'manual':'auto (snapshot)'):item.source;
+    return '<tr title="'+esc(item.formula||'')+'">'
+      +'<td>'+esc(item.code)+'</td>'
+      +'<td>'+esc(item.label)+periodeTag+'</td>'
+      +'<td>'+Math.round(item.weight*100)+'%</td>'
+      +'<td>100%</td>'
+      +'<td>'+realisasiCell+'</td>'
+      +'<td>'+item.skor.toFixed(1)+'</td>'
+      +'<td style="text-transform:uppercase;font-size:.62rem;color:'+((item.source==='auto'||item.bucketCode)?'#2e7d32':'#e65100')+';">'+sourceLabel+'</td>'
+      +'</tr>';
+  }).join('');
+  const tertimbangNote=result.rawScore!==result.totalScore
+    ?' <span style="font-size:.68rem;color:var(--sub);">(mentah '+result.rawScore.toFixed(1)+', item Tahunan dikeluarkan dari basis bobot kuartal)</span>'
+    :'';
+  const snap=getKpiSnapshot(result.pic,result.quarterKey);
+  const baselineInfo=snap
+    ?'Baseline: <strong>'+snap.baselineDate+'</strong> · A1 '+snap.buckets.A1.length+' · A2 '+snap.buckets.A2.length+' · A3 '+snap.buckets.A3.length+' · A4 '+snap.buckets.A4.length+' invoice'
+    :'<span style="color:#e65100;">Belum ada baseline untuk '+esc(result.quarterKey)+'</span>';
+  const baselineBtn=admin
+    ?' <button class="btn btn-outline btn-sm" style="padding:2px 8px;font-size:.68rem;" onclick="setKpiBaseline(\''+jsq(result.pic)+'\',\''+jsq(result.quarterKey)+'\')">📌 '+(snap?'Reset':'Set')+' Baseline</button>'
+    :'';
+  return '<div style="font-size:.76rem;font-weight:700;color:var(--dark);margin:10px 0 4px;">'+esc(result.pic)+' ('+roleLabel+')</div>'
+    +'<div style="font-size:.7rem;color:var(--sub);margin-bottom:6px;">'+baselineInfo+baselineBtn+'</div>'
+    +'<table class="kpi-pic-tbl"><thead><tr><th>Kode</th><th>Item KPI</th><th>Bobot</th><th>Target</th><th>Realisasi</th><th>Skor</th><th>Sumber</th></tr></thead><tbody>'+rows+'</tbody></table>'
+    +'<div style="font-size:.74rem;margin-top:4px;">Total Skor: <strong>'+result.totalScore.toFixed(1)+'</strong> <span class="kpi-badge '+result.band.cls+'">'+result.band.label+'</span>'+tertimbangNote+'</div>';
+}
+function renderKpiOfficial(){
+  const host=document.getElementById('d-kpi-official');
+  if(!host) return;
+  populateKpiOfficialQuarterOptions();
+  const quarterKey=getSelectedKpiOfficialQuarter();
+  const pics=Object.keys(KPI_OFFICIAL_ROLES);
+  const results=pics.map(function(p){ return computeOfficialKpiForPic(p,quarterKey); }).filter(Boolean);
+  if(!results.length){ host.innerHTML='<div style="color:var(--sub);font-size:.78rem;">Belum ada PIC dengan role resmi.</div>'; return; }
+  host.innerHTML=results.map(renderKpiOfficialTable).join('');
+  window._kpiOfficialResults=results;
+}
 function renderKpiPicTable(rows,kind){
   if(!rows.length) return '<div style="color:var(--sub);font-size:.76rem;padding:4px 0;">Belum ada data PIC.</div>';
   const isSurat=kind==='surat';
@@ -3355,6 +3723,7 @@ function renderDash(){
   });
   const paid=invs.filter(isInvoicePaid);
   renderKpiPerPic(unpaid,paid);
+  renderKpiOfficial();
   const unpaidProgress=unpaid.map(function(i){ return {inv:i, prog:getInvoiceProgress(i)}; });
   const syncBadge=document.getElementById('dash-sync-badge');
   if(syncBadge) syncBadge.textContent='Data: '+(localDraftMode?'Draft lokal':'Cloud / siap pakai');
@@ -4314,17 +4683,20 @@ function buildRekapInsentifSDMRows(){
   const periode=(periodeEl&&periodeEl.value?periodeEl.value:'April').trim()||'April';
   const plafon=Math.max(0,Number((plafonEl&&plafonEl.value)||0)||0);
   const baseRows=getOrganikInsentifRows();
+  const officialQuarter=getSelectedKpiOfficialQuarter();
   const rows=baseRows.map(function(item){
     const score=item.row?Number(item.row.totalScore)||0:0;
     const source=item.row?sourceLabelDetailed(item.row.source):'NO_DATA';
     const factor=getInsentifFactor(score);
     const est=Math.round(plafon*factor);
+    const official=KPI_OFFICIAL_ROLES[canonicalPicName(item.picOrganik)]?computeOfficialKpiForPic(item.picOrganik,officialQuarter):null;
     return {
       'Periode':periode,
       'PIC Organik':item.picOrganik,
       'Status Pegawai':'Organik',
       'Cakupan PIC':item.cakupanPic,
       'Skor KPI':score?score.toFixed(1):'0.0',
+      'Skor KPI Resmi':official?official.totalScore.toFixed(1)+' ('+official.quarterKey+')':'—',
       'Source Type':source,
       'Faktor Insentif':formatPct(factor),
       'Plafon Insentif':plafon,
@@ -4347,10 +4719,10 @@ function renderInsentifPreviewTable(){
   const plafon=built.plafon;
   wrap.innerHTML='<div style="font-size:.73rem;font-weight:700;color:var(--dark);margin:8px 0 6px;">Preview Rekap Insentif SDM (Admin Only)</div>'
     +'<table class="kpi-pic-tbl" style="min-width:980px;"><thead><tr>'
-    +'<th>Periode</th><th>PIC Organik</th><th>Cakupan PIC</th><th>Skor KPI</th><th>Source Type</th><th>Faktor Insentif</th><th>Plafon Insentif</th><th>Estimasi Insentif</th>'
+    +'<th>Periode</th><th>PIC Organik</th><th>Cakupan PIC</th><th>Skor KPI</th><th>Skor KPI Resmi</th><th>Source Type</th><th>Faktor Insentif</th><th>Plafon Insentif</th><th>Estimasi Insentif</th>'
     +'</tr></thead><tbody>'
     +rows.map(function(r){
-      return '<tr><td>'+esc(r['Periode'])+'</td><td>'+esc(r['PIC Organik'])+'</td><td>'+esc(r['Cakupan PIC'])+'</td><td>'+esc(r['Skor KPI'])+'</td><td>'+esc(r['Source Type'])+'</td><td>'+esc(r['Faktor Insentif'])+'</td><td>'+fmtRp(r['Plafon Insentif'])+'</td><td>'+(plafon>0?fmtRp(r['Estimasi Insentif']):'-')+'</td></tr>';
+      return '<tr><td>'+esc(r['Periode'])+'</td><td>'+esc(r['PIC Organik'])+'</td><td>'+esc(r['Cakupan PIC'])+'</td><td>'+esc(r['Skor KPI'])+'</td><td>'+esc(r['Skor KPI Resmi'])+'</td><td>'+esc(r['Source Type'])+'</td><td>'+esc(r['Faktor Insentif'])+'</td><td>'+fmtRp(r['Plafon Insentif'])+'</td><td>'+(plafon>0?fmtRp(r['Estimasi Insentif']):'-')+'</td></tr>';
     }).join('')
     +'</tbody></table>';
 }
@@ -4462,20 +4834,30 @@ function exportKpiSnapshotBulanan(){
 
 function exportLog(){
   if(!logs.length){toast('⚠ Belum ada log');return;}
-  const d=logs.map(l=>({'Tanggal':l.date,'Invoice No':l.inv,'Customer':l.cust||'','Jumlah':l.amt||0,'PIC':l.pic||'','Channel':l.ch||'','Hasil':l.hasil||'','Catatan':l.note||'','Janji Tgl':l.jt||'','Janji Nominal':l.jn||0}));
+  const d=logs.map(l=>({'Tanggal':l.date,'Invoice No':l.inv,'Customer':l.cust||'','Jumlah':l.amt||0,'PIC':l.pic||'','Channel':l.ch||'','Hasil':l.hasil||'','Catatan':l.note||'','Bukti Tindak Lanjut':l.bukti||'','Janji Tgl':l.jt||'','Janji Nominal':l.jn||0}));
   const ws=XLSX.utils.json_to_sheet(d); const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'Log FU');
   XLSX.writeFile(wb,'Log_FU_'+TODAY.replace(/-/g,'')+'.xlsx'); toast('✅ Diekspor!');
 }
 function exportLaporan(){
-  const d=logs.map(l=>({'Tanggal':l.date,'Invoice No':l.inv,'Customer':l.cust||'','Jumlah':l.amt||0,'PIC':l.pic||'','Channel':l.ch||'','Hasil':l.hasil||'','Catatan':l.note||'','Janji Tgl':l.jt||'','Janji Nominal':l.jn||0}));
+  const d=logs.map(l=>({'Tanggal':l.date,'Invoice No':l.inv,'Customer':l.cust||'','Jumlah':l.amt||0,'PIC':l.pic||'','Channel':l.ch||'','Hasil':l.hasil||'','Catatan':l.note||'','Bukti Tindak Lanjut':l.bukti||'','Janji Tgl':l.jt||'','Janji Nominal':l.jn||0}));
   const ws=XLSX.utils.json_to_sheet(d); const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'Log FU');
   if(invs.length){
     const u=invs.filter(isInvoiceUnpaid).map(i=>({'Invoice':i.no,'Customer':i.cust,'Jumlah':i.amt,'Status BA':i.sBA,'Status Surat':i.sSrt,'Status MIR7':i.sMIR,'Payment':normalizePayStatus(i.pay),'PIC Billing':i.picB}));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(u),'Unpaid Invoice');
   }
-  XLSX.writeFile(wb,'Laporan_Penagihan_'+TODAY.replace(/-/g,'')+'.xlsx'); toast('✅ Laporan diekspor!');
+  const filename='Laporan_Penagihan_'+TODAY.replace(/-/g,'')+'.xlsx';
+  XLSX.writeFile(wb,filename); toast('✅ Laporan diekspor!');
+
+  if(gsUrl){
+    try{
+      const base64=XLSX.write(wb,{bookType:'xlsx',type:'base64'});
+      postGsAction('upload_report',{filename:filename,base64:base64},CLOUD_PUSH_TIMEOUT_MS)
+        .then(function(){ toast('☁️ Salinan tersimpan di Drive bersama'); })
+        .catch(function(e){ console.warn('Upload laporan ke Drive gagal:',e.message); });
+    }catch(e){ console.warn('Gagal siapkan upload laporan:',e); }
+  }
 }
 
 // ═══ HELPERS ═══
@@ -4687,6 +5069,44 @@ function fetchJsonWithTimeout(url, opts={}, timeoutMs=12000){
     .finally(function(){ clearTimeout(t); });
 }
 
+const BUKTI_UPLOAD_MAX_BYTES=5*1024*1024;
+// Upload foto/screenshot bukti tindak lanjut ke Drive lewat Apps Script backend (action 'upload_bukti'),
+// lalu isi otomatis field link bukti dengan URL hasil upload. Butuh handler 'upload_bukti' di Apps Script
+// (belum tentu sudah ada - lihat catatan di dokumentasi).
+function uploadBuktiFile(prefix,inputEl){
+  const file=inputEl.files&&inputEl.files[0];
+  const statusEl=document.getElementById(prefix+'-bukti-status');
+  const urlEl=document.getElementById(prefix+'-bukti');
+  if(!file) return;
+  if(!gsUrl){
+    if(statusEl) statusEl.textContent='⚠️ Isi URL Google Apps Script dulu (panel Sinkronisasi) sebelum upload bukti.';
+    inputEl.value='';
+    return;
+  }
+  if(file.size>BUKTI_UPLOAD_MAX_BYTES){
+    if(statusEl) statusEl.textContent='⚠️ File maksimal 5MB.';
+    inputEl.value='';
+    return;
+  }
+  if(statusEl) statusEl.textContent='⏳ Mengupload bukti...';
+  const reader=new FileReader();
+  reader.onload=function(){
+    const base64=String(reader.result).split(',')[1]||'';
+    postGsAction('upload_bukti',{filename:file.name,mimeType:file.type||'image/jpeg',base64:base64},CLOUD_PUSH_TIMEOUT_MS)
+      .then(function(res){
+        if(!res.url) throw new Error('Backend tidak mengembalikan URL');
+        if(urlEl) urlEl.value=res.url;
+        if(statusEl) statusEl.textContent='✅ Bukti terupload';
+        toast('✅ Bukti tindak lanjut terupload');
+      })
+      .catch(function(e){
+        if(statusEl) statusEl.textContent='❌ Upload gagal: '+e.message;
+        toast('❌ Upload bukti gagal: '+e.message);
+      });
+  };
+  reader.onerror=function(){ if(statusEl) statusEl.textContent='❌ Gagal membaca file.'; };
+  reader.readAsDataURL(file);
+}
 function postGsAction(action,payload,timeoutMs){
   return fetchJsonWithTimeout(gsUrl,{
     method:'POST',
@@ -4757,7 +5177,7 @@ function pushAllToSheets(silent=false){
 
 function buildInvoicePayload(){
   return invs.map(function(i){
-    return {no:normalizeIdentifierLikeValue(i.no),cust:i.cust,amt:i.amt,pay:i.pay,picB:i.picB||'',
+    return {no:normalizeIdentifierLikeValue(i.no),cust:i.cust,amt:i.amt,pay:i.pay,picB:i.picB||'',picResume:i.picResume||'',
       sBA:i.sBA||'',sSrt:i.sSrt||'',sMIR:i.sMIR||'',sNota:normalizeIdentifierLikeValue(i.sNota||''),tgl:i.tgl||'',
       type:i.type||'',desc:i.desc||'',noBA:normalizeIdentifierLikeValue(i.noBA||''),noSrt:normalizeIdentifierLikeValue(i.noSrt||''),noMIR:normalizeIdentifierLikeValue(i.noMIR||'')};
   });
@@ -5226,6 +5646,7 @@ function sanitizePersistedInvoiceRow(i){
     amt:Number(i.amt||0),
     pay:String(i.pay||''),
     picB:String(i.picB||''),
+    picResume:String(i.picResume||''),
     sBA:String(i.sBA||''),
     sSrt:String(i.sSrt||''),
     sMIR:String(i.sMIR||''),
