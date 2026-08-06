@@ -1144,16 +1144,17 @@ const KPI_OFFICIAL_ROLES={RIZAL:'penagihan',ACHMAD:'keuangan'};
 // TW II.xlsx") - beda cuma di bobot & Rizal nggak punya item A5 (ICOFR, khusus Achmad krn
 // jabatannya Staf Keuangan lebih luas dari Staff Penagihan).
 const KPI_OFFICIAL_ITEMS={
-  // A1 tetap MANUAL - butuh "Jumlah Pranota Terbit", data yg nggak ada di resume_nota_p2p.
-  // A2/A3/A4 pakai bucketCode (snapshot baseline->resolved, lihat computeBucketResolvedScore).
+  // A1-A4 semua pakai bucketCode (snapshot baseline->resolved, lihat computeBucketResolvedScore).
+  // "Pranota"(A1) = BA, "Tagihan Bermasalah"(A2/A3) = invoice pernah reject, sudah dipetakan
+  // ke bucket A1-A4 yang sama persis dgn kode di sheet REKAP P2P manual.
   penagihan:[
-    {code:'A1',label:'Penerbitan nota tagihan',weight:0.25,periode:'Bulanan',source:'manual',formula:'rata-rata (Jumlah Tagihan Terbit / Jumlah Pranota Terbit) × 100% - data pranota tidak ada di app'},
+    {code:'A1',label:'Penerbitan nota tagihan',weight:0.25,periode:'Bulanan',source:'auto',bucketCode:'A1',formula:'"Pranota Terbit" = BA Completed, "Tagihan Terbit" = Surat Tagihan Completed. % invoice bucket "Surat tagihan belum dibuat" (kode A1 di REKAP P2P) yg sudah resolve sejak baseline'},
     {code:'A2',label:'Melakukan follow up terhadap tagihan periode berjalan ke User',weight:0.25,periode:'Bulanan',source:'auto',bucketCode:'A2',formula:'% invoice bucket "Nota Dinas bermasalah" yg sudah resolve sejak baseline'},
     {code:'A3',label:'Pemenuhan dan Pembetulan untuk tagihan reject ke Divisi Operasional',weight:0.25,periode:'Bulanan',source:'auto',bucketCode:'A3',formula:'% invoice bucket "MIR7 Rejected" yg sudah resolve sejak baseline'},
     {code:'A4',label:'Memastikan penerimaan kas terhadap MIR7 periode berjalan',weight:0.25,periode:'Bulanan',source:'auto',bucketCode:'A4',formula:'% invoice bucket "Selesai verifikasi belum terbayar" yg sudah lunas sejak baseline'}
   ],
   keuangan:[
-    {code:'A1',label:'Penerbitan nota tagihan',weight:0.25,periode:'Bulanan',source:'manual',formula:'rata-rata (Jumlah Tagihan Terbit / Jumlah Pranota Terbit) × 100% - data pranota tidak ada di app'},
+    {code:'A1',label:'Penerbitan nota tagihan',weight:0.25,periode:'Bulanan',source:'auto',bucketCode:'A1',formula:'"Pranota Terbit" = BA Completed, "Tagihan Terbit" = Surat Tagihan Completed. % invoice bucket "Surat tagihan belum dibuat" (kode A1 di REKAP P2P) yg sudah resolve sejak baseline'},
     {code:'A2',label:'Melakukan follow up terhadap tagihan periode berjalan ke User',weight:0.25,periode:'Bulanan',source:'auto',bucketCode:'A2',formula:'% invoice bucket "Nota Dinas bermasalah" yg sudah resolve sejak baseline'},
     {code:'A3',label:'Pemenuhan dan Pembetulan untuk tagihan reject ke Divisi Operasional',weight:0.20,periode:'Bulanan',source:'auto',bucketCode:'A3',formula:'% invoice bucket "MIR7 Rejected" yg sudah resolve sejak baseline (tervalidasi = 98.31% di TW II asli)'},
     {code:'A4',label:'Memastikan penerimaan kas terhadap MIR7 periode berjalan',weight:0.25,periode:'Bulanan',source:'auto',bucketCode:'A4',formula:'% invoice bucket "Selesai verifikasi belum terbayar" yg sudah lunas sejak baseline'},
