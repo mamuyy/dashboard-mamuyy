@@ -1139,20 +1139,23 @@ const KPI_OFFICIAL_ROLES={RIZAL:'penagihan',ACHMAD:'keuangan'};
 // baseline). Sudah tervalidasi: bucket A3 (Mir7 Rejected) utk Achmad menghasilkan 98.31%,
 // PERSIS sama dgn angka di formulir resmi TW II dia. Butuh "Set Baseline" dulu tiap kuartal
 // (tombol admin di UI) - kalau belum ada baseline, item ini tampil "Belum ada baseline".
+// PENTING: Rizal & Achmad ternyata pakai item KPI & rumus yang SAMA PERSIS (dikonfirmasi dari
+// dokumen resmi "12. RIZAL FIRMANSYAH - APPROVED.xlsx" & "66. ACHMAD MUJIARTO - APPROVED UNTUK
+// TW II.xlsx") - beda cuma di bobot & Rizal nggak punya item A5 (ICOFR, khusus Achmad krn
+// jabatannya Staf Keuangan lebih luas dari Staff Penagihan).
 const KPI_OFFICIAL_ITEMS={
+  // A1 tetap MANUAL - butuh "Jumlah Pranota Terbit", data yg nggak ada di resume_nota_p2p.
+  // A2/A3/A4 pakai bucketCode (snapshot baseline->resolved, lihat computeBucketResolvedScore).
   penagihan:[
-    {code:'A1',label:'Menerbitkan nota tagihan',weight:0.25,periode:'Bulanan',source:'auto',bucketCode:'A1',formula:'% invoice bucket "Surat tagihan belum dibuat" yg sudah resolve sejak baseline'},
-    {code:'A2',label:'Melakukan revisi nota tagihan',weight:0.25,periode:'Bulanan',source:'auto',bucketCode:'A2',formula:'% invoice bucket "Nota Dinas bermasalah" yg sudah resolve sejak baseline'},
-    {code:'A3',label:'Pemenuhan kekurangan lampiran tagihan',weight:0.20,periode:'Bulanan',source:'auto',bucketCode:'A3',formula:'% invoice bucket "MIR7 Rejected" yg sudah resolve sejak baseline'},
-    {code:'A4',label:'Follow up terhadap tagihan reject',weight:0.20,periode:'Bulanan',source:'auto',bucketCode:'A4',formula:'% invoice bucket "Selesai verifikasi belum terbayar" yg sudah lunas sejak baseline'},
-    {code:'A5',label:'Proses MIR7 untuk user',weight:0.10,periode:'Bulanan',source:'auto',metricKey:'mir7Selesai',formula:'(asumsi, snapshot kondisi terkini) % invoice dengan MIR7 selesai - tidak ada kode bucket A1-A4 yg cocok utk item ini di REKAP P2P'}
+    {code:'A1',label:'Penerbitan nota tagihan',weight:0.25,periode:'Bulanan',source:'manual',formula:'rata-rata (Jumlah Tagihan Terbit / Jumlah Pranota Terbit) × 100% - data pranota tidak ada di app'},
+    {code:'A2',label:'Melakukan follow up terhadap tagihan periode berjalan ke User',weight:0.25,periode:'Bulanan',source:'auto',bucketCode:'A2',formula:'% invoice bucket "Nota Dinas bermasalah" yg sudah resolve sejak baseline'},
+    {code:'A3',label:'Pemenuhan dan Pembetulan untuk tagihan reject ke Divisi Operasional',weight:0.25,periode:'Bulanan',source:'auto',bucketCode:'A3',formula:'% invoice bucket "MIR7 Rejected" yg sudah resolve sejak baseline'},
+    {code:'A4',label:'Memastikan penerimaan kas terhadap MIR7 periode berjalan',weight:0.25,periode:'Bulanan',source:'auto',bucketCode:'A4',formula:'% invoice bucket "Selesai verifikasi belum terbayar" yg sudah lunas sejak baseline'}
   ],
-  // A1 (pranota) & A5 (ICOFR) tetap MANUAL - datanya di luar cakupan resume_nota_p2p sama sekali.
-  // A2/A3/A4 pakai bucketCode yg sama seperti Rizal - tervalidasi cocok (A3=98.31% pas formulir asli).
   keuangan:[
     {code:'A1',label:'Penerbitan nota tagihan',weight:0.25,periode:'Bulanan',source:'manual',formula:'rata-rata (Jumlah Tagihan Terbit / Jumlah Pranota Terbit) × 100% - data pranota tidak ada di app'},
-    {code:'A2',label:'Follow up terhadap tagihan periode berjalan ke User',weight:0.25,periode:'Bulanan',source:'auto',bucketCode:'A2',formula:'% invoice bucket "Nota Dinas bermasalah" yg sudah resolve sejak baseline'},
-    {code:'A3',label:'Pemenuhan dan pembetulan untuk tagihan reject ke Divisi Operasional',weight:0.20,periode:'Bulanan',source:'auto',bucketCode:'A3',formula:'% invoice bucket "MIR7 Rejected" yg sudah resolve sejak baseline (tervalidasi = 98.31% di TW II asli)'},
+    {code:'A2',label:'Melakukan follow up terhadap tagihan periode berjalan ke User',weight:0.25,periode:'Bulanan',source:'auto',bucketCode:'A2',formula:'% invoice bucket "Nota Dinas bermasalah" yg sudah resolve sejak baseline'},
+    {code:'A3',label:'Pemenuhan dan Pembetulan untuk tagihan reject ke Divisi Operasional',weight:0.20,periode:'Bulanan',source:'auto',bucketCode:'A3',formula:'% invoice bucket "MIR7 Rejected" yg sudah resolve sejak baseline (tervalidasi = 98.31% di TW II asli)'},
     {code:'A4',label:'Memastikan penerimaan kas terhadap MIR7 periode berjalan',weight:0.25,periode:'Bulanan',source:'auto',bucketCode:'A4',formula:'% invoice bucket "Selesai verifikasi belum terbayar" yg sudah lunas sejak baseline'},
     {code:'A5',label:'Implementasi ICOFR di lingkungan PT Pelabuhan Indonesia (Persero)',weight:0.05,periode:'Tahunan',source:'manual',formula:'(Realisasi SOP Expend & Revenue / Jumlah Keseluruhan SOP Expend & Revenue) × 100% - dinilai tahunan, di luar cakupan data AR'}
   ]
