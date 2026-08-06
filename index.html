@@ -3347,8 +3347,9 @@ function setKpiBaseline(picName,quarterKey){
 // bukan dianggap otomatis selesai.
 function computeBucketResolvedScore(picName,quarterKey,code){
   const snap=getKpiSnapshot(picName,quarterKey);
-  if(!snap||!snap.buckets||!snap.buckets[code]||!snap.buckets[code].length) return null;
+  if(!snap||!snap.buckets||!snap.buckets[code]) return null; // belum pernah Set Baseline
   const baselineNos=snap.buckets[code];
+  if(!baselineNos.length) return 100; // baseline ada, tapi 0 invoice bermasalah = target sudah tercapai
   const invByNo={};
   invs.forEach(function(i){ invByNo[i.no]=i; });
   let verifiable=0, stillStuck=0;
@@ -3358,7 +3359,7 @@ function computeBucketResolvedScore(picName,quarterKey,code){
     verifiable++;
     if(getKpiBucketCode(i)===code) stillStuck++;
   });
-  if(!verifiable) return null;
+  if(!verifiable) return null; // semua referensi baseline hilang, nggak bisa diverifikasi
   return clampScore(((verifiable-stillStuck)/verifiable)*100);
 }
 function computeOfficialDocMetrics(picName){
