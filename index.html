@@ -3312,22 +3312,53 @@ function getOfficialAssignedInvoices(picName){
 }
 
 // ═══ SNAPSHOT KPI (baseline → resolved-over-time, sesuai metodologi REKAP P2P) ═══
+// Baseline disimpan PER BULAN ('YYYY-MM') karena kolom "Periode" tiap item KPI resmi =
+// Bulanan - skor kuartal = rata-rata skor bulan-bulan yang sudah py baseline.
 function loadKpiSnapshots(){
-  try{ return JSON.parse(localStorage.getItem(KPI_SNAPSHOTS_KEY)||'{}'); }catch(e){ return {}; }
+  let all;
+  try{ all=JSON.parse(localStorage.getItem(KPI_SNAPSHOTS_KEY)||'{}'); }catch(e){ return {}; }
+  // Migrasi format lama (key quarterKey mis. 'TW III 2026') -> monthKey 'YYYY-MM' dari baselineDate.
+  let migrated=false;
+  Object.keys(all).forEach(function(picKey){
+    const entry=all[picKey]||{};
+    Object.keys(entry).forEach(function(k){
+      if(/^\d{4}-\d{2}$/.test(k)) return; // sudah format baru
+      const snap=entry[k];
+      const monthKey=snap&&snap.baselineDate?String(snap.baselineDate).slice(0,7):null;
+      if(monthKey&&!entry[monthKey]){ entry[monthKey]=snap; }
+      delete entry[k];
+      migrated=true;
+    });
+  });
+  if(migrated) localStorage.setItem(KPI_SNAPSHOTS_KEY,JSON.stringify(all));
+  return all;
 }
-function getKpiSnapshot(picName,quarterKey){
+function getKpiSnapshot(picName,monthKey){
   const all=loadKpiSnapshots();
   const key=canonicalPicName(picName);
-  return (all[key]&&all[key][quarterKey])||null;
+  return (all[key]&&all[key][monthKey])||null;
+}
+function getMonthKeysInQuarter(quarterKey){
+  const range=KPI_OFFICIAL_QUARTERS[quarterKey];
+  if(!range) return [];
+  const months=[];
+  let cur=new Date(range.start+'T00:00:00Z');
+  const end=new Date(range.end+'T00:00:00Z');
+  while(cur<=end){
+    months.push(cur.toISOString().slice(0,7));
+    cur=new Date(Date.UTC(cur.getUTCFullYear(),cur.getUTCMonth()+1,1));
+  }
+  return months;
 }
 // Ambil kondisi invoice assigned PIC ini SEKARANG, kelompokkan per bucket A1-A4, simpan
-// sebagai baseline. Skor ke depan dihitung dari berapa banyak invoice di daftar baseline ini
-// yang SUDAH KELUAR dari bucket-nya (statusnya maju) dibanding masih nyangkut.
-function setKpiBaseline(picName,quarterKey){
+// sebagai baseline bulan ini. Skor ke depan dihitung dari berapa banyak invoice di daftar
+// baseline ini yang SUDAH KELUAR dari bucket-nya (statusnya maju) dibanding masih nyangkut.
+function setKpiBaseline(picName,monthKey,silent){
   const key=canonicalPicName(picName);
-  const existing=getKpiSnapshot(picName,quarterKey);
-  if(existing&&!confirm('Baseline '+key+' - '+quarterKey+' sudah ada (tanggal '+existing.baselineDate+'). Timpa dengan kondisi hari ini? Pengukuran periode ini akan direset dari awal.')){
-    return;
+  const existing=getKpiSnapshot(picName,monthKey);
+  if(existing){
+    if(silent) return; // auto-capture: jangan timpa yang sudah ada
+    if(!confirm('Baseline '+key+' - bulan '+monthKey+' sudah ada (tanggal '+existing.baselineDate+'). Timpa dengan kondisi hari ini? Pengukuran bulan ini akan direset dari awal.')) return;
   }
   const assigned=getOfficialAssignedInvoices(picName);
   const buckets={A1:[],A2:[],A3:[],A4:[]};
@@ -3337,17 +3368,26 @@ function setKpiBaseline(picName,quarterKey){
   });
   const all=loadKpiSnapshots();
   all[key]=all[key]||{};
-  all[key][quarterKey]={baselineDate:TODAY,buckets:buckets};
+  all[key][monthKey]={baselineDate:TODAY,buckets:buckets};
   localStorage.setItem(KPI_SNAPSHOTS_KEY,JSON.stringify(all));
-  toast('📌 Baseline '+key+' ('+quarterKey+') diset: A1 '+buckets.A1.length+' · A2 '+buckets.A2.length+' · A3 '+buckets.A3.length+' · A4 '+buckets.A4.length);
-  renderKpiOfficial();
+  if(!silent){
+    toast('📌 Baseline '+key+' ('+monthKey+') diset: A1 '+buckets.A1.length+' · A2 '+buckets.A2.length+' · A3 '+buckets.A3.length+' · A4 '+buckets.A4.length);
+    renderKpiOfficial();
+  }
 }
-// Skor = (jumlah baseline - yang masih nyangkut di bucket sama) / jumlah baseline.
+// Kalau bulan berjalan (TODAY) belum py baseline utk PIC ini, capture otomatis (diam-diam,
+// nggak nimpa apa pun yg sudah ada). Dipanggil tiap render KPI Resmi - jadi otomatis
+// ke-trigger begitu ADA yang buka Dashboard di bulan baru (app statis, nggak ada cron).
+function ensureMonthlyBaselineIfNew(picName){
+  const monthKey=TODAY.slice(0,7);
+  if(!getKpiSnapshot(picName,monthKey)) setKpiBaseline(picName,monthKey,true);
+}
+// Skor 1 bulan = (jumlah baseline - yang masih nyangkut di bucket sama) / jumlah baseline.
 // Invoice yang sudah tidak ada lagi di data (referensi hilang) di-exclude dari itung-itungan,
 // bukan dianggap otomatis selesai.
-function computeBucketResolvedScore(picName,quarterKey,code){
-  const snap=getKpiSnapshot(picName,quarterKey);
-  if(!snap||!snap.buckets||!snap.buckets[code]) return null; // belum pernah Set Baseline
+function computeBucketResolvedScoreForMonth(picName,monthKey,code){
+  const snap=getKpiSnapshot(picName,monthKey);
+  if(!snap||!snap.buckets||!snap.buckets[code]) return null; // belum pernah Set Baseline bulan ini
   const baselineNos=snap.buckets[code];
   if(!baselineNos.length) return 100; // baseline ada, tapi 0 invoice bermasalah = target sudah tercapai
   const invByNo={};
@@ -3361,6 +3401,16 @@ function computeBucketResolvedScore(picName,quarterKey,code){
   });
   if(!verifiable) return null; // semua referensi baseline hilang, nggak bisa diverifikasi
   return clampScore(((verifiable-stillStuck)/verifiable)*100);
+}
+// Skor kuartal = rata-rata skor bulan-bulan (dlm kuartal itu) yang sudah py baseline.
+// Bulan yang belum pernah dibuka (belum py baseline) di-skip, bukan dianggap 0.
+function computeBucketResolvedScore(picName,quarterKey,code){
+  const monthKeys=getMonthKeysInQuarter(quarterKey);
+  const monthScores=monthKeys
+    .map(function(mk){ return computeBucketResolvedScoreForMonth(picName,mk,code); })
+    .filter(function(s){ return s!==null; });
+  if(!monthScores.length) return null;
+  return clampScore(monthScores.reduce(function(sum,s){ return sum+s; },0)/monthScores.length);
 }
 function computeOfficialDocMetrics(picName){
   const assigned=getOfficialAssignedInvoices(picName);
@@ -3496,7 +3546,7 @@ function renderKpiOfficialTable(result){
   const rows=result.items.map(function(item){
     let realisasiCell;
     const estimateHint=item.autoEstimate!==null?'<div style="font-size:.62rem;color:#8d6e63;">≈estimasi app: '+item.autoEstimate.toFixed(1)+'% (belum tentu akurat, cek manual)</div>':'';
-    const baselineHint='<div style="font-size:.62rem;color:#e65100;">⚠️ Belum ada baseline kuartal ini - isi manual dulu</div>';
+    const baselineHint='<div style="font-size:.62rem;color:#e65100;">⚠️ Belum ada baseline bulan manapun di kuartal ini - isi manual dulu</div>';
     if(item.bucketCode&&item.needsBaseline&&admin){
       const val=item.filled?item.realisasi.toFixed(1):'';
       realisasiCell='<input type="number" min="0" max="100" step="0.1" value="'+val+'" placeholder="isi %" style="width:64px;" '
@@ -3529,12 +3579,20 @@ function renderKpiOfficialTable(result){
   const tertimbangNote=result.rawScore!==result.totalScore
     ?' <span style="font-size:.68rem;color:var(--sub);">(mentah '+result.rawScore.toFixed(1)+', item Tahunan dikeluarkan dari basis bobot kuartal)</span>'
     :'';
-  const snap=getKpiSnapshot(result.pic,result.quarterKey);
-  const baselineInfo=snap
-    ?'Baseline: <strong>'+snap.baselineDate+'</strong> · A1 '+snap.buckets.A1.length+' · A2 '+snap.buckets.A2.length+' · A3 '+snap.buckets.A3.length+' · A4 '+snap.buckets.A4.length+' invoice'
-    :'<span style="color:#e65100;">Belum ada baseline untuk '+esc(result.quarterKey)+'</span>';
+  const monthKeys=getMonthKeysInQuarter(result.quarterKey);
+  const monthNames={'01':'Jan','02':'Feb','03':'Mar','04':'Apr','05':'Mei','06':'Jun','07':'Jul','08':'Agu','09':'Sep','10':'Okt','11':'Nov','12':'Des'};
+  const currentMonthKey=TODAY.slice(0,7);
+  const monthLines=monthKeys.map(function(mk){
+    const s=getKpiSnapshot(result.pic,mk);
+    const label=monthNames[mk.slice(5,7)]+' '+mk.slice(0,4);
+    if(!s) return label+': <span style="color:#9e9e9e;">belum dibuka</span>';
+    const total=s.buckets.A1.length+s.buckets.A2.length+s.buckets.A3.length+s.buckets.A4.length;
+    return label+': baseline '+s.baselineDate+' ('+total+' invoice)';
+  });
+  const baselineInfo=monthLines.join(' &nbsp;|&nbsp; ');
+  const currentSnap=getKpiSnapshot(result.pic,currentMonthKey);
   const baselineBtn=admin
-    ?' <button class="btn btn-outline btn-sm" style="padding:2px 8px;font-size:.68rem;" onclick="setKpiBaseline(\''+jsq(result.pic)+'\',\''+jsq(result.quarterKey)+'\')">📌 '+(snap?'Reset':'Set')+' Baseline</button>'
+    ?' <button class="btn btn-outline btn-sm" style="padding:2px 8px;font-size:.68rem;" onclick="setKpiBaseline(\''+jsq(result.pic)+'\',\''+jsq(currentMonthKey)+'\')">📌 '+(currentSnap?'Reset':'Set')+' Baseline Bulan Ini</button>'
     :'';
   return '<div style="font-size:.76rem;font-weight:700;color:var(--dark);margin:10px 0 4px;">'+esc(result.pic)+' ('+roleLabel+')</div>'
     +'<div style="font-size:.7rem;color:var(--sub);margin-bottom:6px;">'+baselineInfo+baselineBtn+'</div>'
@@ -3547,6 +3605,9 @@ function renderKpiOfficial(){
   populateKpiOfficialQuarterOptions();
   const quarterKey=getSelectedKpiOfficialQuarter();
   const pics=Object.keys(KPI_OFFICIAL_ROLES);
+  // Auto-capture baseline bulan berjalan kalau belum ada - jangan capture kalau data invoice
+  // belum kemuat (invs kosong), supaya nggak nyimpen baseline 0-invoice yang salah.
+  if(invs.length) pics.forEach(function(p){ ensureMonthlyBaselineIfNew(p); });
   const results=pics.map(function(p){ return computeOfficialKpiForPic(p,quarterKey); }).filter(Boolean);
   if(!results.length){ host.innerHTML='<div style="color:var(--sub);font-size:.78rem;">Belum ada PIC dengan role resmi.</div>'; return; }
   host.innerHTML=results.map(renderKpiOfficialTable).join('');
