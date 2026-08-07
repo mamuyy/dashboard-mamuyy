@@ -1189,7 +1189,8 @@ const PIC_ALIAS_MAP={AULIA:'AULYA'};
 const raw={};
 let adminPinHash='';
 let adminSessionUnlocked=false;
-const DEFAULT_GS_URL='https://script.google.com/macros/s/AKfycbxVGkV8mQDG-OxmUa-UM27r0id0Pp_u0IHVC6WfoT_Kyz7qT3jlLQYxYDGK6kuhmc5m6A/exec';
+const DEFAULT_GS_URL='https://script.google.com/macros/s/AKfycbxTWS_HlurwqZRGujkRei3PXIIp0zELyWoedY7COsNbEsrygOlRMlJLk0auG_bbwrbClg/exec';
+const LEGACY_GS_URL='https://script.google.com/macros/s/AKfycbxVGkV8mQDG-OxmUa-UM27r0id0Pp_u0IHVC6WfoT_Kyz7qT3jlLQYxYDGK6kuhmc5m6A/exec';
 
 function formatSheetsPushTime(isoString){
   if(!isoString) return '';
@@ -1239,7 +1240,11 @@ window.addEventListener('load',()=>{
     const sp=localStorage.getItem('fu_pic');
     if(sp){ pic=sp; updPIC(); }
 
-    const su=localStorage.getItem('gs_url');
+    let su=localStorage.getItem('gs_url');
+    if(su && su.trim()===LEGACY_GS_URL){
+      su=DEFAULT_GS_URL;
+      localStorage.setItem('gs_url',su);
+    }
     gsUrl=(su||DEFAULT_GS_URL).trim();
     if(gsUrl){
       if(!su) localStorage.setItem('gs_url',gsUrl);
