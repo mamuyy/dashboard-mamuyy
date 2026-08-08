@@ -3105,6 +3105,15 @@ function applyModalMode(mode){
     jBox('m',false);
   }
 }
+// Status "hasil" Tim Surat yang berarti dokumen Surat Tagihan benar-benar berpindah status
+// (bukan cuma catatan aktivitas) - dipetakan ke sSrt supaya bucket KPI Resmi A1/A2 (Rizal &
+// Achmad) ikut bergerak, bukan cuma nyangkut di log tanpa pernah menyentuh status dokumennya.
+const SURAT_HASIL_TO_SSRT={
+  'Sedang Proses':'In Progress',
+  'Sudah Dibuat':'In Progress',
+  'Sudah Dikirim':'Completed',
+  'Return/Revisi':'Rejected'
+};
 function saveMLog(){
   const no=document.getElementById('m-inv').value, hs=document.getElementById('m-hs').value;
   if(!no||!hs){toast('⚠ Pilih Hasil dulu!');return;}
@@ -3121,6 +3130,11 @@ function saveMLog(){
     nx:nextAction||'',
     cust:i.cust||'',amt:i.amt||0,ts:new Date().toISOString()});
   saveLogs(); closeM(); renderQ(); renderH(); renderDash(); toast('✅ Log disimpan: '+hs);
+  if(mode==='surat' && i.no && SURAT_HASIL_TO_SSRT[hs] && i.sSrt!==SURAT_HASIL_TO_SSRT[hs]){
+    i.sSrt=SURAT_HASIL_TO_SSRT[hs];
+    renderQ(); renderDash();
+    if(gsUrl) pushInvsToSheets({});
+  }
 }
 
 // ═══ QUICK LOG ═══
