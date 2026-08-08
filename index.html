@@ -2591,14 +2591,21 @@ function stagePills(i){
   return p;
 }
 
+function getWaGreeting(){
+  const h = new Date().getHours();
+  if(h < 11) return 'Selamat pagi';
+  if(h < 15) return 'Selamat siang';
+  if(h < 19) return 'Selamat sore';
+  return 'Selamat malam';
+}
 function buildWaUrl(no){
   const i=findInvoiceByNo(no); if(!i) return '#';
   const prog=getInvoiceProgress(i);
   const il=logs.filter(l=>l.inv===no).sort((a,b)=>(b.ts||b.date||'').localeCompare(a.ts||a.date||''));
   const last=il.length?il[0]:null;
-  
-  let header = `Yth. Bapak/Ibu Management/Finance ${i.cust},\n\n` +
-    `Kami dari Tim Penagihan PT Pelindo Daya Sejahtera ingin mengonfirmasi update status tagihan berikut:\n` +
+
+  let header = `${getWaGreeting()},\nYth. Bapak/Ibu Finance/Accounting *${i.cust}*,\n\n` +
+    `Kami dari Tim Penagihan PT Pelindo Daya Sejahtera ingin menyampaikan update status tagihan berikut dan memohon bantuan tindak lanjutnya:\n` +
     `📌 *No. Invoice*: ${i.no}\n` +
     `💰 *Nominal*: ${fmt(i.amt)}\n` +
     `📄 *Deskripsi*: ${i.desc || '-'}\n` +
@@ -2608,22 +2615,22 @@ function buildWaUrl(no){
 
   // Konteks spesifik per bottleneck & SLA 2x24 Jam
   if(prog.key === 'nota_pending' || prog.key === 'nota_rejected'){
-    contextNote = `⚠️ *KENDALA NOTA DINAS*: Status Nota Dinas saat ini *${prog.sNota || 'Belum Dibuat'}*. Mohon bantuan percepatan penerbitan Nota Dinas agar tagihan dapat segera diproses ke tahap berikutnya (SLA 2x24 Jam).\n`;
+    contextNote = `⚠️ *Kendala Nota Dinas*: Status saat ini *${prog.sNota || 'Belum Dibuat'}*. Mohon bantuan Bapak/Ibu untuk mempercepat penerbitan Nota Dinas agar tagihan dapat lanjut ke tahap berikutnya. Kami akan sangat terbantu bila prosesnya bisa selesai dalam 2x24 jam ke depan.\n`;
   } else if(prog.key === 'mir7_pending' || prog.key === 'mir7_rejected'){
-    contextNote = `⚠️ *KENDALA MIR7 / SAP*: Status MIR7/SAP saat ini *${prog.sMIR || 'Belum Dibuat/Proses'}*. Mohon konfirmasi kelengkapan entri dokumen SAP agar pencairan tidak tertahan (SLA 2x24 Jam).\n`;
+    contextNote = `⚠️ *Kendala MIR7 / SAP*: Status MIR7/SAP saat ini *${prog.sMIR || 'Belum Dibuat/Proses'}*. Mohon bantuan konfirmasi kelengkapan entri dokumen SAP agar pencairan tidak tertahan. Target penyelesaian dalam 2x24 jam ya, Bapak/Ibu.\n`;
   } else if(prog.key.startsWith('collection') || prog.key === 'direct_active' || prog.key === 'direct_no_fu' || prog.key === 'direct_janji_overdue'){
-    contextNote = `✅ *STATUS MIR7 COMPLETE (PASCA MIR7)*: Dokumen MIR7/SAP sudah selesai lengkap, namun pembayaran masih *Unpaid*. Mohon informasi jadwal pencairan/transfer dana (SLA Realisasi 2x24 Jam).\n`;
+    contextNote = `✅ *Dokumen Lengkap – Menunggu Pembayaran*: Seluruh dokumen (MIR7/SAP) sudah selesai, namun status pembayaran masih *Unpaid*. Mohon informasi jadwal realisasi transfer dana (target SLA 2x24 Jam).\n`;
     if(last && last.hasil === 'Janji Bayar' && last.jt) {
-      contextNote += `📅 *CATATAN JANJI BAYAR*: Terdata janji pembayaran pada *${last.jt}*${last.jn ? ' sebesar Rp ' + fmt(last.jn) : ''}.\n`;
+      contextNote += `📅 *Catatan Janji Bayar*: Tercatat janji pembayaran pada *${last.jt}*${last.jn ? ' sebesar Rp ' + fmt(last.jn) : ''}. Mohon konfirmasi kesesuaian jadwal tersebut.\n`;
     }
   } else if(prog.key === 'ba_pending' || prog.key === 'ba_rejected'){
-    contextNote = `⚠️ *KENDALA BA/BAST*: Status Berita Acara saat ini *${prog.sBA || 'Belum Selesai'}*. Mohon bantuan verifikasi dokumen BA/BAST (SLA 2x24 Jam).\n`;
+    contextNote = `⚠️ *Kendala Berita Acara (BA/BAST)*: Status BA saat ini *${prog.sBA || 'Belum Selesai'}*. Mohon bantuan verifikasi/penyelesaian dokumen BA/BAST agar proses tagihan dapat dilanjutkan (target SLA 2x24 Jam).\n`;
   } else if(prog.key === 'surat_pending' || prog.key === 'surat_rejected'){
-    contextNote = `⚠️ *KENDALA SURAT TAGIHAN*: Status Surat Tagihan saat ini *${prog.sSrt || 'Belum Dibuat'}*. Mohon bantuan penyelesaian pengiriman surat tagihan (SLA 2x24 Jam).\n`;
+    contextNote = `⚠️ *Kendala Surat Tagihan*: Status Surat Tagihan saat ini *${prog.sSrt || 'Belum Dibuat'}*. Mohon bantuan penyelesaian dan pengiriman surat tagihan agar proses dapat dilanjutkan (target SLA 2x24 Jam).\n`;
   }
 
-  let footer = `\nMohon bantuannya untuk menindaklanjuti titik kendala di atas agar alur proses tagihan tidak tertahan. Terima kasih banyak atas kerja samanya. 🙏\n\n` +
-    `Salam,\nPT Pelindo Daya Sejahtera`;
+  let footer = `\nMohon bantuan dan konfirmasinya, Bapak/Ibu. Apabila ada kendala di sisi Bapak/Ibu, silakan infokan ke kami agar dapat segera dibantu koordinasikan. Terima kasih banyak atas kerja samanya. 🙏\n\n` +
+    `Salam,\n${prog.ownerPerson || 'Tim Penagihan'}\nTim Penagihan – PT Pelindo Daya Sejahtera`;
 
   const fullMsg = header + '\n' + contextNote + footer;
   return 'https://wa.me/?text=' + encodeURIComponent(fullMsg);
