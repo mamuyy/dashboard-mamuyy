@@ -4515,7 +4515,7 @@ function renderDash(){
         const tim=TIM.surat,sc=myInvs.length>0?'#6a1b9a':'#2e7d32',sb=myInvs.length>0?'#f3e5f5':'#f1f8e9';
         html+='<div class="pic-card" style="background:'+sb+';border:1px solid '+sc+'44;" onclick="this.classList.toggle(\'open\')">'
           +'<div class="pic-card-hd">'
-          +'<span style="font-weight:700;font-size:.83rem;color:'+tim.color+';">'+displayName+'</span>'
+          +'<span style="font-weight:700;font-size:.83rem;color:'+tim.color+';">'+esc(displayName)+'</span>'
           +'<span class="pic-card-arr">▼</span>'
           +'</div>'
           +'<div style="font-size:.72rem;color:var(--sub);margin-bottom:5px;"><strong>'+myInvs.length+'</strong> invoice</div>'
@@ -4526,10 +4526,10 @@ function renderDash(){
         if(myInvs.length){
           myInvs.sort(function(a,b){return b.amt-a.amt;}).forEach(function(inv){
             var isKritis=inv.amt>50000000;
-            html+='<tr><td style="'+(isKritis?'color:#c62828;font-weight:700;':'')+'">'+inv.no+'</td>'
-              +'<td>'+inv.cust+'</td>'
+            html+='<tr><td style="'+(isKritis?'color:#c62828;font-weight:700;':'')+'">'+esc(inv.no)+'</td>'
+              +'<td>'+esc(inv.cust)+'</td>'
               +'<td style="text-align:right;font-weight:700;">'+fmt(inv.amt)+(isKritis?' <span style="background:#e53935;color:#fff;border-radius:3px;padding:1px 3px;font-size:.6rem;white-space:nowrap;">KRITIS</span>':'')+'</td>'
-              +'<td><button class="btn-go" onclick="goToInv(\''+inv.no+'\')">→ Buka</button></td></tr>';
+              +'<td><button class="btn-go" onclick="goToInv(\''+jsq(inv.no)+'\')">→ Buka</button></td></tr>';
           });
         } else {
           html+='<tr><td colspan="4" style="text-align:center;color:var(--sub);padding:10px;">—</td></tr>';
