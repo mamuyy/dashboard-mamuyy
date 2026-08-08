@@ -5638,6 +5638,17 @@ function pushAllDataToSheets(opts){
     });
 }
 
+function renderActiveTabOnly(){
+  const isModalOpen = document.getElementById('mbg') && document.getElementById('mbg').classList.contains('open');
+  if(isModalOpen) return; // Tunda background re-render jika modal sedang terbuka agar mengetik tidak pernah terganggu
+  const activePage = document.querySelector('.page.active');
+  if(!activePage) { renderQ(); return; }
+  const p = activePage.id.replace('page-','');
+  if(p==='queue') renderQ();
+  else if(p==='history') renderH();
+  else if(p==='dash') renderDash();
+}
+
 // ── PULL semua data dari Sheets (untuk TIM) ──
 function pullAllFromSheets(silent=false){
   if(pullAllInFlightPromise){
@@ -5715,7 +5726,7 @@ function pullAllFromSheets(silent=false){
       document.getElementById('data-badge').textContent='☁️ '+TODAY;
       setGsStatus('✅ Data Sheets berhasil ditarik ke browser ini — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
       if(!silent || hasInvoiceChanged || hasAgingChanged || hasLogsChanged){
-        renderQ(); renderH(); renderDash();
+        renderActiveTabOnly();
       }
       if(!silent) toast('✅ Data lengkap! '+invs.length+' invoice, '+Object.keys(agMap).length+' customer aging, '+logs.length+' log FU');
       if(!silent) showPage('dash');
