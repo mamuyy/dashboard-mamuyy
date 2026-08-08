@@ -2253,12 +2253,14 @@ function getProgressTone(prog){
   if(prog.stage==='collection' || prog.stage==='direct') return 'collection';
   return 'pending';
 }
-function getStageAgeDays(inv){
+function getStageAgeDays(inv, invLogsSorted){
   if(!inv) return { days: 0, dateStr: '–', isOverdue: false, text: '–' };
   // Basis "stagnan" = sejak aktivitas/log terakhir invoice ini (BA/Nota/MIR7/Surat/FU semua tercatat di `logs`).
   // Fallback ke tanggal terbit invoice (inv.tgl) kalau memang belum pernah ada log sama sekali,
   // karena itu tandanya invoice sudah diam sejak awal masuk tanpa ada tindak lanjut.
-  const invLogs = logs.filter(l=>l.inv===inv.no).sort((a,b)=>(b.ts||b.date||'').localeCompare(a.ts||a.date||''));
+  // invLogsSorted (opsional): logs invoice ini yang sudah difilter+urut oleh caller (mis. logMap di renderQ)
+  // supaya tidak scan ulang seluruh array `logs` per invoice saat render ratusan baris sekaligus.
+  const invLogs = invLogsSorted || logs.filter(l=>l.inv===inv.no).sort((a,b)=>(b.ts||b.date||'').localeCompare(a.ts||a.date||''));
   const lastLog = invLogs.length ? invLogs[0] : null;
   const dStr = (lastLog && lastLog.date) || inv.tgl || '';
   if(!dStr) return { days: 0, dateStr: '–', isOverdue: false, text: 'Tanggal belum ada' };
@@ -2497,7 +2499,7 @@ function renderQ(append=false){
   if(cf==='j'){ const js=new Set(logs.filter(l=>l.hasil==='Janji Bayar').map(l=>l.inv)); list=list.filter(i=>js.has(i.no)); }
   if(cf==='jt'){ const jts=new Set(logs.filter(l=>l.hasil==='Janji Bayar'&&l.jt===TODAY).map(l=>l.inv)); list=list.filter(i=>jts.has(i.no)); }
   if(cf==='jo'){ const jos=new Set(logs.filter(l=>l.hasil==='Janji Bayar'&&l.jt&&l.jt<TODAY).map(l=>l.inv)); list=list.filter(i=>jos.has(i.no)); }
-  if(cf==='st') list=list.filter(i=>getStageAgeDays(i).isOverdue);
+  if(cf==='st') list=list.filter(i=>getStageAgeDays(i, getLogs(i.no)).isOverdue);
   if(cf==='p1') list=list.filter(i=>['ba_pending','ba_rejected'].includes(getInvoiceProgress(i).key));
   if(cf==='p2') list=list.filter(i=>['surat_pending','surat_rejected'].includes(getInvoiceProgress(i).key));
   if(cf==='p3') list=list.filter(i=>['collection_no_fu','collection_active','collection_janji_overdue'].includes(getInvoiceProgress(i).key));
@@ -2569,7 +2571,7 @@ function renderQ(append=false){
       <div class="inv-cust">${custEsc}</div>
       ${issue&&issue.baRejectEver?`<div class="hist-badge">Pernah BA Reject${issue.baRejectCount?` · ${issue.baRejectCount}x`:''}</div>`:''}
       <div class="inv-desc">${descEsc}</div>
-      <div class="inv-foot">${stagePills(i)}<span class="fu-tag ${fu.d?'d':fu.w?'w':''}">${fu.t}</span><a class="btn-wa" onclick="event.stopPropagation(); window.open(buildWaUrl('${jsq(i.no)}'), '_blank')" title="Chat WA Customer">💬 WA Tagih</a></div>
+      <div class="inv-foot">${stagePills(i, getLogs(i.no))}<span class="fu-tag ${fu.d?'d':fu.w?'w':''}">${fu.t}</span><a class="btn-wa" onclick="event.stopPropagation(); window.open(buildWaUrl('${jsq(i.no)}'), '_blank')" title="Chat WA Customer">💬 WA Tagih</a></div>
     </div>`;
   }).join('');
 
@@ -2585,10 +2587,10 @@ function renderQ(append=false){
     el.insertAdjacentHTML('beforeend', `<button id="loadMoreBtn" onclick="pageQ++; renderQ(true)" class="btn btn-outline" style="width:100%; justify-content:center; margin-top:10px;">Tampilkan Lebih Banyak (${mapped.length - (start+limit)} tersisa)</button>`);
   }
 }
-function stagePills(i){
+function stagePills(i, invLogsSorted){
   const prog=getInvoiceProgress(i);
   const issue=getIssueHistoryForInvoice(i);
-  const stageAge=getStageAgeDays(i);
+  const stageAge=getStageAgeDays(i, invLogsSorted);
   const ageBg=stageAge.days<=2?'#e8f5e9;color:#1b5e20;':stageAge.days<=7?'#fff3e0;color:#e65100;':'#ffebee;color:#c62828;';
   const agePill=`<span class="sp" style="background:${ageBg}font-weight:700;" title="Umur dokumen / durasi tertahan">⏱️ ${stageAge.days}hr${stageAge.isOverdue?' ⚠️':''}</span>`;
   const stageBadge='<span class="sp" style="background:#eceff1;color:#37474f;">'+esc(prog.label)+'</span>';
