@@ -3186,20 +3186,32 @@ function clearQL(){
   document.querySelectorAll('#page-log .rbtn').forEach(b=>b.classList.remove('sel'));
   jBox('ql',false);
 }
+function getDeletedLogIds(){
+  try { return new Set(JSON.parse(localStorage.getItem('mamuyy_deleted_log_ids') || '[]')); }
+  catch(e){ return new Set(); }
+}
+function markLogAsDeleted(id){
+  if(!id) return;
+  const set = getDeletedLogIds();
+  set.add(String(id));
+  localStorage.setItem('mamuyy_deleted_log_ids', JSON.stringify(Array.from(set)));
+}
 function deleteLogEntry(id){
   const idx=logs.findIndex(l=>String(l.id)===String(id));
   if(idx<0){ toast('⚠️ Log tidak ditemukan'); return; }
   const item=logs[idx];
   if(!confirm('Hapus log '+(item.inv||'')+' tanggal '+(item.date||'')+'?')) return;
+  markLogAsDeleted(id);
   logs.splice(idx,1);
   saveLogs('full-sync');
   renderH();
   renderQ();
   renderDash();
-  toast('🗑 Log testing dihapus');
+  toast('🗑 Log dihapus');
 }
 function clearAllLogs(){
   if(!confirm('Hapus semua log?')) return;
+  logs.forEach(l => { if(l.id) markLogAsDeleted(l.id); });
   logs=[];
   saveLogs('full-sync');
   renderH();
@@ -5780,11 +5792,15 @@ function pullAllFromSheets(silent=false){
     }
     hasAgingChanged = prevAgingCount!==Object.keys(agMap||{}).length || prevAgingTotalsSig!==JSON.stringify(agTotals||{});
 
-    // Logs — merge dengan lokal
+    // Logs — merge dengan lokal (filter log yang pernah dihapus)
     if(rLogs.ok && rLogs.logs && rLogs.logs.length){
+      var deletedSet = getDeletedLogIds();
+      var filteredServerLogs = rLogs.logs.filter(function(l){
+        return !deletedSet.has(String(l.id));
+      });
       var map={};
-      logs.forEach(function(l){ map[getLogMergeKey(l)]=l; });
-      rLogs.logs.forEach(function(l){ var k=getLogMergeKey(l); if(!map[k]) map[k]=l; });
+      logs.forEach(function(l){ if(!deletedSet.has(String(l.id))) map[getLogMergeKey(l)]=l; });
+      filteredServerLogs.forEach(function(l){ var k=getLogMergeKey(l); if(!map[k]) map[k]=l; });
       logs=Object.values(map).sort(function(a,b){return (b.ts||'')>(a.ts||'')?1:-1;});
       localStorage.setItem('fu_logs',JSON.stringify(logs));
     }
