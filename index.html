@@ -3145,6 +3145,14 @@ function saveMLog(){
     renderQ(); renderDash();
     if(gsUrl) pushInvsToSheets({});
   }
+  // Follow Up: hasil "Paid" berarti invoice lunas - update i.pay juga (bukan cuma log) supaya
+  // langsung hilang dari filter isInvoiceUnpaid di tab Antrian, bukan nyangkut sampai admin
+  // re-upload Excel besok.
+  if(mode==='followup' && i.no && hs==='Paid' && normalizePayStatus(i.pay)!=='Paid'){
+    i.pay='Paid';
+    renderQ(); renderDash();
+    if(gsUrl) pushInvsToSheets({});
+  }
 }
 
 // ═══ QUICK LOG ═══
