@@ -2650,24 +2650,39 @@ function buildWaUrl(no){
   const isFollowUp=il.length>0;
   const slaLine=isFollowUp?' Mengingat ini follow-up lanjutan, mohon dapat direalisasikan maksimal dalam 2x24 jam ke depan ya, Bapak/Ibu.':'';
 
-  // Nota Dinas & MIR7 masih proses internal DI SISI CUSTOMER (unit fungsi/BPO customer yang
-  // harus menindaklanjuti secara operasional) - baru setelah MIR7 selesai giliran bagian
-  // Finance/Accounting customer yang dihubungi soal pembayaran.
+  // 3 kategori penerima tergantung siapa yang harus menindaklanjuti tahap ini:
+  // - BA & Surat Tagihan: internal PDS sendiri (Tim Operasi & Tim Surat) - bukan customer.
+  // - Nota Dinas & MIR7: unit fungsi/BPO di sisi customer (operasional, bukan Finance).
+  // - Pasca-MIR7 Unpaid: bagian Finance/Accounting customer (giliran bayar).
+  const isInternalOperasi = prog.key==='ba_pending' || prog.key==='ba_rejected';
+  const isInternalSurat = prog.key==='surat_pending' || prog.key==='surat_rejected';
   const isUnitFungsiStage = prog.key==='nota_pending' || prog.key==='nota_rejected' || prog.key==='mir7_pending' || prog.key==='mir7_rejected';
 
-  let header = isUnitFungsiStage
-    ? `${getWaGreeting()},\nYth. Bapak/Ibu Unit Fungsi/BPO terkait *${i.cust}*,\n\n` +
-      `Kami dari Tim Penagihan PT Pelindo Daya Sejahtera ingin menyampaikan update status tagihan berikut dan memohon bantuan tindak lanjutnya:\n` +
+  let header;
+  if(isInternalOperasi || isInternalSurat){
+    const teamLabel = isInternalOperasi ? 'Tim Operasi' : 'Tim Surat';
+    header = `${getWaGreeting()},\nRekan ${teamLabel},\n\n` +
+      `Mohon bantuan tindak lanjut internal untuk invoice berikut ya (pesan ini belum perlu dikirim ke customer):\n` +
       `📌 *No. Invoice*: ${i.no}\n` +
+      `👤 *Customer*: ${i.cust}\n` +
       `💰 *Nominal*: ${fmt(i.amt)}\n` +
       `📄 *Deskripsi*: ${i.desc || '-'}\n` +
-      `📍 *Posisi / Stage*: ${prog.label} (PJ: ${prog.ownerPerson})\n`
-    : `${getWaGreeting()},\nYth. Bapak/Ibu Finance/Accounting *${i.cust}*,\n\n` +
+      `📍 *Posisi / Stage*: ${prog.label} (PJ: ${prog.ownerPerson})\n`;
+  } else if(isUnitFungsiStage){
+    header = `${getWaGreeting()},\nYth. Bapak/Ibu Unit Fungsi/BPO terkait *${i.cust}*,\n\n` +
       `Kami dari Tim Penagihan PT Pelindo Daya Sejahtera ingin menyampaikan update status tagihan berikut dan memohon bantuan tindak lanjutnya:\n` +
       `📌 *No. Invoice*: ${i.no}\n` +
       `💰 *Nominal*: ${fmt(i.amt)}\n` +
       `📄 *Deskripsi*: ${i.desc || '-'}\n` +
       `📍 *Posisi / Stage*: ${prog.label} (PJ: ${prog.ownerPerson})\n`;
+  } else {
+    header = `${getWaGreeting()},\nYth. Bapak/Ibu Finance/Accounting *${i.cust}*,\n\n` +
+      `Kami dari Tim Penagihan PT Pelindo Daya Sejahtera ingin menyampaikan update status tagihan berikut dan memohon bantuan tindak lanjutnya:\n` +
+      `📌 *No. Invoice*: ${i.no}\n` +
+      `💰 *Nominal*: ${fmt(i.amt)}\n` +
+      `📄 *Deskripsi*: ${i.desc || '-'}\n` +
+      `📍 *Posisi / Stage*: ${prog.label} (PJ: ${prog.ownerPerson})\n`;
+  }
 
   let contextNote = '';
 
@@ -2694,13 +2709,19 @@ function buildWaUrl(no){
       contextNote += `📅 *Catatan Janji Bayar*: Tercatat janji pembayaran pada *${last.jt}*${last.jn ? ' sebesar Rp ' + fmt(last.jn) : ''}. Mohon konfirmasi kesesuaian jadwal tersebut.\n`;
     }
   } else if(prog.key === 'ba_pending' || prog.key === 'ba_rejected'){
-    contextNote = `⚠️ *Kendala Berita Acara (BA/BAST)*: Status BA saat ini *${prog.sBA || 'Belum Selesai'}*. Mohon bantuan verifikasi/penyelesaian dokumen BA/BAST agar proses tagihan dapat dilanjutkan.${slaLine}\n`;
+    contextNote = `⚠️ *Status BA Belum Selesai*: Status BA saat ini *${prog.sBA || 'Belum Selesai'}*. Mohon dibantu percepat verifikasi/penyelesaian dokumen BA/BAST supaya proses tagihan bisa lanjut ke tahap berikutnya.${slaLine}\n`;
   } else if(prog.key === 'surat_pending' || prog.key === 'surat_rejected'){
-    contextNote = `⚠️ *Kendala Surat Tagihan*: Status Surat Tagihan saat ini *${prog.sSrt || 'Belum Dibuat'}*. Mohon bantuan penyelesaian dan pengiriman surat tagihan agar proses dapat dilanjutkan.${slaLine}\n`;
+    contextNote = `⚠️ *Status Surat Tagihan Belum Selesai*: Status Surat Tagihan saat ini *${prog.sSrt || 'Belum Dibuat'}*. Mohon dibantu percepat penyelesaian dan pengiriman surat tagihan supaya proses bisa lanjut.${slaLine}\n`;
   }
 
-  let footer = `\nMohon bantuan dan konfirmasinya, Bapak/Ibu. Apabila ada kendala di sisi Bapak/Ibu, silakan infokan ke kami agar dapat segera dibantu koordinasikan. Terima kasih banyak atas kerja samanya. 🙏\n\n` +
-    `Salam,\n${prog.ownerPerson || 'Tim Penagihan'}\nTim Penagihan – PT Pelindo Daya Sejahtera`;
+  let footer;
+  if(isInternalOperasi || isInternalSurat){
+    footer = `\nMohon bantuannya ya. Kalau ada kendala, boleh infokan biar bisa dibantu koordinasikan. Terima kasih! 🙏\n\n` +
+      `Salam,\nTim Penagihan`;
+  } else {
+    footer = `\nMohon bantuan dan konfirmasinya, Bapak/Ibu. Apabila ada kendala di sisi Bapak/Ibu, silakan infokan ke kami agar dapat segera dibantu koordinasikan. Terima kasih banyak atas kerja samanya. 🙏\n\n` +
+      `Salam,\n${prog.ownerPerson || 'Tim Penagihan'}\nTim Penagihan – PT Pelindo Daya Sejahtera`;
+  }
 
   const fullMsg = header + '\n' + contextNote + footer;
   return 'https://wa.me/?text=' + encodeURIComponent(fullMsg);
