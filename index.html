@@ -3310,8 +3310,8 @@ function calcFollowupTotalKpiScore(s){
 function getKpiBand(score){
   if(score>=DASH_RULES.KPI_BANDS.EXCELLENT) return {label:'Excellent',cls:'good'};
   if(score>=DASH_RULES.KPI_BANDS.GOOD) return {label:'Good',cls:'good2'};
-  if(score>=DASH_RULES.KPI_BANDS.WATCHLIST) return {label:'Watchlist',cls:'mid'};
-  return {label:'Needs Focus',cls:'low'};
+  if(score>=DASH_RULES.KPI_BANDS.WATCHLIST) return {label:'Watch',cls:'mid'};
+  return {label:'Critical',cls:'low'};
 }
 function getDummyKpiMetrics(picName){
   return KPI_PIC_DUMMY[picName]||{collectionResult:72,followUpDiscipline:78,overdueReduction:70,pipelineMovement:74,dataQuality:82};
