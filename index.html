@@ -2255,13 +2255,18 @@ function getProgressTone(prog){
 }
 function getStageAgeDays(inv){
   if(!inv) return { days: 0, dateStr: '–', isOverdue: false, text: '–' };
-  const dStr = inv.tgl || (inv.issue ? inv.issue.lastDate : '');
+  // Basis "stagnan" = sejak aktivitas/log terakhir invoice ini (BA/Nota/MIR7/Surat/FU semua tercatat di `logs`).
+  // Fallback ke tanggal terbit invoice (inv.tgl) kalau memang belum pernah ada log sama sekali,
+  // karena itu tandanya invoice sudah diam sejak awal masuk tanpa ada tindak lanjut.
+  const invLogs = logs.filter(l=>l.inv===inv.no).sort((a,b)=>(b.ts||b.date||'').localeCompare(a.ts||a.date||''));
+  const lastLog = invLogs.length ? invLogs[0] : null;
+  const dStr = (lastLog && lastLog.date) || inv.tgl || '';
   if(!dStr) return { days: 0, dateStr: '–', isOverdue: false, text: 'Tanggal belum ada' };
   const dt = new Date(dStr);
   if(isNaN(dt.getTime())) return { days: 0, dateStr: dStr, isOverdue: false, text: dStr };
   const now = new Date(TODAY);
   const diffDays = Math.max(0, Math.floor((now - dt) / (1000 * 60 * 60 * 24)));
-  const isOverdue = diffDays > 2; // > 2 Hari (SLA 2x24 Jam)
+  const isOverdue = diffDays > 2; // > 2 Hari sejak aktivitas terakhir (SLA 2x24 Jam)
   return {
     days: diffDays,
     dateStr: dStr,
