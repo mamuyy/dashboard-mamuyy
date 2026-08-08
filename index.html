@@ -2650,12 +2650,24 @@ function buildWaUrl(no){
   const isFollowUp=il.length>0;
   const slaLine=isFollowUp?' Mengingat ini follow-up lanjutan, mohon dapat direalisasikan maksimal dalam 2x24 jam ke depan ya, Bapak/Ibu.':'';
 
-  let header = `${getWaGreeting()},\nYth. Bapak/Ibu Finance/Accounting *${i.cust}*,\n\n` +
-    `Kami dari Tim Penagihan PT Pelindo Daya Sejahtera ingin menyampaikan update status tagihan berikut dan memohon bantuan tindak lanjutnya:\n` +
-    `📌 *No. Invoice*: ${i.no}\n` +
-    `💰 *Nominal*: ${fmt(i.amt)}\n` +
-    `📄 *Deskripsi*: ${i.desc || '-'}\n` +
-    `📍 *Posisi / Stage*: ${prog.label} (PJ: ${prog.ownerPerson})\n`;
+  // Nota Dinas & MIR7 masih proses internal DI SISI CUSTOMER (unit fungsi/BPO customer yang
+  // harus menindaklanjuti secara operasional) - baru setelah MIR7 selesai giliran bagian
+  // Finance/Accounting customer yang dihubungi soal pembayaran.
+  const isUnitFungsiStage = prog.key==='nota_pending' || prog.key==='nota_rejected' || prog.key==='mir7_pending' || prog.key==='mir7_rejected';
+
+  let header = isUnitFungsiStage
+    ? `${getWaGreeting()},\nYth. Bapak/Ibu Unit Fungsi/BPO terkait *${i.cust}*,\n\n` +
+      `Kami dari Tim Penagihan PT Pelindo Daya Sejahtera ingin menyampaikan update status tagihan berikut dan memohon bantuan tindak lanjutnya:\n` +
+      `📌 *No. Invoice*: ${i.no}\n` +
+      `💰 *Nominal*: ${fmt(i.amt)}\n` +
+      `📄 *Deskripsi*: ${i.desc || '-'}\n` +
+      `📍 *Posisi / Stage*: ${prog.label} (PJ: ${prog.ownerPerson})\n`
+    : `${getWaGreeting()},\nYth. Bapak/Ibu Finance/Accounting *${i.cust}*,\n\n` +
+      `Kami dari Tim Penagihan PT Pelindo Daya Sejahtera ingin menyampaikan update status tagihan berikut dan memohon bantuan tindak lanjutnya:\n` +
+      `📌 *No. Invoice*: ${i.no}\n` +
+      `💰 *Nominal*: ${fmt(i.amt)}\n` +
+      `📄 *Deskripsi*: ${i.desc || '-'}\n` +
+      `📍 *Posisi / Stage*: ${prog.label} (PJ: ${prog.ownerPerson})\n`;
 
   let contextNote = '';
 
