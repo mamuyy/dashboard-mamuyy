@@ -2449,6 +2449,16 @@ function renderQ(append=false){
   });
   const getLogs = (no) => logMap[no] || [];
 
+  // Cache getInvoiceProgress per invoice dalam 1x panggilan renderQ() - fungsi ini dipanggil
+  // berkali-kali (filter, mapped, summary stats) untuk himpunan invoice yang sama, jadi tanpa
+  // cache ini dihitung ulang 3-4x per invoice tiap render (jadi bottleneck utama di dataset besar).
+  const progCache = {};
+  function getProg(inv){
+    let p = progCache[inv.no];
+    if(!p){ p = getInvoiceProgress(inv); progCache[inv.no] = p; }
+    return p;
+  }
+
   function fastPrio(inv){
     const il=getLogs(inv.no); const last=il.length?il[0]:null;
     let sc=0;
@@ -2470,7 +2480,7 @@ function renderQ(append=false){
   }
   function matchStageSubfilter(inv){
     if(!csub) return true;
-    const prog=getInvoiceProgress(inv);
+    const prog=getProg(inv);
     if(cf==='p1') return prog.sBA===csub;
     if(cf==='p2'){
       if(csub==='p2p_only') return getInvoiceBusinessClass(inv)==='p2p';
@@ -2500,19 +2510,19 @@ function renderQ(append=false){
   if(cf==='jt'){ const jts=new Set(logs.filter(l=>l.hasil==='Janji Bayar'&&l.jt===TODAY).map(l=>l.inv)); list=list.filter(i=>jts.has(i.no)); }
   if(cf==='jo'){ const jos=new Set(logs.filter(l=>l.hasil==='Janji Bayar'&&l.jt&&l.jt<TODAY).map(l=>l.inv)); list=list.filter(i=>jos.has(i.no)); }
   if(cf==='st') list=list.filter(i=>getStageAgeDays(i, getLogs(i.no)).isOverdue);
-  if(cf==='p1') list=list.filter(i=>['ba_pending','ba_rejected'].includes(getInvoiceProgress(i).key));
-  if(cf==='p2') list=list.filter(i=>['surat_pending','surat_rejected'].includes(getInvoiceProgress(i).key));
-  if(cf==='p3') list=list.filter(i=>['collection_no_fu','collection_active','collection_janji_overdue'].includes(getInvoiceProgress(i).key));
+  if(cf==='p1') list=list.filter(i=>['ba_pending','ba_rejected'].includes(getProg(i).key));
+  if(cf==='p2') list=list.filter(i=>['surat_pending','surat_rejected'].includes(getProg(i).key));
+  if(cf==='p3') list=list.filter(i=>['collection_no_fu','collection_active','collection_janji_overdue'].includes(getProg(i).key));
   if(cf==='np') list=list.filter(i=>{ const bc=getInvoiceBusinessClass(i); return bc==='nonp2p_manual'||bc==='nonp2p_migrasi'; });
-  if(cf==='p4') list=list.filter(i=>['mir7_pending','mir7_rejected'].includes(getInvoiceProgress(i).key));
-  if(cf==='p5') list=list.filter(i=>['nota_pending','nota_rejected'].includes(getInvoiceProgress(i).key));
+  if(cf==='p4') list=list.filter(i=>['mir7_pending','mir7_rejected'].includes(getProg(i).key));
+  if(cf==='p5') list=list.filter(i=>['nota_pending','nota_rejected'].includes(getProg(i).key));
   if(csub) list=list.filter(matchStageSubfilter);
   if(q) list=list.filter(i=>i.no.toLowerCase().includes(q)||i.cust.toLowerCase().includes(q)||i.desc.toLowerCase().includes(q));
 
   const mapped = list.map(i => {
     const p = fastPrio(i);
     const score = {c:4,h:3,m:2,l:1}[p] || 1;
-    return { inv: i, prog:getInvoiceProgress(i), p: p, score: score, fu: fastFuStat(i.no) };
+    return { inv: i, prog:getProg(i), p: p, score: score, fu: fastFuStat(i.no) };
   });
 
   mapped.sort((a,b) => b.score - a.score);
@@ -2524,8 +2534,8 @@ function renderQ(append=false){
     document.getElementById('sq-bfu').textContent=all.filter(i=>getLogs(i.no).length===0).length;
     document.getElementById('sq-tdy').textContent=new Set(logs.filter(l=>l.date===TODAY).map(l=>l.inv)).size;
     const criticalList=all.filter(i=>fastPrio(i)==='c');
-    const readyList=all.filter(i=>['collection_no_fu','direct_no_fu'].includes(getInvoiceProgress(i).key));
-    const bottleneckList=all.filter(i=>['ba_pending','ba_rejected','surat_pending','surat_rejected','nota_pending','nota_rejected','mir7_pending','mir7_rejected'].includes(getInvoiceProgress(i).key));
+    const readyList=all.filter(i=>['collection_no_fu','direct_no_fu'].includes(getProg(i).key));
+    const bottleneckList=all.filter(i=>['ba_pending','ba_rejected','surat_pending','surat_rejected','nota_pending','nota_rejected','mir7_pending','mir7_rejected'].includes(getProg(i).key));
     const qFocus=document.getElementById('q-focus-cards');
     if(qFocus){
       qFocus.innerHTML=`
@@ -2538,7 +2548,7 @@ function renderQ(append=false){
       const janjiToday=logs.filter(l=>l.hasil==='Janji Bayar'&&l.jt===TODAY);
       const janjiOverdue=logs.filter(l=>l.hasil==='Janji Bayar'&&l.jt&&l.jt<TODAY);
       const noFuTop=all.filter(i=>getLogs(i.no).length===0).sort((a,b)=>b.amt-a.amt).slice(0,1);
-      const mirTop=all.filter(i=>['mir7_pending','mir7_rejected'].includes(getInvoiceProgress(i).key)).sort((a,b)=>b.amt-a.amt).slice(0,1);
+      const mirTop=all.filter(i=>['mir7_pending','mir7_rejected'].includes(getProg(i).key)).sort((a,b)=>b.amt-a.amt).slice(0,1);
       const rows=[];
       if(janjiToday.length) rows.push(`<div class="queue-brief-item"><div><div class="queue-brief-title">📅 ${janjiToday.length} Janji Bayar Jatuh Tempo HARI INI</div><div class="queue-brief-meta">Siapkan rekonsiliasi penerimaan bank.</div></div><div class="queue-brief-cta" onclick="setF('jt')">Lihat (${janjiToday.length})</div></div>`);
       rows.push(`<div class="queue-brief-item"><div><div class="queue-brief-title">⚠️ ${janjiOverdue.length||0} Janji Bayar Lewat Tempo</div><div class="queue-brief-meta">Perlu konfirmasi ulang status janji yang terlewat.</div></div><div class="queue-brief-cta" onclick="setF('jo')">Lihat (${janjiOverdue.length||0})</div></div>`);
