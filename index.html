@@ -2666,7 +2666,18 @@ function buildWaUrl(no){
   } else if(prog.key === 'mir7_pending' || prog.key === 'mir7_rejected'){
     contextNote = `⚠️ *Kendala MIR7 / SAP*: Status MIR7/SAP saat ini *${prog.sMIR || 'Belum Dibuat/Proses'}*. Mohon bantuan konfirmasi kelengkapan entri dokumen SAP agar pencairan tidak tertahan.${slaLine}\n`;
   } else if(prog.key.startsWith('collection') || prog.key === 'direct_active' || prog.key === 'direct_no_fu' || prog.key === 'direct_janji_overdue'){
-    contextNote = `✅ *Dokumen Lengkap – Menunggu Pembayaran*: Seluruh dokumen (MIR7/SAP) sudah selesai, namun status pembayaran masih *Unpaid*. Mohon informasi jadwal realisasi transfer dana.${slaLine}\n`;
+    const bizClass=getInvoiceBusinessClass(i);
+    if(bizClass==='nonp2p_migrasi'){
+      // Piutang migrasi tidak pernah lewat proses MIR7/SAP formal (saldo lama sebelum TANOS),
+      // jadi jangan klaim "dokumen MIR7/SAP sudah selesai" seperti invoice P2P biasa.
+      contextNote = `📌 *Piutang Migrasi (Saldo Lama)*: Tagihan ini merupakan saldo piutang lama yang tercatat di SAP sejak sebelum periode TANOS, dan saat ini berstatus *Unpaid*. Mohon bantuan konfirmasi rencana penyelesaian pembayarannya.${slaLine}\n`;
+    } else if(bizClass==='nonp2p_manual'){
+      // Non-P2P manual (Ghost P2P/direct): dokumennya lengkap di SAP tapi tidak lewat pipeline
+      // BA→Nota Dinas→MIR7 formal, jadi hindari menyebut MIR7/SAP selesai secara spesifik.
+      contextNote = `✅ *Tagihan Siap Ditagihkan*: Dokumen tagihan untuk transaksi ini sudah lengkap di sistem kami, namun status pembayaran masih *Unpaid*. Mohon informasi jadwal realisasi transfer dana.${slaLine}\n`;
+    } else {
+      contextNote = `✅ *Dokumen Lengkap – Menunggu Pembayaran*: Seluruh dokumen (MIR7/SAP) sudah selesai, namun status pembayaran masih *Unpaid*. Mohon informasi jadwal realisasi transfer dana.${slaLine}\n`;
+    }
     if(last && last.hasil === 'Janji Bayar' && last.jt) {
       contextNote += `📅 *Catatan Janji Bayar*: Tercatat janji pembayaran pada *${last.jt}*${last.jn ? ' sebesar Rp ' + fmt(last.jn) : ''}. Mohon konfirmasi kesesuaian jadwal tersebut.\n`;
     }
