@@ -312,6 +312,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 .tim-hd{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:8px;margin-bottom:8px;border-left:4px solid;}
 .tim-hd-info{font-size:.68rem;opacity:.75;}
 .tim-cards{display:flex;flex-wrap:wrap;gap:10px;}
+.btn-wa{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:10px;background:#25D366;color:#fff;font-size:.62rem;font-weight:700;text-decoration:none;cursor:pointer;margin-left:auto;transition:transform .15s,filter .15s;}
+.btn-wa:hover{filter:brightness(.92);transform:scale(1.04);}
 .watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg); font-size: 10rem; font-weight: 900; color: rgba(0, 0, 0, 0.03); z-index: 0; pointer-events: none; user-select: none; white-space: nowrap; }
 .action-board{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;}
 .action-tile{border-radius:12px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.06);cursor:pointer;transition:transform .15s, box-shadow .15s;}
@@ -456,6 +458,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
   <div class="right">
     <span class="icon-link disabled" title="Modul P&L belum dipublish di repo ini" aria-disabled="true">📊</span>
     <a class="icon-link" href="Panduan_Aplikasi_Penagihan_Tim.docx" download title="Download Panduan Aplikasi" style="margin-right:4px;">📖</a>
+    <div id="pending-sync-badge" style="display:none;font-size:.68rem;background:#f57c00;color:#fff;padding:3px 9px;border-radius:12px;cursor:pointer;font-weight:700;margin-right:4px;" onclick="flushPendingLogs()" title="Klik untuk sinkronisasi ulang log lokal ke Sheets">⚡ 0 pending</div>
     <div class="data-badge" id="data-badge">Belum ada data</div>
     <div id="cloud-badge" style="display:none;font-size:.68rem;opacity:.75;cursor:pointer;" onclick="showPage('setup')" title="Klik untuk ke pengaturan sync">☁️</div>
     <div class="pic-badge" onclick="showPage('setup')" id="pic-display">👤 Pilih PIC</div>
@@ -636,6 +639,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
     <button class="fbtn" id="fb" onclick="setF('b')">Belum FU</button>
     <button class="fbtn" id="fc" onclick="setF('c')">🔴 Kritis</button>
     <button class="fbtn" id="fj" onclick="setF('j')">📅 Janji</button>
+    <button class="fbtn" id="fjt" onclick="setF('jt')" style="background:#e3f2fd;color:#1565c0;border-color:#90caf9;">📅 Janji Hari Ini</button>
+    <button class="fbtn" id="fjo" onclick="setF('jo')" style="background:#ffebee;color:#c62828;border-color:#ef9a9a;">⚠️ Janji Lewat</button>
   </div>
   <div class="fbar" style="margin-top:4px;padding-top:4px;border-top:1px solid #e8e8e8;">
     <span style="font-size:.63rem;color:var(--sub);font-weight:700;padding:4px 2px;white-space:nowrap;">Tahap:</span>
@@ -721,7 +726,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
       <div style="font-size:.95rem;font-weight:800;color:var(--dark);">Mamuyy Action Center</div>
       <div style="font-size:.72rem;color:var(--sub);margin-top:2px;">Ringkasan aksi prioritas harian untuk tim penagihan.</div>
     </div>
-  <div class="dash-badges">
+    <div class="dash-badges">
+      <button class="btn btn-green btn-sm" onclick="exportExecutiveReportXlsx()" title="Download Laporan Eksekutif Excel Rapi Multi-Sheet">📊 Export Laporan Eksekutif (Excel)</button>
       <div class="dash-badge" id="dash-sync-badge">Data: Belum sync</div>
       <div class="dash-badge" id="dash-focus-badge">Fokus: Semua PIC</div>
     </div>
@@ -2443,6 +2449,8 @@ function renderQ(append=false){
   if(cf==='b') list=list.filter(i=>getLogs(i.no).length===0);
   if(cf==='c') list=list.filter(i=>fastPrio(i)==='c');
   if(cf==='j'){ const js=new Set(logs.filter(l=>l.hasil==='Janji Bayar').map(l=>l.inv)); list=list.filter(i=>js.has(i.no)); }
+  if(cf==='jt'){ const jts=new Set(logs.filter(l=>l.hasil==='Janji Bayar'&&l.jt===TODAY).map(l=>l.inv)); list=list.filter(i=>jts.has(i.no)); }
+  if(cf==='jo'){ const jos=new Set(logs.filter(l=>l.hasil==='Janji Bayar'&&l.jt&&l.jt<TODAY).map(l=>l.inv)); list=list.filter(i=>jos.has(i.no)); }
   if(cf==='p1') list=list.filter(i=>['ba_pending','ba_rejected'].includes(getInvoiceProgress(i).key));
   if(cf==='p2') list=list.filter(i=>['surat_pending','surat_rejected'].includes(getInvoiceProgress(i).key));
   if(cf==='p3') list=list.filter(i=>['collection_no_fu','collection_active','collection_janji_overdue'].includes(getInvoiceProgress(i).key));
@@ -2478,11 +2486,13 @@ function renderQ(append=false){
     }
     const qBrief=document.getElementById('q-supervisor-brief');
     if(qBrief){
+      const janjiToday=logs.filter(l=>l.hasil==='Janji Bayar'&&l.jt===TODAY);
       const janjiOverdue=logs.filter(l=>l.hasil==='Janji Bayar'&&l.jt&&l.jt<TODAY);
       const noFuTop=all.filter(i=>getLogs(i.no).length===0).sort((a,b)=>b.amt-a.amt).slice(0,1);
       const mirTop=all.filter(i=>['mir7_pending','mir7_rejected'].includes(getInvoiceProgress(i).key)).sort((a,b)=>b.amt-a.amt).slice(0,1);
       const rows=[];
-      rows.push(`<div class="queue-brief-item"><div><div class="queue-brief-title">${janjiOverdue.length||0} janji bayar lewat jatuh tempo</div><div class="queue-brief-meta">Perlu konfirmasi realisasi hari ini.</div></div><div class="queue-brief-cta" onclick="setF('j')">Lihat</div></div>`);
+      if(janjiToday.length) rows.push(`<div class="queue-brief-item"><div><div class="queue-brief-title">📅 ${janjiToday.length} Janji Bayar Jatuh Tempo HARI INI</div><div class="queue-brief-meta">Siapkan rekonsiliasi penerimaan bank.</div></div><div class="queue-brief-cta" onclick="setF('jt')">Lihat (${janjiToday.length})</div></div>`);
+      rows.push(`<div class="queue-brief-item"><div><div class="queue-brief-title">⚠️ ${janjiOverdue.length||0} Janji Bayar Lewat Tempo</div><div class="queue-brief-meta">Perlu konfirmasi ulang status janji yang terlewat.</div></div><div class="queue-brief-cta" onclick="setF('jo')">Lihat (${janjiOverdue.length||0})</div></div>`);
       if(noFuTop.length) rows.push(`<div class="queue-brief-item"><div><div class="queue-brief-title">${esc(noFuTop[0].no)} belum pernah di-follow-up</div><div class="queue-brief-meta">${esc(noFuTop[0].cust)} • ${fmt(noFuTop[0].amt)}</div></div><div class="queue-brief-cta" onclick="openM('${jsq(noFuTop[0].no)}')">Buka</div></div>`);
       if(mirTop.length) rows.push(`<div class="queue-brief-item"><div><div class="queue-brief-title">${esc(mirTop[0].no)} stuck di MIR7</div><div class="queue-brief-meta">${esc(mirTop[0].cust)} • ${fmt(mirTop[0].amt)}</div></div><div class="queue-brief-cta" onclick="openM('${jsq(mirTop[0].no)}')">Eskalasi</div></div>`);
       qBrief.innerHTML=rows.join('');
@@ -2512,7 +2522,7 @@ function renderQ(append=false){
       <div class="inv-cust">${custEsc}</div>
       ${issue&&issue.baRejectEver?`<div class="hist-badge">Pernah BA Reject${issue.baRejectCount?` · ${issue.baRejectCount}x`:''}</div>`:''}
       <div class="inv-desc">${descEsc}</div>
-      <div class="inv-foot">${stagePills(i)}<span class="fu-tag ${fu.d?'d':fu.w?'w':''}">${fu.t}</span></div>
+      <div class="inv-foot">${stagePills(i)}<span class="fu-tag ${fu.d?'d':fu.w?'w':''}">${fu.t}</span><a class="btn-wa" onclick="event.stopPropagation(); window.open(buildWaUrl('${jsq(i.no)}'), '_blank')" title="Chat WA Customer">💬 WA Tagih</a></div>
     </div>`;
   }).join('');
 
@@ -2562,6 +2572,23 @@ function stagePills(i){
   return p;
 }
 
+function buildWaUrl(no){
+  const i=findInvoiceByNo(no); if(!i) return '#';
+  const il=logs.filter(l=>l.inv===no).sort((a,b)=>(b.ts||b.date||'').localeCompare(a.ts||a.date||''));
+  const last=il.length?il[0]:null;
+  let msg = `Yth. Bapak/Ibu Management/Finance ${i.cust},\n\n` +
+    `Kami dari Tim Penagihan PT Pelindo Daya Sejahtera menyampaikan pengingat terkait tagihan berikut:\n` +
+    `• No. Invoice: ${i.no}\n` +
+    `• Nominal: ${fmt(i.amt)}\n`;
+  if(i.desc) msg += `• Deskripsi: ${i.desc}\n`;
+  if(last && last.hasil === 'Janji Bayar' && last.jt) {
+    msg += `• Tanggal Janji Bayar: ${last.jt}\n`;
+  }
+  msg += `\nMohon konfirmasi status pembayaran atau dokumen pendukung tagihan tersebut. Terima kasih atas perhatian dan kerja samanya. 🙏\n\n` +
+    `Salam,\nPT Pelindo Daya Sejahtera`;
+  return 'https://wa.me/?text=' + encodeURIComponent(msg);
+}
+
 // ═══ MODAL ═══
 function openM(no){
   const i=invs.find(x=>x.no===no); if(!i) return;
@@ -2589,7 +2616,8 @@ function openM(no){
     ${issue&&issue.baRejectEver?`<div class="irow"><span class="ilbl">Histori BA</span><span class="ival">Pernah Reject${issue.baRejectCount?` (${esc(String(issue.baRejectCount))}x)`:''}${issue.baRejectLastDate?`<br><span style="font-size:.68rem;color:#ad1457;">Terakhir ${esc(issue.baRejectLastDate)}</span>`:''}</span></div>`:''}
     ${issue&&issue.lastStage?`<div class="irow"><span class="ilbl">Histori Terakhir</span><span class="ival">${esc(issue.lastStage)} • ${esc(issue.lastStatus||'-')}${issue.lastUpdate?`<br><span style="font-size:.68rem;color:#607d8b;">${esc(issue.lastUpdate)}</span>`:''}</span></div>`:''}
     <div class="irow"><span class="ilbl">Payment</span><span class="ival">${esc(i.pay)}</span></div>
-    <div class="irow"><span class="ilbl">Deskripsi</span><span class="ival" style="font-size:.72rem;">${esc(i.desc.slice(0,70))}${i.desc.length>70?'...':''}</span></div>`;
+    <div class="irow"><span class="ilbl">Deskripsi</span><span class="ival" style="font-size:.72rem;">${esc(i.desc.slice(0,70))}${i.desc.length>70?'...':''}</span></div>
+    <div class="irow" style="margin-top:6px;padding-top:6px;border-top:1px dashed #e0e0e0;"><span class="ilbl">WhatsApp</span><span class="ival"><a class="btn-wa" style="display:inline-flex;padding:4px 10px;font-size:.72rem;" onclick="window.open(buildWaUrl('${jsq(i.no)}'),'_blank')">💬 Kirim Pengingat WA</a></span></div>`;
   const st=[{n:'BA/BAST',v:prog.sBA},{n:'Surat',v:prog.sSrt},{n:'Nota Dinas',v:prog.sNota},{n:'MIR7/SAP',v:prog.sMIR},{n:'Payment',v:prog.pay}];
   document.getElementById('m-stages').innerHTML=st.map(x=>{
     const c=x.v==='Completed'||x.v==='Paid'?'ok':x.v.includes('Progress')?'ip':x.v==='Belum Dibuat'||x.v==='Rejected'?'bl':'na';
@@ -5220,18 +5248,66 @@ function syncFromSheets(silent){
     .catch(function(e){ setGsStatus('❌ Gagal: '+e.message,'var(--red)'); if(!silent) toast('❌ Gagal sync: '+e.message); });
 }
 
+function getPendingLogs(){
+  try { return JSON.parse(localStorage.getItem('mamuyy_pending_logs')||'[]'); }
+  catch(e){ return []; }
+}
+function savePendingLogs(list){
+  localStorage.setItem('mamuyy_pending_logs', JSON.stringify(list));
+  updatePendingSyncBadge();
+}
+function queuePendingLog(l){
+  if(!l) return;
+  const list=getPendingLogs();
+  const k=getLogMergeKey(l);
+  if(!list.some(x=>getLogMergeKey(x)===k)){
+    list.push(l);
+    savePendingLogs(list);
+  }
+}
+function updatePendingSyncBadge(){
+  const list=getPendingLogs();
+  const el=document.getElementById('pending-sync-badge');
+  if(!el) return;
+  if(list.length>0){
+    el.style.display='inline-block';
+    el.textContent='⚡ '+list.length+' pending sync';
+    el.title='Ada '+list.length+' log tersimpan lokal belum terkonfirmasi di Sheets. Klik untuk coba sync ulang.';
+  } else {
+    el.style.display='none';
+  }
+}
+function flushPendingLogs(){
+  const list=getPendingLogs();
+  if(!list.length || !gsUrl) { updatePendingSyncBadge(); return; }
+  setGsStatus('⏳ Mencoba sinkronisasi '+list.length+' log lokal ke Sheets...','#1565c0');
+  pushAllToSheets(true).then(function(){
+    localStorage.removeItem('mamuyy_pending_logs');
+    updatePendingSyncBadge();
+    toast('✅ '+list.length+' log lokal berhasil tersinkron ke Sheets!');
+  }).catch(function(err){
+    console.warn('flushPendingLogs failed:', err);
+    updatePendingSyncBadge();
+  });
+}
+
 // Upload 1 log terakhir ke Sheets (dipanggil otomatis saat saveLogs)
 function pushLastLogToSheets(){
-  if(!gsUrl || !logs.length) return;
-
+  if(!logs.length) return;
   const l = logs[0];
-
+  if(!gsUrl){
+    queuePendingLog(l);
+    return;
+  }
   postGsAction('add',{log:l},CLOUD_PUSH_LOGS_TIMEOUT_MS)
   .then(function(){
     setGsStatus('☁️ Log terbaru dikirim ke Sheets — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
+    const pending=getPendingLogs().filter(x=>getLogMergeKey(x)!==getLogMergeKey(l));
+    savePendingLogs(pending);
   })
   .catch(function(err){
-    setGsStatus('⚠️ Push log belum terkonfirmasi: '+err.message,'var(--orange)');
+    queuePendingLog(l);
+    setGsStatus('⚠️ Push log belum terkonfirmasi (tersimpan lokal): '+err.message,'var(--orange)');
     console.warn('pushLastLogToSheets gagal:', err);
   });
 }
@@ -5786,6 +5862,100 @@ function esc(v){ return String(v??'').replace(/[&<>"']/g,function(c){ return {'&
 function jsq(v){ return String(v??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
 function s(v){ return v===undefined||v===null?'':String(v).trim(); }
 function n(v){ const x=parseFloat(String(v).replace(/[^0-9.-]/g,'')); return isNaN(x)?0:x; }
+function exportExecutiveReportXlsx(){
+  if(typeof XLSX === 'undefined'){
+    toast('❌ Library XLSX belum dimuat.');
+    return;
+  }
+  try {
+    const wb = XLSX.utils.book_new();
+
+    // SHEET 1: Aging Summary
+    const agingData = [
+      ['REKAPITULASI AGING PIUTANG - PT PELINDO DAYA SEJAHTERA'],
+      ['Tanggal Laporan:', TODAY],
+      [],
+      ['Nama Customer', 'Total Piutang (Rp)', 'Current', '1 - 30 Hari', '31 - 60 Hari', '61 - 90 Hari', '> 90 Hari (Kritis)', 'Porsi >90 Hari (%)']
+    ];
+
+    let totAmt=0, totO90=0;
+    Object.entries(agMap||{}).forEach(function([cust, ag]){
+      const percent = ag.amt > 0 ? (ag.o90 / ag.amt * 100).toFixed(1) + '%' : '0%';
+      agingData.push([
+        cust, ag.amt, ag.c, ag.b1, ag.b2, ag.b3, ag.o90, percent
+      ]);
+      totAmt += ag.amt;
+      totO90 += ag.o90;
+    });
+    agingData.push([]);
+    agingData.push(['TOTAL GRAND', totAmt, '', '', '', '', totO90, totAmt > 0 ? (totO90 / totAmt * 100).toFixed(1) + '%' : '0%']);
+
+    const ws1 = XLSX.utils.aoa_to_sheet(agingData);
+    XLSX.utils.book_append_sheet(wb, ws1, 'Ringkasan Aging');
+
+    // SHEET 2: Rekap KPI Tim
+    const kpiData = [
+      ['REKAPITULASI KPI PENAGIHAN TIM'],
+      ['Periode:', TODAY.slice(0,7)],
+      [],
+      ['Nama PIC', 'Tim', 'FU Hari Ini', 'Total Log Bulan Ini', 'Skor Akhir KPI', 'Kategori KPI']
+    ];
+
+    const picList = ['RIZAL','ACHMAD','TYAS','AFIS','MASELLA','RISTY','AULYA','LARAS','NABILA','FARAH'];
+    picList.forEach(function(pic){
+      const team = getTimKey(pic);
+      const score = typeof getKpiPicFinalScore==='function' ? getKpiPicFinalScore(pic) : 0;
+      const band = typeof getKpiBand==='function' ? getKpiBand(score) : {label:'—'};
+      const picLogs = logs.filter(l => (l.pic||'').toUpperCase() === pic);
+      const todayCount = picLogs.filter(l => (l.date||'').slice(0,10) === TODAY).length;
+      kpiData.push([
+        pic, team.toUpperCase(), todayCount, picLogs.length, score, band.label
+      ]);
+    });
+
+    const ws2 = XLSX.utils.aoa_to_sheet(kpiData);
+    XLSX.utils.book_append_sheet(wb, ws2, 'KPI Tim');
+
+    // SHEET 3: Daftar Invoice Kritis & Top Outstanding
+    const invData = [
+      ['DAFTAR INVOICE UNPAID & TOP OUTSTANDING'],
+      ['Tanggal Export:', TODAY],
+      [],
+      ['No. Invoice', 'Nama Customer', 'Nominal Tagihan (Rp)', 'Kategori / Stage', 'PIC Billing', 'FU Terakhir', 'Status Janji Bayar']
+    ];
+
+    const unpaidInvs = invs.filter(isInvoiceUnpaid).sort((a,b) => b.amt - a.amt);
+    unpaidInvs.forEach(function(inv){
+      const prog = getInvoiceProgress(inv);
+      const il = logs.filter(l => l.inv === inv.no).sort((a,b) => (b.ts||b.date||'').localeCompare(a.ts||a.date||''));
+      const last = il.length ? il[0] : null;
+      const lastDate = last ? (last.date || '') : 'Belum FU';
+      const janjiText = (last && last.hasil === 'Janji Bayar' && last.jt) ? ('Janji: ' + last.jt + (last.jn ? ' (Rp ' + fmt(last.jn) + ')' : '')) : '-';
+      invData.push([
+        inv.no, inv.cust, inv.amt, prog.label, prog.ownerPerson || inv.picB || '-', lastDate, janjiText
+      ]);
+    });
+
+    const ws3 = XLSX.utils.aoa_to_sheet(invData);
+    XLSX.utils.book_append_sheet(wb, ws3, 'Invoice Unpaid');
+
+    const filename = 'Laporan_Eksekutif_Penagihan_' + TODAY + '.xlsx';
+    XLSX.writeFile(wb, filename);
+    toast('✅ Laporan Eksekutif Excel berhasil diunduh!');
+  } catch(err) {
+    console.error('exportExecutiveReportXlsx error:', err);
+    toast('❌ Gagal export laporan: ' + err.message);
+  }
+}
+
+window.addEventListener('online', function(){
+  flushPendingLogs();
+});
+window.addEventListener('load', function(){
+  updatePendingSyncBadge();
+  flushPendingLogs();
+});
+
 let tt; function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(tt); tt=setTimeout(()=>t.classList.remove('show'),2500); }
 </script>
 </body>
