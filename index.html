@@ -641,6 +641,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
     <button class="fbtn" id="fj" onclick="setF('j')">📅 Janji</button>
     <button class="fbtn" id="fjt" onclick="setF('jt')" style="background:#e3f2fd;color:#1565c0;border-color:#90caf9;">📅 Janji Hari Ini</button>
     <button class="fbtn" id="fjo" onclick="setF('jo')" style="background:#ffebee;color:#c62828;border-color:#ef9a9a;">⚠️ Janji Lewat</button>
+    <button class="fbtn" id="fst" onclick="setF('st')" style="background:#fff3e0;color:#e65100;border-color:#ffcc80;">⏱️ Stagnan >2hr (Lewat SLA)</button>
   </div>
   <div class="fbar" style="margin-top:4px;padding-top:4px;border-top:1px solid #e8e8e8;">
     <span style="font-size:.63rem;color:var(--sub);font-weight:700;padding:4px 2px;white-space:nowrap;">Tahap:</span>
@@ -2251,6 +2252,21 @@ function getProgressTone(prog){
   if(prog.key==='collection_janji_overdue' || prog.key==='direct_janji_overdue') return 'overdue';
   if(prog.stage==='collection' || prog.stage==='direct') return 'collection';
   return 'pending';
+function getStageAgeDays(inv){
+  if(!inv) return { days: 0, dateStr: '–', isOverdue: false, text: '–' };
+  const dStr = inv.tgl || (inv.issue ? inv.issue.lastDate : '');
+  if(!dStr) return { days: 0, dateStr: '–', isOverdue: false, text: 'Tanggal belum ada' };
+  const dt = new Date(dStr);
+  if(isNaN(dt.getTime())) return { days: 0, dateStr: dStr, isOverdue: false, text: dStr };
+  const now = new Date(TODAY);
+  const diffDays = Math.max(0, Math.floor((now - dt) / (1000 * 60 * 60 * 24)));
+  const isOverdue = diffDays > 2; // > 2 Hari (SLA 2x24 Jam)
+  return {
+    days: diffDays,
+    dateStr: dStr,
+    isOverdue: isOverdue,
+    text: `${diffDays} hari`
+  };
 }
 
 // ═══ QUEUE ═══
@@ -2475,6 +2491,7 @@ function renderQ(append=false){
   if(cf==='j'){ const js=new Set(logs.filter(l=>l.hasil==='Janji Bayar').map(l=>l.inv)); list=list.filter(i=>js.has(i.no)); }
   if(cf==='jt'){ const jts=new Set(logs.filter(l=>l.hasil==='Janji Bayar'&&l.jt===TODAY).map(l=>l.inv)); list=list.filter(i=>jts.has(i.no)); }
   if(cf==='jo'){ const jos=new Set(logs.filter(l=>l.hasil==='Janji Bayar'&&l.jt&&l.jt<TODAY).map(l=>l.inv)); list=list.filter(i=>jos.has(i.no)); }
+  if(cf==='st') list=list.filter(i=>getStageAgeDays(i).isOverdue);
   if(cf==='p1') list=list.filter(i=>['ba_pending','ba_rejected'].includes(getInvoiceProgress(i).key));
   if(cf==='p2') list=list.filter(i=>['surat_pending','surat_rejected'].includes(getInvoiceProgress(i).key));
   if(cf==='p3') list=list.filter(i=>['collection_no_fu','collection_active','collection_janji_overdue'].includes(getInvoiceProgress(i).key));
@@ -2565,12 +2582,15 @@ function renderQ(append=false){
 function stagePills(i){
   const prog=getInvoiceProgress(i);
   const issue=getIssueHistoryForInvoice(i);
+  const stageAge=getStageAgeDays(i);
+  const ageBg=stageAge.days<=2?'#e8f5e9;color:#1b5e20;':stageAge.days<=7?'#fff3e0;color:#e65100;':'#ffebee;color:#c62828;';
+  const agePill=`<span class="sp" style="background:${ageBg}font-weight:700;" title="Umur dokumen / durasi tertahan">⏱️ ${stageAge.days}hr${stageAge.isOverdue?' ⚠️':''}</span>`;
   const stageBadge='<span class="sp" style="background:#eceff1;color:#37474f;">'+esc(prog.label)+'</span>';
   const bizClass=getInvoiceBusinessClass(i);
   // Non-P2P manual: tetap lewat Surat sampai handoff-ready
-  if(bizClass==='nonp2p_manual') return `<span class="sp" style="background:#6a1b9a;color:#fff;font-size:.58rem;padding:2px 6px;">⚡ Non-P2P</span>${stageBadge}<span class="sp ${normalizePayStatus(i.pay)==='Paid'?'sp-pd':'sp-un'}">${normalizePayStatus(i.pay)}</span>`;
+  if(bizClass==='nonp2p_manual') return `<span class="sp" style="background:#6a1b9a;color:#fff;font-size:.58rem;padding:2px 6px;">⚡ Non-P2P</span>${stageBadge}${agePill}<span class="sp ${normalizePayStatus(i.pay)==='Paid'?'sp-pd':'sp-un'}">${normalizePayStatus(i.pay)}</span>`;
   // Piutang Migrasi: saldo lama SAP sebelum TANOS
-  if(bizClass==='nonp2p_migrasi') return `<span class="sp" style="background:#4e342e;color:#fff;font-size:.58rem;padding:2px 6px;">🗂 Migrasi SAP</span>${stageBadge}<span class="sp sp-un">Unpaid</span>`;
+  if(bizClass==='nonp2p_migrasi') return `<span class="sp" style="background:#4e342e;color:#fff;font-size:.58rem;padding:2px 6px;">🗂 Migrasi SAP</span>${stageBadge}${agePill}<span class="sp sp-un">Unpaid</span>`;
   // P2P normal
   let p='';
   const sBA=normalizeDocStatus(i.sBA), sSrt=normalizeDocStatus(i.sSrt), sNota=normalizeDocStatus(i.sNota), sMIR=normalizeDocStatus(i.sMIR);
@@ -2592,6 +2612,7 @@ function stagePills(i){
   else if(sNota==='Completed') p+=`<span class="sp sp-su">MIR7:Belum</span>`;
   if(issue&&issue.baRejectEver) p+=`<span class="sp" style="background:#fce4ec;color:#ad1457;">Hist BA Reject</span>`;
   p+=stageBadge;
+  p+=agePill;
   p+=`<span class="sp ${normalizePayStatus(i.pay)==='Paid'?'sp-pd':'sp-un'}">${normalizePayStatus(i.pay)}</span>`;
   return p;
 }
@@ -2676,10 +2697,18 @@ function openM(no){
   applyModalMode(mode);
   document.querySelectorAll('#mbg .rbtn').forEach(b=>b.classList.remove('sel'));
   jBox('m',false);
+  const stageAge=getStageAgeDays(i);
   document.getElementById('m-info').innerHTML=`
     <div class="irow"><span class="ilbl">Customer</span><span class="ival">${esc(i.cust)}</span></div>
     <div class="irow"><span class="ilbl">Jumlah</span><span class="ival" style="color:var(--red);font-size:.95rem;">${fmt(i.amt)}</span></div>
     <div class="irow"><span class="ilbl">Bottleneck</span><span class="ival">${esc(prog.label)}</span></div>
+    <div class="irow" style="background:${stageAge.isOverdue?'#fdecea':'#f1f8e9'};padding:4px 6px;border-radius:5px;margin:3px 0;">
+      <span class="ilbl" style="font-weight:700;">⏱️ Durasi Stagnan</span>
+      <span class="ival" style="font-weight:700;color:${stageAge.isOverdue?'#c62828':'#2e7d32'};">
+        ${stageAge.days} hari ${stageAge.dateStr!=='–'?`(sejak ${esc(stageAge.dateStr)})`:''}
+        ${stageAge.isOverdue?'<span style="display:block;font-size:.65rem;color:#c62828;">⚠️ LEWAT SLA 2x24 JAM</span>':''}
+      </span>
+    </div>
     <div class="irow"><span class="ilbl">Penanggung Jawab</span><span class="ival">${esc(prog.ownerPerson)}</span></div>
     <div class="irow"><span class="ilbl">Tim</span><span class="ival">${esc(prog.ownerTeam)}</span></div>
     <div class="irow"><span class="ilbl">PIC Billing</span><span class="ival">${esc(i.picB||'—')}</span></div>
