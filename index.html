@@ -1120,17 +1120,36 @@ const CLOUD_LOGS_TIMEOUT_MS=20000;
 const CLOUD_PUSH_TIMEOUT_MS=90000;
 const CLOUD_PUSH_LOGS_TIMEOUT_MS=45000;
 const TODAY=new Date().toISOString().slice(0,10);
-const KPI_PIC_WEIGHTS={collectionResult:0.22,followUpDiscipline:0.24,overdueReduction:0.20,pipelineMovement:0.22,dataQuality:0.12};
-const KPI_SURAT_WEIGHTS={slaSpeed:0.30,backlogControl:0.25,outputProductivity:0.20,documentAccuracy:0.15,updateDiscipline:0.10};
+// ═══ CENTRALIZED CONFIGURATION & BUSINESS RULES ═══
+const DASH_RULES = {
+  SLA_HOURS: 48, // SLA 2x24 Jam
+  KPI_BANDS: {
+    EXCELLENT: 82,
+    GOOD: 70,
+    WATCHLIST: 58
+  },
+  AR90_TARGET_PERCENT: 10,
+  FU_DAILY_TARGET_PER_PIC: 5,
+  KPI_PIC_WEIGHTS: { collectionResult: 0.22, followUpDiscipline: 0.24, overdueReduction: 0.20, pipelineMovement: 0.22, dataQuality: 0.12 },
+  KPI_SURAT_WEIGHTS: { slaSpeed: 0.30, backlogControl: 0.25, outputProductivity: 0.20, documentAccuracy: 0.15, updateDiscipline: 0.10 },
+  KPI_SURAT_TARGETS: { dailyLog: 2, outputDone: 10 },
+  KPI_EXCLUDED_PICS: ['MAMU'],
+  KPI_ACCOUNTABLE_MAP: { ACHMAD: 'ACHMAD', TYAS: 'ACHMAD', AFIS: 'ACHMAD', RIZAL: 'RIZAL', MASELLA: 'RIZAL' },
+  KPI_FINAL_ORGANIC_PICS: ['ACHMAD', 'RIZAL'],
+  KPI_SUPPORT_MONITOR_PICS: ['TYAS', 'AFIS', 'MASELLA']
+};
+
+const KPI_PIC_WEIGHTS=DASH_RULES.KPI_PIC_WEIGHTS;
+const KPI_SURAT_WEIGHTS=DASH_RULES.KPI_SURAT_WEIGHTS;
 const KPI_FORMULA_DISPLAY={
   followup:[['Collection Result',0.22,'collectionResult'],['Follow Up Discipline',0.24,'followUpDiscipline'],['Overdue Reduction',0.20,'overdueReduction'],['Pipeline Movement',0.22,'pipelineMovement'],['Data Quality',0.12,'dataQuality']],
   surat:[['SLA Speed',0.34,'slaSpeed'],['Backlog Control',0.16,'backlogControl'],['Output Productivity',0.25,'outputProductivity'],['Document Accuracy',0.15,'documentAccuracy'],['Update Discipline',0.10,'updateDiscipline']]
 };
-const KPI_SURAT_TARGETS={dailyLog:2,outputDone:10};
-const KPI_EXCLUDED_PICS=['MAMU'];
-const KPI_ACCOUNTABLE_MAP={ACHMAD:'ACHMAD',TYAS:'ACHMAD',AFIS:'ACHMAD',RIZAL:'RIZAL',MASELLA:'RIZAL'};
-const KPI_FINAL_ORGANIC_PICS=['ACHMAD','RIZAL'];
-const KPI_SUPPORT_MONITOR_PICS=['TYAS','AFIS','MASELLA'];
+const KPI_SURAT_TARGETS=DASH_RULES.KPI_SURAT_TARGETS;
+const KPI_EXCLUDED_PICS=DASH_RULES.KPI_EXCLUDED_PICS;
+const KPI_ACCOUNTABLE_MAP=DASH_RULES.KPI_ACCOUNTABLE_MAP;
+const KPI_FINAL_ORGANIC_PICS=DASH_RULES.KPI_FINAL_ORGANIC_PICS;
+const KPI_SUPPORT_MONITOR_PICS=DASH_RULES.KPI_SUPPORT_MONITOR_PICS;
 
 // ═══ KPI RESMI (Formulir Monitoring KPI Triwulan) ═══
 // Sumber: Formulir Penetapan Kinerja Individu per jabatan (ditandatangani Mamu Yuwono).
@@ -3205,9 +3224,9 @@ function calcFollowupTotalKpiScore(s){
   );
 }
 function getKpiBand(score){
-  if(score>=82) return {label:'Excellent',cls:'good'};
-  if(score>=70) return {label:'Good',cls:'good2'};
-  if(score>=58) return {label:'Watchlist',cls:'mid'};
+  if(score>=DASH_RULES.KPI_BANDS.EXCELLENT) return {label:'Excellent',cls:'good'};
+  if(score>=DASH_RULES.KPI_BANDS.GOOD) return {label:'Good',cls:'good2'};
+  if(score>=DASH_RULES.KPI_BANDS.WATCHLIST) return {label:'Watchlist',cls:'mid'};
   return {label:'Needs Focus',cls:'low'};
 }
 function getDummyKpiMetrics(picName){
@@ -4303,7 +4322,7 @@ function renderDash(){
           var hasOld90=(v.d90>0||hasOld180);
           var rowBg=hasOld?'#fdecea':hasOld180?'#fff3e0':hasOld90?'#fffde7':'#fff';
           tblHtml+='<tr style="background:'+rowBg+';">'
-            +'<td style="font-weight:600;">'+c+'</td>'
+            +'<td style="font-weight:600;">'+esc(c)+'</td>'
             +'<td style="text-align:right;">'+fmt(v.d30||0)+'<div class="ag-bar-wrap"><div class="ag-bar" style="width:'+Math.max(5,Math.min(100,(v.d30||0)/(v.total||1)*100))+'%;background:#43a047;"></div></div></td>'
             +'<td style="text-align:right;">'+fmt(v.d60||0)+'<div class="ag-bar-wrap"><div class="ag-bar" style="width:'+Math.max(5,Math.min(100,(v.d60||0)/(v.total||1)*100))+'%;background:#66bb6a;"></div></div></td>'
             +'<td style="text-align:right;">'+fmt(v.d90||0)+'<div class="ag-bar-wrap"><div class="ag-bar" style="width:'+Math.max(5,Math.min(100,(v.d90||0)/(v.total||1)*100))+'%;background:#fbc02d;"></div></div></td>'
@@ -4398,17 +4417,17 @@ function renderDash(){
         const sb=clear?'#f1f8e9':actToday>0?'#fff8e1':'#fdecea';
         return '<div style="background:'+sb+';border:1px solid '+sc+'44;border-radius:9px;padding:11px;min-width:200px;flex:1;max-width:260px;">'
           +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">'
-          +'<span style="font-weight:700;font-size:.83rem;color:'+tim.color+';">'+name+'</span>'
+          +'<span style="font-weight:700;font-size:.83rem;color:'+tim.color+';">'+esc(name)+'</span>'
           +'<span style="font-size:.65rem;background:'+sc+';color:#fff;border-radius:20px;padding:2px 7px;">'+myInvs.length+' aktif</span></div>'
           +'<div style="font-size:.7rem;color:var(--sub);margin-bottom:5px;">'+(actToday?actToday+' aktivitas hari ini':'Belum ada aktivitas hari ini')+'</div>'
           +(sorted.length?'<div style="font-size:.65rem;font-weight:700;color:#999;text-transform:uppercase;margin-bottom:3px;">Top Prioritas:</div>'
             +sorted.map(function(i){var pc=prio(i),bc=pc==='c'?'#e53935':pc==='h'?'#f57c00':pc==='m'?'#fbc02d':'#43a047',bl=pc==='c'?'KRITIS':pc==='h'?'TINGGI':pc==='m'?'SEDANG':'RENDAH';
               return '<div style="display:flex;justify-content:space-between;background:rgba(255,255,255,.6);border-radius:5px;padding:3px 6px;margin-bottom:2px;">'
-                +'<div><span style="font-size:.7rem;font-weight:600;">'+i.no+'</span><span style="font-size:.62rem;color:var(--sub);display:block;">'+(i.cust||'–')+'</span></div>'
+                +'<div><span style="font-size:.7rem;font-weight:600;">'+esc(i.no)+'</span><span style="font-size:.62rem;color:var(--sub);display:block;">'+esc(i.cust||'–')+'</span></div>'
                 +'<div style="text-align:right;"><span style="font-size:.68rem;font-weight:700;color:'+tim.color+';">'+fmt(i.amt)+'</span>'
                 +'<span style="font-size:.6rem;display:block;background:'+bc+';color:#fff;border-radius:3px;padding:0 3px;">'+bl+'</span></div></div>';}).join('')
             :'<div style="font-size:.7rem;color:var(--sub);">Antrian kosong ✅</div>')
-          +(lastLog?'<div style="font-size:.62rem;color:var(--sub);margin-top:4px;border-top:1px solid #0001;padding-top:3px;">Aktivitas: '+lastLog.date+' · '+(lastLog.hasil||'–')+'</div>':'')
+          +(lastLog?'<div style="font-size:.62rem;color:var(--sub);margin-top:4px;border-top:1px solid #0001;padding-top:3px;">Aktivitas: '+esc(lastLog.date)+' · '+esc(lastLog.hasil||'–')+'</div>':'')
           +'</div>';
       }
       function mkTimHeader(timKey){
@@ -4551,10 +4570,10 @@ function renderDash(){
           +'<table class="pic-dtbl"><thead><tr><th>No Invoice</th><th>Customer</th><th>Nilai</th><th>Aksi</th></tr></thead><tbody>';
         unassignedInvs.sort(function(a,b){return b.amt-a.amt;}).slice(0,50).forEach(function(inv){
           var isKritis=inv.amt>50000000;
-          html+='<tr><td style="'+(isKritis?'color:#c62828;font-weight:700;':'')+'">'+inv.no+'</td>'
-            +'<td>'+inv.cust+'</td>'
+          html+='<tr><td style="'+(isKritis?'color:#c62828;font-weight:700;':'')+'">'+esc(inv.no)+'</td>'
+            +'<td>'+esc(inv.cust)+'</td>'
             +'<td style="text-align:right;font-weight:700;">'+fmt(inv.amt)+(isKritis?' <span style="background:#e53935;color:#fff;border-radius:3px;padding:1px 3px;font-size:.6rem;">KRITIS</span>':'')+'</td>'
-            +'<td><button class="btn-go" onclick="goToInv(\''+inv.no+'\')">→ Buka</button></td></tr>';
+            +'<td><button class="btn-go" onclick="goToInv(\''+jsq(inv.no)+'\')">→ Buka</button></td></tr>';
         });
         if(unassignedInvs.length>50) html+='<tr><td colspan="4" style="text-align:center;color:var(--sub);font-size:.72rem;padding:6px;">... dan '+(unassignedInvs.length-50)+' invoice lainnya</td></tr>';
       html+='</tbody></table></div></div>';
@@ -4569,7 +4588,7 @@ function renderDash(){
         const tim=TIM.followup,sc=myInvs.length>0?'#2e7d32':'#9e9e9e',sb=myInvs.length>0?'#e8f5e9':'#f5f5f5';
         html+='<div class="pic-card" style="background:'+sb+';border:1px solid '+sc+'44;" onclick="this.classList.toggle(\'open\')">'
           +'<div class="pic-card-hd">'
-          +'<span style="font-weight:700;font-size:.83rem;color:'+tim.color+';">'+displayName+'</span>'
+          +'<span style="font-weight:700;font-size:.83rem;color:'+tim.color+';">'+esc(displayName)+'</span>'
           +'<span class="pic-card-arr">▼</span>'
           +'</div>'
           +'<div style="font-size:.72rem;color:var(--sub);margin-bottom:5px;"><strong>'+myInvs.length+'</strong> invoice</div>'
@@ -4605,13 +4624,13 @@ function renderDash(){
                 janjiOD=lastJanji.jt<TODAY?' ⏰':'';
               }
             }
-            html+='<tr><td>'+inv.no+'</td>'
-              +'<td>'+inv.cust+'</td>'
+            html+='<tr><td>'+esc(inv.no)+'</td>'
+              +'<td>'+esc(inv.cust)+'</td>'
               +'<td style="text-align:right;font-weight:700;">'+fmt(inv.amt)+'</td>'
-              +'<td style="font-size:.65rem;">'+lastFuDate+'</td>'
+              +'<td style="font-size:.65rem;">'+esc(lastFuDate)+'</td>'
               +'<td '+fuColor+' style="font-weight:700;">'+daysSinceFu+'</td>'
-              +'<td style="font-size:.65rem;">'+janjiText+janjiOD+'</td>'
-              +'<td><button class="btn-go" onclick="goToInv(\''+inv.no+'\')">→ FU</button></td></tr>';
+              +'<td style="font-size:.65rem;">'+esc(janjiText)+janjiOD+'</td>'
+              +'<td><button class="btn-go" onclick="goToInv(\''+jsq(inv.no)+'\')">→ FU</button></td></tr>';
           });
         } else {
           html+='<tr><td colspan="7" style="text-align:center;color:var(--sub);padding:10px;">—</td></tr>';
