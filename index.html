@@ -2252,6 +2252,7 @@ function getProgressTone(prog){
   if(prog.key==='collection_janji_overdue' || prog.key==='direct_janji_overdue') return 'overdue';
   if(prog.stage==='collection' || prog.stage==='direct') return 'collection';
   return 'pending';
+}
 function getStageAgeDays(inv){
   if(!inv) return { days: 0, dateStr: '–', isOverdue: false, text: '–' };
   const dStr = inv.tgl || (inv.issue ? inv.issue.lastDate : '');
