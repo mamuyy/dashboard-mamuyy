@@ -634,7 +634,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
     <div class="stat g"><div class="stat-n" id="sq-tdy">0</div><div class="stat-l">FU Hari Ini</div></div>
   </div>
   <div class="fbar">
-    <input class="search" id="srch" placeholder="🔍 Cari invoice / customer..." oninput="renderQ()">
+    <input class="search" id="srch" placeholder="🔍 Cari invoice / customer..." oninput="debouncedRenderQ()">
     <button class="fbtn active" id="fa" onclick="setF('a')">Semua</button>
     <button class="fbtn" id="fb" onclick="setF('b')">Belum FU</button>
     <button class="fbtn" id="fc" onclick="setF('c')">🔴 Kritis</button>
@@ -2390,6 +2390,11 @@ function setF(f){
   const btn=document.getElementById('f'+f);
   if(btn) btn.classList.add('active');
   renderQ();
+}
+let srchDebounceTimer=null;
+function debouncedRenderQ(){
+  clearTimeout(srchDebounceTimer);
+  srchDebounceTimer=setTimeout(function(){ renderQ(); }, 300);
 }
 function renderQ(append=false){
   if(!invs.length){
