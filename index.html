@@ -2574,19 +2574,55 @@ function stagePills(i){
 
 function buildWaUrl(no){
   const i=findInvoiceByNo(no); if(!i) return '#';
+  const prog=getInvoiceProgress(i);
   const il=logs.filter(l=>l.inv===no).sort((a,b)=>(b.ts||b.date||'').localeCompare(a.ts||a.date||''));
   const last=il.length?il[0]:null;
-  let msg = `Yth. Bapak/Ibu Management/Finance ${i.cust},\n\n` +
-    `Kami dari Tim Penagihan PT Pelindo Daya Sejahtera menyampaikan pengingat terkait tagihan berikut:\n` +
-    `• No. Invoice: ${i.no}\n` +
-    `• Nominal: ${fmt(i.amt)}\n`;
-  if(i.desc) msg += `• Deskripsi: ${i.desc}\n`;
-  if(last && last.hasil === 'Janji Bayar' && last.jt) {
-    msg += `• Tanggal Janji Bayar: ${last.jt}\n`;
+  
+  let header = `Yth. Bapak/Ibu Management/Finance ${i.cust},\n\n` +
+    `Kami dari Tim Penagihan PT Pelindo Daya Sejahtera ingin mengonfirmasi update status tagihan berikut:\n` +
+    `📌 *No. Invoice*: ${i.no}\n` +
+    `💰 *Nominal*: ${fmt(i.amt)}\n` +
+    `📄 *Deskripsi*: ${i.desc || '-'}\n` +
+    `📍 *Posisi / Stage*: ${prog.label} (PJ: ${prog.ownerPerson})\n`;
+
+  let contextNote = '';
+
+  // Konteks spesifik per bottleneck & SLA 2x24 Jam
+  if(prog.key === 'nota_pending' || prog.key === 'nota_rejected'){
+    contextNote = `⚠️ *KENDALA NOTA DINAS*: Status Nota Dinas saat ini *${prog.sNota || 'Belum Dibuat'}*. Mohon bantuan percepatan penerbitan Nota Dinas agar tagihan dapat segera diproses ke tahap berikutnya (SLA 2x24 Jam).\n`;
+  } else if(prog.key === 'mir7_pending' || prog.key === 'mir7_rejected'){
+    contextNote = `⚠️ *KENDALA MIR7 / SAP*: Status MIR7/SAP saat ini *${prog.sMIR || 'Belum Dibuat/Proses'}*. Mohon konfirmasi kelengkapan entri dokumen SAP agar pencairan tidak tertahan (SLA 2x24 Jam).\n`;
+  } else if(prog.key.startsWith('collection') || prog.key === 'direct_active' || prog.key === 'direct_no_fu' || prog.key === 'direct_janji_overdue'){
+    contextNote = `✅ *STATUS MIR7 COMPLETE (PASCA MIR7)*: Dokumen MIR7/SAP sudah selesai lengkap, namun pembayaran masih *Unpaid*. Mohon informasi jadwal pencairan/transfer dana (SLA Realisasi 2x24 Jam).\n`;
+    if(last && last.hasil === 'Janji Bayar' && last.jt) {
+      contextNote += `📅 *CATATAN JANJI BAYAR*: Terdata janji pembayaran pada *${last.jt}*${last.jn ? ' sebesar Rp ' + fmt(last.jn) : ''}.\n`;
+    }
+  } else if(prog.key === 'ba_pending' || prog.key === 'ba_rejected'){
+    contextNote = `⚠️ *KENDALA BA/BAST*: Status Berita Acara saat ini *${prog.sBA || 'Belum Selesai'}*. Mohon bantuan verifikasi dokumen BA/BAST (SLA 2x24 Jam).\n`;
+  } else if(prog.key === 'surat_pending' || prog.key === 'surat_rejected'){
+    contextNote = `⚠️ *KENDALA SURAT TAGIHAN*: Status Surat Tagihan saat ini *${prog.sSrt || 'Belum Dibuat'}*. Mohon bantuan penyelesaian pengiriman surat tagihan (SLA 2x24 Jam).\n`;
   }
-  msg += `\nMohon konfirmasi status pembayaran atau dokumen pendukung tagihan tersebut. Terima kasih atas perhatian dan kerja samanya. 🙏\n\n` +
+
+  let footer = `\nMohon bantuannya untuk menindaklanjuti titik kendala di atas agar alur proses tagihan tidak tertahan. Terima kasih banyak atas kerja samanya. 🙏\n\n` +
     `Salam,\nPT Pelindo Daya Sejahtera`;
-  return 'https://wa.me/?text=' + encodeURIComponent(msg);
+
+  const fullMsg = header + '\n' + contextNote + footer;
+  return 'https://wa.me/?text=' + encodeURIComponent(fullMsg);
+}
+
+function copyWaMessage(no){
+  const url = buildWaUrl(no);
+  if(url === '#') return;
+  const rawMsg = decodeURIComponent(url.replace('https://wa.me/?text=', ''));
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(rawMsg).then(function(){
+      toast('📋 Draft pesan WA SLA berhasil disalin!');
+    }).catch(function(){
+      toast('⚠️ Gagal menyalin pesan');
+    });
+  } else {
+    toast('📋 Draft pesan WA siap digunakan');
+  }
 }
 
 // ═══ MODAL ═══
@@ -2617,7 +2653,13 @@ function openM(no){
     ${issue&&issue.lastStage?`<div class="irow"><span class="ilbl">Histori Terakhir</span><span class="ival">${esc(issue.lastStage)} • ${esc(issue.lastStatus||'-')}${issue.lastUpdate?`<br><span style="font-size:.68rem;color:#607d8b;">${esc(issue.lastUpdate)}</span>`:''}</span></div>`:''}
     <div class="irow"><span class="ilbl">Payment</span><span class="ival">${esc(i.pay)}</span></div>
     <div class="irow"><span class="ilbl">Deskripsi</span><span class="ival" style="font-size:.72rem;">${esc(i.desc.slice(0,70))}${i.desc.length>70?'...':''}</span></div>
-    <div class="irow" style="margin-top:6px;padding-top:6px;border-top:1px dashed #e0e0e0;"><span class="ilbl">WhatsApp</span><span class="ival"><a class="btn-wa" style="display:inline-flex;padding:4px 10px;font-size:.72rem;" onclick="window.open(buildWaUrl('${jsq(i.no)}'),'_blank')">💬 Kirim Pengingat WA</a></span></div>`;
+    <div class="irow" style="margin-top:6px;padding-top:6px;border-top:1px dashed #e0e0e0;">
+      <span class="ilbl">Aksi WhatsApp SLA</span>
+      <span class="ival" style="display:flex;gap:6px;justify-content:flex-end;align-items:center;">
+        <a class="btn-wa" style="display:inline-flex;padding:3px 9px;font-size:.68rem;" onclick="window.open(buildWaUrl('${jsq(i.no)}'),'_blank')">💬 Buka WA</a>
+        <button class="btn btn-outline btn-sm" style="padding:2px 7px;font-size:.63rem;" onclick="copyWaMessage('${jsq(i.no)}')">📋 Salin Teks</button>
+      </span>
+    </div>`;
   const st=[{n:'BA/BAST',v:prog.sBA},{n:'Surat',v:prog.sSrt},{n:'Nota Dinas',v:prog.sNota},{n:'MIR7/SAP',v:prog.sMIR},{n:'Payment',v:prog.pay}];
   document.getElementById('m-stages').innerHTML=st.map(x=>{
     const c=x.v==='Completed'||x.v==='Paid'?'ok':x.v.includes('Progress')?'ip':x.v==='Belum Dibuat'||x.v==='Rejected'?'bl':'na';
