@@ -2603,6 +2603,8 @@ function buildWaUrl(no){
   const prog=getInvoiceProgress(i);
   const il=logs.filter(l=>l.inv===no).sort((a,b)=>(b.ts||b.date||'').localeCompare(a.ts||a.date||''));
   const last=il.length?il[0]:null;
+  const isFollowUp=il.length>0;
+  const slaLine=isFollowUp?' Mengingat ini follow-up lanjutan, mohon dapat direalisasikan maksimal dalam 2x24 jam ke depan ya, Bapak/Ibu.':'';
 
   let header = `${getWaGreeting()},\nYth. Bapak/Ibu Finance/Accounting *${i.cust}*,\n\n` +
     `Kami dari Tim Penagihan PT Pelindo Daya Sejahtera ingin menyampaikan update status tagihan berikut dan memohon bantuan tindak lanjutnya:\n` +
@@ -2613,20 +2615,21 @@ function buildWaUrl(no){
 
   let contextNote = '';
 
-  // Konteks spesifik per bottleneck & SLA 2x24 Jam
+  // Konteks spesifik per bottleneck. SLA 2x24 Jam hanya ditegaskan pada follow-up lanjutan,
+  // bukan kontak pertama, biar nggak kesan nagih di awal.
   if(prog.key === 'nota_pending' || prog.key === 'nota_rejected'){
-    contextNote = `⚠️ *Kendala Nota Dinas*: Status saat ini *${prog.sNota || 'Belum Dibuat'}*. Mohon bantuan Bapak/Ibu untuk mempercepat penerbitan Nota Dinas agar tagihan dapat lanjut ke tahap berikutnya. Kami akan sangat terbantu bila prosesnya bisa selesai dalam 2x24 jam ke depan.\n`;
+    contextNote = `⚠️ *Kendala Nota Dinas*: Status saat ini *${prog.sNota || 'Belum Dibuat'}*. Mohon bantuan Bapak/Ibu untuk mempercepat penerbitan Nota Dinas agar tagihan dapat lanjut ke tahap berikutnya.${slaLine}\n`;
   } else if(prog.key === 'mir7_pending' || prog.key === 'mir7_rejected'){
-    contextNote = `⚠️ *Kendala MIR7 / SAP*: Status MIR7/SAP saat ini *${prog.sMIR || 'Belum Dibuat/Proses'}*. Mohon bantuan konfirmasi kelengkapan entri dokumen SAP agar pencairan tidak tertahan. Target penyelesaian dalam 2x24 jam ya, Bapak/Ibu.\n`;
+    contextNote = `⚠️ *Kendala MIR7 / SAP*: Status MIR7/SAP saat ini *${prog.sMIR || 'Belum Dibuat/Proses'}*. Mohon bantuan konfirmasi kelengkapan entri dokumen SAP agar pencairan tidak tertahan.${slaLine}\n`;
   } else if(prog.key.startsWith('collection') || prog.key === 'direct_active' || prog.key === 'direct_no_fu' || prog.key === 'direct_janji_overdue'){
-    contextNote = `✅ *Dokumen Lengkap – Menunggu Pembayaran*: Seluruh dokumen (MIR7/SAP) sudah selesai, namun status pembayaran masih *Unpaid*. Mohon informasi jadwal realisasi transfer dana (target SLA 2x24 Jam).\n`;
+    contextNote = `✅ *Dokumen Lengkap – Menunggu Pembayaran*: Seluruh dokumen (MIR7/SAP) sudah selesai, namun status pembayaran masih *Unpaid*. Mohon informasi jadwal realisasi transfer dana.${slaLine}\n`;
     if(last && last.hasil === 'Janji Bayar' && last.jt) {
       contextNote += `📅 *Catatan Janji Bayar*: Tercatat janji pembayaran pada *${last.jt}*${last.jn ? ' sebesar Rp ' + fmt(last.jn) : ''}. Mohon konfirmasi kesesuaian jadwal tersebut.\n`;
     }
   } else if(prog.key === 'ba_pending' || prog.key === 'ba_rejected'){
-    contextNote = `⚠️ *Kendala Berita Acara (BA/BAST)*: Status BA saat ini *${prog.sBA || 'Belum Selesai'}*. Mohon bantuan verifikasi/penyelesaian dokumen BA/BAST agar proses tagihan dapat dilanjutkan (target SLA 2x24 Jam).\n`;
+    contextNote = `⚠️ *Kendala Berita Acara (BA/BAST)*: Status BA saat ini *${prog.sBA || 'Belum Selesai'}*. Mohon bantuan verifikasi/penyelesaian dokumen BA/BAST agar proses tagihan dapat dilanjutkan.${slaLine}\n`;
   } else if(prog.key === 'surat_pending' || prog.key === 'surat_rejected'){
-    contextNote = `⚠️ *Kendala Surat Tagihan*: Status Surat Tagihan saat ini *${prog.sSrt || 'Belum Dibuat'}*. Mohon bantuan penyelesaian dan pengiriman surat tagihan agar proses dapat dilanjutkan (target SLA 2x24 Jam).\n`;
+    contextNote = `⚠️ *Kendala Surat Tagihan*: Status Surat Tagihan saat ini *${prog.sSrt || 'Belum Dibuat'}*. Mohon bantuan penyelesaian dan pengiriman surat tagihan agar proses dapat dilanjutkan.${slaLine}\n`;
   }
 
   let footer = `\nMohon bantuan dan konfirmasinya, Bapak/Ibu. Apabila ada kendala di sisi Bapak/Ibu, silakan infokan ke kami agar dapat segera dibantu koordinasikan. Terima kasih banyak atas kerja samanya. 🙏\n\n` +
