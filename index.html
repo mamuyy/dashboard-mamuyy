@@ -707,7 +707,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 <!-- ═══════════ RIWAYAT ═══════════ -->
 <div class="page" id="page-history">
   <div class="fbar">
-    <input class="search" id="hsrch" placeholder="🔍 Cari..." oninput="renderH()">
+    <input class="search" id="hsrch" placeholder="🔍 Cari..." oninput="historyLimit=300;renderH()">
     <button class="fbtn active" id="hfa" onclick="setHF('a')">Semua</button>
     <button class="fbtn" id="hft" onclick="setHF('t')">Hari Ini</button>
     <button class="fbtn" id="hfj" onclick="setHF('j')">Janji</button>
@@ -1315,9 +1315,7 @@ function restoreCloudSnapshot(){
     if(snapshot.lastInvoiceUpdatedAt) lastInvoiceUpdatedAt=snapshot.lastInvoiceUpdatedAt;
     const badge=document.getElementById('data-badge');
     if(badge) badge.textContent='⚡ Cache · memperbarui...';
-    renderQ();
-    renderH();
-    renderDash();
+    renderActiveTabOnly();
     return true;
   }).catch(function(e){ console.warn('Cache dashboard belum tersedia:',e.message); return false; });
 }
@@ -1379,8 +1377,7 @@ window.addEventListener('load',()=>{
     if(document.getElementById('m-date')) document.getElementById('m-date').value=TODAY;
 
     updateIssueHistoryStatus();
-    renderH();
-    renderDash();
+    renderActiveTabOnly();
   } catch(e) {
     alert("Startup Error: " + e.message);
   }
@@ -3265,10 +3262,9 @@ function saveMLog(){
     mode:mode,
     nx:nextAction||'',
     cust:i.cust||'',amt:i.amt||0,ts:new Date().toISOString()});
-  saveLogs(); closeM(); renderQ(); renderH(); renderDash(); toast('✅ Log disimpan: '+hs);
+  saveLogs(); closeM();
   if(mode==='surat' && i.no && SURAT_HASIL_TO_SSRT[hs] && i.sSrt!==SURAT_HASIL_TO_SSRT[hs]){
     i.sSrt=SURAT_HASIL_TO_SSRT[hs];
-    renderQ(); renderDash();
     if(gsUrl) pushInvsToSheets({});
   }
   // Follow Up: hasil "Paid" berarti invoice lunas - update i.pay juga (bukan cuma log) supaya
@@ -3276,9 +3272,10 @@ function saveMLog(){
   // re-upload Excel besok.
   if(mode==='followup' && i.no && hs==='Paid' && normalizePayStatus(i.pay)!=='Paid'){
     i.pay='Paid';
-    renderQ(); renderDash();
     if(gsUrl) pushInvsToSheets({});
   }
+  renderActiveTabOnly();
+  toast('✅ Log disimpan: '+hs);
 }
 
 // ═══ QUICK LOG ═══
@@ -3302,7 +3299,7 @@ function saveQL(){
     jt:document.getElementById('ql-jt').value,
     jn:n(document.getElementById('ql-jn').value),
     cust:i.cust||'',amt:i.amt||0,ts:new Date().toISOString()});
-  saveLogs(); clearQL(); renderQ(); renderH(); renderDash(); toast('✅ Log disimpan!');
+  saveLogs(); clearQL(); renderActiveTabOnly(); toast('✅ Log disimpan!');
 }
 function clearQL(){
   ['ql-inv','ql-ch','ql-hs','ql-note','ql-bukti','ql-bukti-file'].forEach(id=>document.getElementById(id).value='');
@@ -3347,7 +3344,8 @@ function clearAllLogs(){
 }
 
 // ═══ HISTORY ═══
-function setHF(f){ hf=f; document.querySelectorAll('#page-history .fbtn').forEach(b=>b.classList.remove('active'));
+let historyLimit=300;
+function setHF(f){ hf=f; historyLimit=300; document.querySelectorAll('#page-history .fbtn').forEach(b=>b.classList.remove('active'));
   document.getElementById('hf'+f).classList.add('active'); renderH(); }
 function renderH(){
   const q=(document.getElementById('hsrch')?.value||'').toLowerCase();
@@ -3377,7 +3375,9 @@ function renderH(){
     return;
   }
 
-  el.innerHTML=list.map(l=>`
+  const totalMatches=list.length;
+  const visibleList=list.slice(0,historyLimit);
+  el.innerHTML=visibleList.map(l=>`
     <div class="hcard">
       <div class="hhead">
         <span class="hinv">${esc(l.inv)}</span>
@@ -3394,6 +3394,9 @@ function renderH(){
       ${l.jt?`<div style="font-size:.72rem;color:var(--blue);margin-top:3px;">📅 ${l.jt}${l.jn?' · '+fmt(l.jn):''}</div>`:''}
     </div>
   `).join('');
+  if(totalMatches>visibleList.length){
+    el.insertAdjacentHTML('beforeend',`<button class="btn btn-outline" style="width:100%;margin-top:10px;" onclick="historyLimit+=300;renderH()">Tampilkan 300 Berikutnya (${totalMatches-visibleList.length} tersisa)</button>`);
+  }
 }
 
 // ═══ DASHBOARD ═══
@@ -5532,7 +5535,7 @@ function syncFromSheets(silent){
       try{ localStorage.setItem('fu_logs',JSON.stringify(logs.slice(0,2000))); }catch(e){}
       scheduleCloudSnapshotPersist();
       setGsStatus('✅ Sinkron '+logs.length+' log — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
-      renderH(); renderDash();
+      renderActiveTabOnly();
       if(!silent) toast('✅ '+remote.length+' log ditarik dari Sheets!');
     })
     .catch(function(e){ setGsStatus('❌ Gagal: '+e.message,'var(--red)'); if(!silent) toast('❌ Gagal sync: '+e.message); });
