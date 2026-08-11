@@ -1310,7 +1310,7 @@ function restoreCloudSnapshot(){
     agMap=snapshot.agMap||{};
     agTotals=snapshot.agTotals||{};
     window.fbl5nDocsMap=snapshot.fbl5nDocsMap||{};
-    if(Array.isArray(snapshot.logs)&&snapshot.logs.length) logs=snapshot.logs;
+    if(Array.isArray(snapshot.logs)&&snapshot.logs.length) logs=snapshot.logs.map(sanitizePersistedLogRow);
     dashboardCacheHasSnapshot=true;
     if(snapshot.lastInvoiceUpdatedAt) lastInvoiceUpdatedAt=snapshot.lastInvoiceUpdatedAt;
     const badge=document.getElementById('data-badge');
@@ -1333,7 +1333,7 @@ window.addEventListener('load',()=>{
     localDraftMode=localStorage.getItem(LOCAL_DRAFT_FLAG_KEY)==='1';
     const sl=localStorage.getItem('fu_logs');
     if(sl) {
-      try{ logs=JSON.parse(sl); }catch(e){ logs=[]; }
+      try{ logs=JSON.parse(sl).map(sanitizePersistedLogRow); }catch(e){ logs=[]; }
     }
     const sih=localStorage.getItem('issue_history_map');
     if(sih){
@@ -5522,7 +5522,7 @@ function syncFromSheets(silent){
   fetchJsonWithTimeout(gsUrl+'?t='+Date.now())
     .then(function(d){
       if(!d.ok){ setGsStatus('❌ Error: '+d.error,'var(--red)'); return; }
-      const remote=d.logs||[];
+      const remote=(d.logs||[]).map(sanitizePersistedLogRow);
       if(!remote.length){ if(!silent) setGsStatus('ℹ️ Belum ada log di Sheets.','var(--sub)'); return; }
       // Merge: gabung lokal+remote, deduplikat berdasarkan ts+inv
       const map={};
@@ -5928,7 +5928,7 @@ function pullAllFromSheets(silent=false){
     // Logs — merge dengan lokal (filter log yang pernah dihapus)
     if(rLogs.ok && rLogs.logs && rLogs.logs.length){
       var deletedSet = getDeletedLogIds();
-      var filteredServerLogs = rLogs.logs.filter(function(l){
+      var filteredServerLogs = rLogs.logs.map(sanitizePersistedLogRow).filter(function(l){
         return !deletedSet.has(String(l.id));
       });
       var map={};
@@ -6065,6 +6065,25 @@ function rawTextValue(value,emptyFallback='-'){
     if(isFinite(serial)&&serial>0) return String(serial);
   }
   return String(value);
+}
+function normalizeLogDateValue(value){
+  if(value===null||value===undefined||value==='') return '';
+  const raw=String(value).trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const dt=new Date(raw);
+  if(isNaN(dt.getTime())) return raw.slice(0,10);
+  const parts=new Intl.DateTimeFormat('en-CA',{
+    timeZone:'Asia/Jakarta',year:'numeric',month:'2-digit',day:'2-digit'
+  }).formatToParts(dt);
+  const map={};
+  parts.forEach(function(p){ if(p.type!=='literal') map[p.type]=p.value; });
+  return map.year+'-'+map.month+'-'+map.day;
+}
+function sanitizePersistedLogRow(log){
+  const out=Object.assign({},log||{});
+  out.date=normalizeLogDateValue(out.date||(out.ts?String(out.ts).slice(0,10):''));
+  if(out.jt) out.jt=normalizeLogDateValue(out.jt);
+  return out;
 }
 const FALLBACK_INVALID_IDENTIFIER='INVALID_IDENTIFIER';
 const FALLBACK_CORRUPTED_LEGACY_VALUE='CORRUPTED_LEGACY_VALUE';

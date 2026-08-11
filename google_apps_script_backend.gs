@@ -87,13 +87,13 @@ function doGet(e) {
             id: String(r[0] || ''),
             inv: String(r[1] || ''),
             cust: String(r[2] || ''),
-            date: String(r[3] || ''),
+            date: formatDateForClient(r[3]),
             hasil: String(r[4] || ''),
             ch: String(r[5] || ''),
             note: String(r[6] || ''),
             nx: String(r[7] || ''),
             bukti: String(r[8] || ''),
-            jt: String(r[9] || ''),
+            jt: formatDateForClient(r[9]),
             jn: Number(r[10] || 0),
             pic: String(r[11] || ''),
             ts: String(r[12] || '')
@@ -236,4 +236,16 @@ function doPost(e) {
 function jsonResponse(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+function formatDateForClient(value) {
+  if (!value) return '';
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, 'Asia/Jakarta', 'yyyy-MM-dd');
+  }
+  var raw = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  var parsed = new Date(raw);
+  if (!isNaN(parsed.getTime())) return Utilities.formatDate(parsed, 'Asia/Jakarta', 'yyyy-MM-dd');
+  return raw;
 }
