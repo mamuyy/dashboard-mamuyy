@@ -1241,6 +1241,87 @@ function applySdmAdminVisibility(){
 
 // ═══ INIT ═══
 let gsUrl='';
+
+// Cache data cloud di IndexedDB agar kunjungan berikutnya dapat menampilkan
+// dashboard terlebih dahulu tanpa menunggu payload Sheets yang besar.
+const DASH_CACHE_DB='mamuyy_dashboard_cache';
+const DASH_CACHE_STORE='snapshots';
+const DASH_CACHE_KEY='cloud_v1';
+let dashboardCacheHasSnapshot=false;
+let dashboardCacheWriteTimer=null;
+function openDashboardCache(){
+  return new Promise(function(resolve,reject){
+    if(!window.indexedDB) return reject(new Error('IndexedDB tidak tersedia'));
+    const req=indexedDB.open(DASH_CACHE_DB,1);
+    req.onupgradeneeded=function(){
+      const db=req.result;
+      if(!db.objectStoreNames.contains(DASH_CACHE_STORE)) db.createObjectStore(DASH_CACHE_STORE);
+    };
+    req.onsuccess=function(){ resolve(req.result); };
+    req.onerror=function(){ reject(req.error||new Error('Gagal membuka cache')); };
+  });
+}
+function writeDashboardCache(snapshot){
+  return openDashboardCache().then(function(db){
+    return new Promise(function(resolve,reject){
+      const tx=db.transaction(DASH_CACHE_STORE,'readwrite');
+      tx.objectStore(DASH_CACHE_STORE).put(snapshot,DASH_CACHE_KEY);
+      tx.oncomplete=function(){ db.close(); resolve(true); };
+      tx.onerror=function(){ db.close(); reject(tx.error||new Error('Gagal menyimpan cache')); };
+    });
+  });
+}
+function readDashboardCache(){
+  return openDashboardCache().then(function(db){
+    return new Promise(function(resolve,reject){
+      const tx=db.transaction(DASH_CACHE_STORE,'readonly');
+      const req=tx.objectStore(DASH_CACHE_STORE).get(DASH_CACHE_KEY);
+      req.onsuccess=function(){ db.close(); resolve(req.result||null); };
+      req.onerror=function(){ db.close(); reject(req.error||new Error('Gagal membaca cache')); };
+    });
+  });
+}
+function persistCloudSnapshot(){
+  const snapshot={
+    savedAt:Date.now(),
+    invs:invs,
+    agMap:agMap,
+    agTotals:agTotals,
+    fbl5nDocsMap:window.fbl5nDocsMap||{},
+    logs:logs,
+    lastInvoiceUpdatedAt:lastInvoiceUpdatedAt||''
+  };
+  return writeDashboardCache(snapshot).then(function(){ dashboardCacheHasSnapshot=true; return true; })
+    .catch(function(e){ console.warn('Cache dashboard gagal disimpan:',e.message); return false; });
+}
+function scheduleCloudSnapshotPersist(){
+  if(dashboardCacheWriteTimer) clearTimeout(dashboardCacheWriteTimer);
+  dashboardCacheWriteTimer=setTimeout(function(){
+    dashboardCacheWriteTimer=null;
+    const run=function(){ persistCloudSnapshot(); };
+    if('requestIdleCallback' in window) requestIdleCallback(run,{timeout:2000});
+    else run();
+  },500);
+}
+function restoreCloudSnapshot(){
+  return readDashboardCache().then(function(snapshot){
+    if(!snapshot||!Array.isArray(snapshot.invs)||!snapshot.invs.length) return false;
+    invs=snapshot.invs.map(sanitizePersistedInvoiceRow);
+    agMap=snapshot.agMap||{};
+    agTotals=snapshot.agTotals||{};
+    window.fbl5nDocsMap=snapshot.fbl5nDocsMap||{};
+    if(Array.isArray(snapshot.logs)&&snapshot.logs.length) logs=snapshot.logs;
+    dashboardCacheHasSnapshot=true;
+    if(snapshot.lastInvoiceUpdatedAt) lastInvoiceUpdatedAt=snapshot.lastInvoiceUpdatedAt;
+    const badge=document.getElementById('data-badge');
+    if(badge) badge.textContent='⚡ Cache · memperbarui...';
+    renderQ();
+    renderH();
+    renderDash();
+    return true;
+  }).catch(function(e){ console.warn('Cache dashboard belum tersedia:',e.message); return false; });
+}
+
 window.addEventListener('load',()=>{
   try {
     applySdmAdminVisibility();
@@ -1281,7 +1362,8 @@ window.addEventListener('load',()=>{
         setGsStatus('⚠️ Ditemukan draft lokal belum dipush. Data cloud tidak ditarik otomatis agar tidak ketimpa.','#ef6c00');
         updateAutoSyncBadge('Draft lokal terdeteksi saat startup.');
       } else {
-        pullAllFromSheets(true);
+        // Tampilkan snapshot terakhir lebih dulu, lalu refresh cloud di belakang.
+        restoreCloudSnapshot().finally(function(){ pullAllFromSheets(true); });
       }
       startAutoSync();
     }
@@ -5162,7 +5244,13 @@ function exportLaporan(){
 
 // ═══ HELPERS ═══
 function saveLogs(mode='append'){
-  localStorage.setItem('fu_logs',JSON.stringify(logs));
+  // localStorage bersifat sinkron dan mudah membuat UI macet untuk belasan ribu
+  // log. Simpan ekor terbaru untuk kompatibilitas, sedangkan salinan penuh masuk
+  // IndexedDB secara non-blocking.
+  try{
+    localStorage.setItem('fu_logs',JSON.stringify(logs.slice(0,2000)));
+  }catch(e){ console.warn('Ringkasan log lokal gagal disimpan:',e.message); }
+  scheduleCloudSnapshotPersist();
 
   if(gsUrl){
     if(mode==='full-sync'){
@@ -5441,7 +5529,8 @@ function syncFromSheets(silent){
       logs.forEach(function(l){ map[getLogMergeKey(l)]=l; });
       remote.forEach(function(l){ const k=getLogMergeKey(l); if(!map[k]) map[k]=l; });
       logs=Object.values(map).sort(function(a,b){ return (b.ts||'')>(a.ts||'')?1:-1; });
-      localStorage.setItem('fu_logs',JSON.stringify(logs));
+      try{ localStorage.setItem('fu_logs',JSON.stringify(logs.slice(0,2000))); }catch(e){}
+      scheduleCloudSnapshotPersist();
       setGsStatus('✅ Sinkron '+logs.length+' log — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
       renderH(); renderDash();
       if(!silent) toast('✅ '+remote.length+' log ditarik dari Sheets!');
@@ -5846,7 +5935,8 @@ function pullAllFromSheets(silent=false){
       logs.forEach(function(l){ if(!deletedSet.has(String(l.id))) map[getLogMergeKey(l)]=l; });
       filteredServerLogs.forEach(function(l){ var k=getLogMergeKey(l); if(!map[k]) map[k]=l; });
       logs=Object.values(map).sort(function(a,b){return (b.ts||'')>(a.ts||'')?1:-1;});
-      localStorage.setItem('fu_logs',JSON.stringify(logs));
+      // Hindari JSON.stringify + localStorage penuh (blocking) setiap auto-sync.
+      // Snapshot lengkap disimpan async setelah seluruh respons selesai.
     }
     var latestLogKey=logs.length?((logs[0].ts||'')+'|'+(logs[0].inv||'')):'';
     hasLogsChanged = prevLogCount!==logs.length || latestLogKey!==prevLatestLogKey;
@@ -5859,6 +5949,9 @@ function pullAllFromSheets(silent=false){
       }
       if(!silent) toast('✅ Data lengkap! '+invs.length+' invoice, '+Object.keys(agMap).length+' customer aging, '+logs.length+' log FU');
       if(!silent) showPage('dash');
+      if(!dashboardCacheHasSnapshot || hasInvoiceChanged || hasAgingChanged || hasLogsChanged){
+        scheduleCloudSnapshotPersist();
+      }
     } else {
       lastAutoSyncState='error';
       updateAutoSyncBadge('Data invoice belum tersedia di Sheets.');
