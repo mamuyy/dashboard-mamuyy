@@ -1241,6 +1241,7 @@ function applySdmAdminVisibility(){
 
 // ═══ INIT ═══
 let gsUrl='';
+const APP_STARTED_AT=Date.now();
 
 // Cache data cloud di IndexedDB agar kunjungan berikutnya dapat menampilkan
 // dashboard terlebih dahulu tanpa menunggu payload Sheets yang besar.
@@ -1312,9 +1313,10 @@ function restoreCloudSnapshot(){
     window.fbl5nDocsMap=snapshot.fbl5nDocsMap||{};
     if(Array.isArray(snapshot.logs)&&snapshot.logs.length) logs=snapshot.logs.map(sanitizePersistedLogRow);
     dashboardCacheHasSnapshot=true;
+    if(snapshot.savedAt){ lastAutoSyncAt=snapshot.savedAt; lastAutoSyncState='ok'; }
     if(snapshot.lastInvoiceUpdatedAt) lastInvoiceUpdatedAt=snapshot.lastInvoiceUpdatedAt;
     const badge=document.getElementById('data-badge');
-    if(badge) badge.textContent='⚡ Cache · memperbarui...';
+    if(badge) badge.textContent='⚡ Cache siap';
     renderActiveTabOnly();
     return true;
   }).catch(function(e){ console.warn('Cache dashboard belum tersedia:',e.message); return false; });
@@ -1360,8 +1362,15 @@ window.addEventListener('load',()=>{
         setGsStatus('⚠️ Ditemukan draft lokal belum dipush. Data cloud tidak ditarik otomatis agar tidak ketimpa.','#ef6c00');
         updateAutoSyncBadge('Draft lokal terdeteksi saat startup.');
       } else {
-        // Tampilkan snapshot terakhir lebih dulu, lalu refresh cloud di belakang.
-        restoreCloudSnapshot().finally(function(){ pullAllFromSheets(true); });
+        // Jika cache tersedia, jangan langsung menarik ulang payload cloud ±10 MB.
+        // Auto-sync berkala atau tombol manual tetap menyediakan data terbaru.
+        restoreCloudSnapshot().then(function(restored){
+          if(restored){
+            setGsStatus('⚡ Data cache siap. Pembaruan cloud berjalan berkala; klik Tarik Data Terbaru bila perlu.','#2e7d32');
+          }else{
+            pullAllFromSheets(true);
+          }
+        });
       }
       startAutoSync();
     }
@@ -5262,13 +5271,6 @@ function saveLogs(mode='append'){
       pushLastLogToSheets();
     }
 
-    setTimeout(function(){
-      pullAllFromSheets(true);
-    }, 1500);
-
-    setTimeout(function(){
-      pullAllFromSheets(true);
-    }, 4000);
   }
 }
 
@@ -5281,7 +5283,9 @@ let autoPushRetryNextAt=0;
 let lastAutoSyncAt=0;
 let lastAutoSyncState='idle';
 let lastInvoiceUpdatedAt='';
-const AUTO_SYNC_MS = 60000;
+// Payload cloud saat ini ±10 MB. Interval 5 menit menjaga data cukup segar
+// tanpa membuat browser parsing ulang 27 ribu record setiap menit.
+const AUTO_SYNC_MS = 300000;
 const AUTO_SYNC_BADGE_MS = 5000;
 const AUTO_SYNC_MIN_GAP_MS = 8000;
 const AUTO_PUSH_RETRY_MS = 60000;
@@ -5371,11 +5375,13 @@ function startAutoSync(){
 }
 
 window.addEventListener('focus', function(){
-  if(gsUrl && !localDraftMode) pullAllFromSheets(true);
+  if(gsUrl && !localDraftMode && (Date.now()-APP_STARTED_AT)>=AUTO_SYNC_MS && (!lastAutoSyncAt || (Date.now()-lastAutoSyncAt)>=AUTO_SYNC_MS)){
+    pullAllFromSheets(true);
+  }
 });
 
 document.addEventListener('visibilitychange', function(){
-  if(document.visibilityState === 'visible' && gsUrl && !localDraftMode){
+  if(document.visibilityState === 'visible' && gsUrl && !localDraftMode && (Date.now()-APP_STARTED_AT)>=AUTO_SYNC_MS && (!lastAutoSyncAt || (Date.now()-lastAutoSyncAt)>=AUTO_SYNC_MS)){
     pullAllFromSheets(true);
   }
 });
