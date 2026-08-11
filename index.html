@@ -55,6 +55,8 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:#212121;
 
 /* ── BUTTONS ── */
 .btn{display:inline-flex;align-items:center;gap:5px;padding:9px 18px;border:none;border-radius:8px;font-size:.82rem;font-weight:700;cursor:pointer;transition:.15s;}
+.btn,.tab,.fbtn,.rbtn,.pic-btn,[onclick]{touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+.btn:active,.fbtn:active,.rbtn:active,.pic-btn:active{transform:scale(.97);}
 .btn-primary{background:var(--dark);color:#fff;}
 .btn-green{background:var(--green);color:#fff;}
 .btn-outline{background:#fff;color:var(--dark);border:2px solid var(--dark);}
@@ -2496,7 +2498,7 @@ function renderStageSubfilters(){
 function setStageSubfilter(sub){
   csub=sub||'';
   pageQ=1;
-  renderQ();
+  runAfterPaint('queue-render',renderQ);
 }
 function setF(f){
   cf=f;
@@ -2505,7 +2507,7 @@ function setF(f){
   document.querySelectorAll('#page-queue .fbtn').forEach(b=>b.classList.remove('active'));
   const btn=document.getElementById('f'+f);
   if(btn) btn.classList.add('active');
-  renderQ();
+  runAfterPaint('queue-render',renderQ);
 }
 let srchDebounceTimer=null;
 function debouncedRenderQ(){
@@ -3276,6 +3278,7 @@ function saveMLog(){
     nx:nextAction||'',
     cust:i.cust||'',amt:i.amt||0,ts:new Date().toISOString()});
   saveLogs(); closeM();
+  toast('✅ Log disimpan: '+hs);
   if(mode==='surat' && i.no && SURAT_HASIL_TO_SSRT[hs] && i.sSrt!==SURAT_HASIL_TO_SSRT[hs]){
     i.sSrt=SURAT_HASIL_TO_SSRT[hs];
     if(gsUrl) pushInvsToSheets({});
@@ -3287,8 +3290,7 @@ function saveMLog(){
     i.pay='Paid';
     if(gsUrl) pushInvsToSheets({});
   }
-  renderActiveTabOnly();
-  toast('✅ Log disimpan: '+hs);
+  scheduleActiveTabRender();
 }
 
 // ═══ QUICK LOG ═══
@@ -3312,7 +3314,7 @@ function saveQL(){
     jt:document.getElementById('ql-jt').value,
     jn:n(document.getElementById('ql-jn').value),
     cust:i.cust||'',amt:i.amt||0,ts:new Date().toISOString()});
-  saveLogs(); clearQL(); renderActiveTabOnly(); toast('✅ Log disimpan!');
+  saveLogs(); clearQL(); toast('✅ Log disimpan!'); scheduleActiveTabRender();
 }
 function clearQL(){
   ['ql-inv','ql-ch','ql-hs','ql-note','ql-bukti','ql-bukti-file'].forEach(id=>document.getElementById(id).value='');
@@ -5259,13 +5261,24 @@ function exportLaporan(){
 }
 
 // ═══ HELPERS ═══
+let localLogSummaryWriteTimer=null;
+function scheduleLocalLogSummaryPersist(){
+  if(localLogSummaryWriteTimer) clearTimeout(localLogSummaryWriteTimer);
+  localLogSummaryWriteTimer=setTimeout(function(){
+    localLogSummaryWriteTimer=null;
+    const writeSummary=function(){
+      try{ localStorage.setItem('fu_logs',JSON.stringify(logs.slice(0,300))); }
+      catch(e){ console.warn('Ringkasan log lokal gagal disimpan:',e.message); }
+    };
+    if('requestIdleCallback' in window) requestIdleCallback(writeSummary,{timeout:2500});
+    else writeSummary();
+  },250);
+}
 function saveLogs(mode='append'){
   // localStorage bersifat sinkron dan mudah membuat UI macet untuk belasan ribu
-  // log. Simpan ekor terbaru untuk kompatibilitas, sedangkan salinan penuh masuk
+  // log. Simpan 300 log terbaru untuk kompatibilitas, sedangkan salinan penuh masuk
   // IndexedDB secara non-blocking.
-  try{
-    localStorage.setItem('fu_logs',JSON.stringify(logs.slice(0,2000)));
-  }catch(e){ console.warn('Ringkasan log lokal gagal disimpan:',e.message); }
+  scheduleLocalLogSummaryPersist();
   scheduleCloudSnapshotPersist();
 
   if(gsUrl){
@@ -5397,6 +5410,12 @@ function pollLogUpdates(){
     var previousCursor=logDeltaCursor;
     var previousLatestTs=lastDeltaLogTs;
     var incoming=res.logs.map(sanitizePersistedLogRow);
+    if(res.cursor!==undefined&&res.cursor!==null) logDeltaCursor=Number(res.cursor)||logDeltaCursor;
+    if(res.latestTs) lastDeltaLogTs=String(res.latestTs);
+    if(!incoming.length){
+      if(previousCursor!==logDeltaCursor || previousLatestTs!==lastDeltaLogTs) scheduleCloudSnapshotPersist();
+      return false;
+    }
     var known={};
     logs.forEach(function(l){ known[getLogMergeKey(l)]=true; });
     var added=0;
@@ -5405,9 +5424,7 @@ function pollLogUpdates(){
       if(key&&!known[key]){ logs.push(l); known[key]=true; added++; }
     });
     logs.sort(function(a,b){ return String(b.ts||b.date||'').localeCompare(String(a.ts||a.date||'')); });
-    if(res.cursor!==undefined&&res.cursor!==null) logDeltaCursor=Number(res.cursor)||logDeltaCursor;
-    if(res.latestTs) lastDeltaLogTs=String(res.latestTs);
-    else if(logs.length&&logs[0].ts) lastDeltaLogTs=String(logs[0].ts);
+    if(!lastDeltaLogTs && logs.length&&logs[0].ts) lastDeltaLogTs=String(logs[0].ts);
     if(added || previousCursor!==logDeltaCursor || previousLatestTs!==lastDeltaLogTs){
       scheduleCloudSnapshotPersist();
     }
@@ -5930,6 +5947,20 @@ function renderActiveTabOnly(){
   else if(p==='dash') renderDash();
 }
 
+const deferredUiTaskTokens={};
+function runAfterPaint(key,fn){
+  const token=(deferredUiTaskTokens[key]||0)+1;
+  deferredUiTaskTokens[key]=token;
+  requestAnimationFrame(function(){
+    setTimeout(function(){
+      if(deferredUiTaskTokens[key]===token) fn();
+    },0);
+  });
+}
+function scheduleActiveTabRender(){
+  runAfterPaint('active-page-render',renderActiveTabOnly);
+}
+
 // ── PULL semua data dari Sheets (untuk TIM) ──
 function pullAllFromSheets(silent=false){
   if(pullAllInFlightPromise){
@@ -6045,8 +6076,9 @@ function showPage(p){
   requestAnimationFrame(function(){
     window.scrollTo({top:0,behavior:'auto'});
   });
-  if(p==='dash') setTimeout(renderDash,50);
-  if(p==='history') renderH();
+  if(p==='queue') runAfterPaint('queue-render',renderQ);
+  if(p==='dash') runAfterPaint('dash-render',renderDash);
+  if(p==='history') runAfterPaint('history-render',renderH);
 }
 
 function showRekonViewer(type) {
