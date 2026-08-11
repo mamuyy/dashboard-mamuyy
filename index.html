@@ -1290,7 +1290,9 @@ function persistCloudSnapshot(){
     agTotals:agTotals,
     fbl5nDocsMap:window.fbl5nDocsMap||{},
     logs:logs,
-    lastInvoiceUpdatedAt:lastInvoiceUpdatedAt||''
+    lastInvoiceUpdatedAt:lastInvoiceUpdatedAt||'',
+    logDeltaCursor:logDeltaCursor||0,
+    lastDeltaLogTs:lastDeltaLogTs||''
   };
   return writeDashboardCache(snapshot).then(function(){ dashboardCacheHasSnapshot=true; return true; })
     .catch(function(e){ console.warn('Cache dashboard gagal disimpan:',e.message); return false; });
@@ -1315,6 +1317,8 @@ function restoreCloudSnapshot(){
     dashboardCacheHasSnapshot=true;
     if(snapshot.savedAt){ lastAutoSyncAt=snapshot.savedAt; lastAutoSyncState='ok'; }
     if(snapshot.lastInvoiceUpdatedAt) lastInvoiceUpdatedAt=snapshot.lastInvoiceUpdatedAt;
+    if(snapshot.logDeltaCursor) logDeltaCursor=Number(snapshot.logDeltaCursor)||0;
+    if(snapshot.lastDeltaLogTs) lastDeltaLogTs=String(snapshot.lastDeltaLogTs);
     const badge=document.getElementById('data-badge');
     if(badge) badge.textContent='⚡ Cache siap';
     renderActiveTabOnly();
@@ -5277,6 +5281,10 @@ function saveLogs(mode='append'){
 // ═══ GOOGLE SHEETS SYNC ═══
 let autoSyncTimer=null;
 let autoSyncBadgeTimer=null;
+let logDeltaSyncTimer=null;
+let logDeltaInFlight=null;
+let logDeltaCursor=0;
+let lastDeltaLogTs='';
 let autoPushRetryTimer=null;
 let autoPushRetryCount=0;
 let autoPushRetryNextAt=0;
@@ -5287,6 +5295,7 @@ let lastInvoiceUpdatedAt='';
 // tanpa membuat browser parsing ulang 27 ribu record setiap menit.
 const AUTO_SYNC_MS = 300000;
 const AUTO_SYNC_BADGE_MS = 5000;
+const LOG_DELTA_SYNC_MS = 10000;
 const AUTO_SYNC_MIN_GAP_MS = 8000;
 const AUTO_PUSH_RETRY_MS = 60000;
 const AUTO_PUSH_RETRY_MAX = 10;
@@ -5361,6 +5370,7 @@ function updateAutoSyncBadge(extra){
 function startAutoSync(){
   if(autoSyncTimer) clearInterval(autoSyncTimer);
   if(autoSyncBadgeTimer) clearInterval(autoSyncBadgeTimer);
+  if(logDeltaSyncTimer) clearInterval(logDeltaSyncTimer);
   if(!gsUrl) return;
   updateAutoSyncBadge();
 
@@ -5372,15 +5382,57 @@ function startAutoSync(){
   autoSyncBadgeTimer = setInterval(function(){
     updateAutoSyncBadge();
   }, AUTO_SYNC_BADGE_MS);
+  setTimeout(function(){ pollLogUpdates(); },1500);
+  logDeltaSyncTimer=setInterval(function(){ pollLogUpdates(); },LOG_DELTA_SYNC_MS);
+}
+
+function pollLogUpdates(){
+  if(!gsUrl || localDraftMode || document.visibilityState!=='visible') return Promise.resolve(false);
+  if(logDeltaInFlight) return logDeltaInFlight;
+  var url=gsUrl+'?action=get_log_updates&limit=100&afterRow='+encodeURIComponent(logDeltaCursor||0);
+  if(lastDeltaLogTs) url+='&since='+encodeURIComponent(lastDeltaLogTs);
+  url+='&t='+Date.now();
+  logDeltaInFlight=fetchJsonWithTimeout(url,{},12000).then(function(res){
+    if(!res||res.ok!==true||!Array.isArray(res.logs)) return false;
+    var previousCursor=logDeltaCursor;
+    var previousLatestTs=lastDeltaLogTs;
+    var incoming=res.logs.map(sanitizePersistedLogRow);
+    var known={};
+    logs.forEach(function(l){ known[getLogMergeKey(l)]=true; });
+    var added=0;
+    incoming.forEach(function(l){
+      var key=getLogMergeKey(l);
+      if(key&&!known[key]){ logs.push(l); known[key]=true; added++; }
+    });
+    logs.sort(function(a,b){ return String(b.ts||b.date||'').localeCompare(String(a.ts||a.date||'')); });
+    if(res.cursor!==undefined&&res.cursor!==null) logDeltaCursor=Number(res.cursor)||logDeltaCursor;
+    if(res.latestTs) lastDeltaLogTs=String(res.latestTs);
+    else if(logs.length&&logs[0].ts) lastDeltaLogTs=String(logs[0].ts);
+    if(added || previousCursor!==logDeltaCursor || previousLatestTs!==lastDeltaLogTs){
+      scheduleCloudSnapshotPersist();
+    }
+    if(added){
+      renderActiveTabOnly();
+      const badge=document.getElementById('data-badge');
+      if(badge) badge.textContent='⚡ +'+added+' follow-up baru';
+    }
+    return added>0;
+  }).catch(function(e){
+    console.warn('Delta sync log gagal:',e.message);
+    return false;
+  }).finally(function(){ logDeltaInFlight=null; });
+  return logDeltaInFlight;
 }
 
 window.addEventListener('focus', function(){
+  pollLogUpdates();
   if(gsUrl && !localDraftMode && (Date.now()-APP_STARTED_AT)>=AUTO_SYNC_MS && (!lastAutoSyncAt || (Date.now()-lastAutoSyncAt)>=AUTO_SYNC_MS)){
     pullAllFromSheets(true);
   }
 });
 
 document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState === 'visible') pollLogUpdates();
   if(document.visibilityState === 'visible' && gsUrl && !localDraftMode && (Date.now()-APP_STARTED_AT)>=AUTO_SYNC_MS && (!lastAutoSyncAt || (Date.now()-lastAutoSyncAt)>=AUTO_SYNC_MS)){
     pullAllFromSheets(true);
   }
@@ -5400,12 +5452,18 @@ function saveGsUrl(v){
 
   if(gsUrl){
     startAutoSync();
-  } else if(autoSyncTimer){
-    clearInterval(autoSyncTimer);
-    autoSyncTimer=null;
+  } else {
+    if(autoSyncTimer){
+      clearInterval(autoSyncTimer);
+      autoSyncTimer=null;
+    }
     if(autoSyncBadgeTimer){
       clearInterval(autoSyncBadgeTimer);
       autoSyncBadgeTimer=null;
+    }
+    if(logDeltaSyncTimer){
+      clearInterval(logDeltaSyncTimer);
+      logDeltaSyncTimer=null;
     }
   }
   updateAutoSyncBadge();
