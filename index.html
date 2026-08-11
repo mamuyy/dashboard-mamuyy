@@ -1324,6 +1324,7 @@ function restoreCloudSnapshot(){
     const badge=document.getElementById('data-badge');
     if(badge) badge.textContent='⚡ Cache siap';
     renderActiveTabOnly();
+    scheduleQueueWarmup();
     return true;
   }).catch(function(e){ console.warn('Cache dashboard belum tersedia:',e.message); return false; });
 }
@@ -5960,6 +5961,17 @@ function runAfterPaint(key,fn){
 function scheduleActiveTabRender(){
   runAfterPaint('active-page-render',renderActiveTabOnly);
 }
+let queueWarmupPending=false;
+function scheduleQueueWarmup(){
+  if(queueWarmupPending) return;
+  queueWarmupPending=true;
+  const warm=function(){
+    queueWarmupPending=false;
+    renderQ();
+  };
+  if('requestIdleCallback' in window) requestIdleCallback(warm,{timeout:3000});
+  else setTimeout(warm,250);
+}
 
 // ── PULL semua data dari Sheets (untuk TIM) ──
 function pullAllFromSheets(silent=false){
@@ -6076,7 +6088,15 @@ function showPage(p){
   requestAnimationFrame(function(){
     window.scrollTo({top:0,behavior:'auto'});
   });
-  if(p==='queue') runAfterPaint('queue-render',renderQ);
+  // Daftar antrian sudah diperbarui saat data berubah / filter dipilih.
+  // Jangan hitung ulang seluruh invoice hanya karena pengguna berpindah tab.
+  if(p==='queue'){
+    const queueEl=document.getElementById('qlist');
+    if(queueEl && !queueEl.children.length){
+      queueEl.innerHTML='<div style="text-align:center;padding:40px;color:var(--sub);">⏳ Menyiapkan antrian...</div>';
+      scheduleQueueWarmup();
+    }
+  }
   if(p==='dash') runAfterPaint('dash-render',renderDash);
   if(p==='history') runAfterPaint('history-render',renderH);
 }
