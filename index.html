@@ -2251,7 +2251,7 @@ function getInvoiceBusinessClass(inv){
 function isSapEnteredForManual(inv){
   return hasDoc(inv&&inv.sNota);
 }
-function getInvoiceProgress(inv){
+function getInvoiceProgress(inv, invLogsSorted){
   const type=s(inv.type).toLowerCase();
   const bizClass=getInvoiceBusinessClass(inv);
   const pay=normalizePayStatus(inv.pay);
@@ -2259,7 +2259,9 @@ function getInvoiceProgress(inv){
   const sSrt=normalizeDocStatus(inv.sSrt);
   const sNota=normalizeDocStatus(inv.sNota);
   const sMIR=normalizeDocStatus(inv.sMIR);
-  const invLogs=getInvoiceLogs(inv.no);
+  // Caller yang sedang merender daftar besar dapat memasok indeks log agar kita
+  // tidak memindai dan mengurutkan seluruh array `logs` untuk setiap invoice.
+  const invLogs=invLogsSorted || getInvoiceLogs(inv.no);
   const lastLog=invLogs[0]||null;
   const lastJanji=invLogs.find(function(l){ return l.hasil==='Janji Bayar'&&l.jt; })||null;
   const hasOverdueJanji=!!(lastJanji&&lastJanji.jt<TODAY&&pay!=='Paid');
@@ -2551,7 +2553,7 @@ function renderQ(append=false){
   const progCache = {};
   function getProg(inv){
     let p = progCache[inv.no];
-    if(!p){ p = getInvoiceProgress(inv); progCache[inv.no] = p; }
+    if(!p){ p = getInvoiceProgress(inv, getLogs(inv.no)); progCache[inv.no] = p; }
     return p;
   }
 
@@ -2677,7 +2679,7 @@ function renderQ(append=false){
       <div class="inv-cust">${custEsc}</div>
       ${issue&&issue.baRejectEver?`<div class="hist-badge">Pernah BA Reject${issue.baRejectCount?` · ${issue.baRejectCount}x`:''}</div>`:''}
       <div class="inv-desc">${descEsc}</div>
-      <div class="inv-foot">${stagePills(i, getLogs(i.no))}<span class="fu-tag ${fu.d?'d':fu.w?'w':''}">${fu.t}</span><a class="btn-wa" onclick="event.stopPropagation(); window.open(buildWaUrl('${jsq(i.no)}'), '_blank')" title="Chat WA Customer">💬 WA Tagih</a></div>
+      <div class="inv-foot">${stagePills(i, getLogs(i.no), prog)}<span class="fu-tag ${fu.d?'d':fu.w?'w':''}">${fu.t}</span><a class="btn-wa" onclick="event.stopPropagation(); window.open(buildWaUrl('${jsq(i.no)}'), '_blank')" title="Chat WA Customer">💬 WA Tagih</a></div>
     </div>`;
   }).join('');
 
@@ -2693,8 +2695,8 @@ function renderQ(append=false){
     el.insertAdjacentHTML('beforeend', `<button id="loadMoreBtn" onclick="pageQ++; renderQ(true)" class="btn btn-outline" style="width:100%; justify-content:center; margin-top:10px;">Tampilkan Lebih Banyak (${mapped.length - (start+limit)} tersisa)</button>`);
   }
 }
-function stagePills(i, invLogsSorted){
-  const prog=getInvoiceProgress(i);
+function stagePills(i, invLogsSorted, progress){
+  const prog=progress || getInvoiceProgress(i, invLogsSorted);
   const issue=getIssueHistoryForInvoice(i);
   const stageAge=getStageAgeDays(i, invLogsSorted);
   const ageBg=stageAge.days<=2?'#e8f5e9;color:#1b5e20;':stageAge.days<=7?'#fff3e0;color:#e65100;':'#ffebee;color:#c62828;';
