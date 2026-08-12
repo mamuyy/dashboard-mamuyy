@@ -5546,6 +5546,17 @@ function fetchJsonWithTimeout(url, opts={}, timeoutMs=12000){
     .finally(function(){ clearTimeout(t); });
 }
 
+function fetchCloudAction(action, timeoutMs){
+  const base=gsUrl+'?action='+encodeURIComponent(action);
+  return fetchJsonWithTimeout(base+'&t='+Date.now(),{},timeoutMs).catch(function(err){
+    // Redirect ContentService Google kadang memberi 404 sementara untuk payload
+    // besar. Ulang sekali lewat URL stabil sebelum menyatakan sync gagal.
+    if(!err || !/^HTTP (404|429|5\d\d)$/.test(err.message||'')) throw err;
+    return new Promise(function(resolve){ setTimeout(resolve,700); })
+      .then(function(){ return fetchJsonWithTimeout(base,{},timeoutMs); });
+  });
+}
+
 const BUKTI_UPLOAD_MAX_BYTES=5*1024*1024;
 // Upload foto/screenshot bukti tindak lanjut ke Drive lewat Apps Script backend (action 'upload_bukti'),
 // lalu isi otomatis field link bukti dengan URL hasil upload. Butuh handler 'upload_bukti' di Apps Script
@@ -5775,7 +5786,7 @@ function runOneTimeInvoiceCleanupPush(){
   if(!gsUrl){ toast('⚠️ URL belum diisi!'); return; }
   if(!ensureAdminAccess('audit + cleanup invoice di Sheets')) return;
   setGsStatus('⏳ Audit invoice tersimpan di Sheets...','#1565c0');
-  return fetchJsonWithTimeout(gsUrl+'?action=get_invs&t='+Date.now()).then(function(res){
+  return fetchCloudAction('get_invs',CLOUD_PULL_TIMEOUT_MS).then(function(res){
     if(!res||!res.ok||!Array.isArray(res.invs)||!res.invs.length){
       throw new Error('Data invoice di Sheets tidak ditemukan.');
     }
@@ -5820,7 +5831,7 @@ function runOneTimeInvoiceCleanupPush(){
 
 function getCloudInvoiceCount(){
   if(!gsUrl) return Promise.resolve(0);
-  return fetchJsonWithTimeout(gsUrl+'?action=get_invs&t='+Date.now(),{},CLOUD_PULL_TIMEOUT_MS).then(function(res){
+  return fetchCloudAction('get_invs',CLOUD_PULL_TIMEOUT_MS).then(function(res){
     if(res && res.ok && Array.isArray(res.invs)) return res.invs.length;
     return 0;
   }).catch(function(){
@@ -6010,11 +6021,11 @@ function pullAllFromSheets(silent=false){
   // delta; full log hanya diperlukan saat bootstrap tanpa cache atau tarik manual.
   var shouldPullFullLogs=!silent || (!dashboardCacheHasSnapshot && !logs.length);
   var logsRequest=shouldPullFullLogs
-    ? fetchJsonWithTimeout(gsUrl+'?action=get_logs&t='+Date.now(),{},CLOUD_LOGS_TIMEOUT_MS)
+    ? fetchCloudAction('get_logs',CLOUD_LOGS_TIMEOUT_MS)
     : Promise.resolve({ok:true,logs:[],deltaOnly:true});
   pullAllInFlightPromise = Promise.all([
-    fetchJsonWithTimeout(gsUrl+'?action=get_invs&t='+Date.now(),{},CLOUD_PULL_TIMEOUT_MS),
-    fetchJsonWithTimeout(gsUrl+'?action=get_aging&t='+Date.now(),{},CLOUD_PULL_TIMEOUT_MS),
+    fetchCloudAction('get_invs',CLOUD_PULL_TIMEOUT_MS),
+    fetchCloudAction('get_aging',CLOUD_PULL_TIMEOUT_MS),
     logsRequest
   ]).then(function(results){
     var rInvs=results[0], rAging=results[1], rLogs=results[2];
