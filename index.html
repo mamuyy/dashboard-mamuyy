@@ -1355,14 +1355,12 @@ window.addEventListener('load',()=>{
     const sp=localStorage.getItem('fu_pic');
     if(sp){ pic=sp; updPIC(); }
 
+    // Satu endpoint resmi untuk seluruh perangkat. Nilai lama/manual yang
+    // tersimpan di browser selalu dimigrasikan saat dashboard dibuka.
     let su=localStorage.getItem('gs_url');
-    if(su && su.trim()===LEGACY_GS_URL){
-      su=DEFAULT_GS_URL;
-      localStorage.setItem('gs_url',su);
-    }
-    gsUrl=(su||DEFAULT_GS_URL).trim();
+    if(!su || su.trim()!==DEFAULT_GS_URL) localStorage.setItem('gs_url',DEFAULT_GS_URL);
+    gsUrl=DEFAULT_GS_URL;
     if(gsUrl){
-      if(!su) localStorage.setItem('gs_url',gsUrl);
       document.getElementById('gs-url').value=gsUrl;
       const cb=document.getElementById('cloud-badge');
       if(cb) cb.style.display='block';
@@ -5470,8 +5468,11 @@ window.addEventListener('beforeunload',function(e){
 });
 
 function saveGsUrl(v){
-  gsUrl=v.trim();
+  // Endpoint dikunci agar seluruh tim selalu tersambung ke sumber yang sama.
+  gsUrl=DEFAULT_GS_URL;
   localStorage.setItem('gs_url',gsUrl);
+  const urlEl=document.getElementById('gs-url');
+  if(urlEl && urlEl.value!==gsUrl) urlEl.value=gsUrl;
   const cb=document.getElementById('cloud-badge');
   if(cb) cb.style.display=gsUrl?'block':'none';
 
