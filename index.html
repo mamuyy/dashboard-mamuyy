@@ -1120,7 +1120,7 @@ const LOCAL_DRAFT_FLAG_KEY='fu_local_draft_pending';
 const SAFE_PUSH_MIN_INVOICE_COUNT=100;
 const SAFE_PUSH_DROP_RATIO=0.5;
 const CLOUD_PULL_TIMEOUT_MS=45000;
-const CLOUD_LOGS_TIMEOUT_MS=20000;
+const CLOUD_LOGS_TIMEOUT_MS=60000;
 const CLOUD_PUSH_TIMEOUT_MS=90000;
 const CLOUD_PUSH_LOGS_TIMEOUT_MS=45000;
 const TODAY=new Date().toISOString().slice(0,10);
@@ -5308,9 +5308,9 @@ let autoPushRetryNextAt=0;
 let lastAutoSyncAt=0;
 let lastAutoSyncState='idle';
 let lastInvoiceUpdatedAt='';
-// Payload cloud saat ini ±10 MB. Interval 5 menit menjaga data cukup segar
-// tanpa membuat browser parsing ulang 27 ribu record setiap menit.
-const AUTO_SYNC_MS = 300000;
+// Full invoice cukup diperiksa tiap 30 menit. Log baru tetap masuk lewat endpoint
+// delta yang ringan, sehingga browser tidak mengunduh puluhan MB berulang kali.
+const AUTO_SYNC_MS = 1800000;
 // Kurangi pekerjaan latar belakang agar scroll, filter, dan input tetap responsif.
 const AUTO_SYNC_BADGE_MS = 15000;
 const LOG_DELTA_SYNC_MS = 30000;
@@ -6006,11 +6006,16 @@ function pullAllFromSheets(silent=false){
   var hasAgingChanged=false;
   var hasLogsChanged=false;
 
-  // Ambil invoice + aging + logs sekaligus
+  // Full log sangat besar. Untuk auto-sync, gunakan snapshot lokal + endpoint
+  // delta; full log hanya diperlukan saat bootstrap tanpa cache atau tarik manual.
+  var shouldPullFullLogs=!silent || (!dashboardCacheHasSnapshot && !logs.length);
+  var logsRequest=shouldPullFullLogs
+    ? fetchJsonWithTimeout(gsUrl+'?action=get_logs&t='+Date.now(),{},CLOUD_LOGS_TIMEOUT_MS)
+    : Promise.resolve({ok:true,logs:[],deltaOnly:true});
   pullAllInFlightPromise = Promise.all([
     fetchJsonWithTimeout(gsUrl+'?action=get_invs&t='+Date.now(),{},CLOUD_PULL_TIMEOUT_MS),
     fetchJsonWithTimeout(gsUrl+'?action=get_aging&t='+Date.now(),{},CLOUD_PULL_TIMEOUT_MS),
-    fetchJsonWithTimeout(gsUrl+'?action=get_logs&t='+Date.now(),{},CLOUD_LOGS_TIMEOUT_MS)
+    logsRequest
   ]).then(function(results){
     var rInvs=results[0], rAging=results[1], rLogs=results[2];
     var ok=true;
@@ -6066,6 +6071,7 @@ function pullAllFromSheets(silent=false){
       if(!dashboardCacheHasSnapshot || hasInvoiceChanged || hasAgingChanged || hasLogsChanged){
         scheduleCloudSnapshotPersist();
       }
+      if(!shouldPullFullLogs) setTimeout(function(){ pollLogUpdates(); },0);
     } else {
       lastAutoSyncState='error';
       updateAutoSyncBadge('Data invoice belum tersedia di Sheets.');
