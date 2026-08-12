@@ -6020,11 +6020,14 @@ function pullAllFromSheets(silent=false){
   var hasAgingChanged=false;
   var hasLogsChanged=false;
 
-  // Full log sangat besar. Untuk auto-sync, gunakan snapshot lokal + endpoint
-  // delta; full log hanya diperlukan saat bootstrap tanpa cache atau tarik manual.
-  var shouldPullFullLogs=!silent || (!dashboardCacheHasSnapshot && !logs.length);
+  // Full log sangat besar. Gunakan snapshot lokal + endpoint delta untuk sync
+  // normal; full log hanya diperlukan saat bootstrap perangkat tanpa cache.
+  var shouldPullFullLogs=!dashboardCacheHasSnapshot && !logs.length;
   var logsRequest=shouldPullFullLogs
-    ? fetchCloudAction('get_logs',CLOUD_LOGS_TIMEOUT_MS)
+    ? fetchCloudAction('get_logs',CLOUD_LOGS_TIMEOUT_MS).catch(function(err){
+        console.warn('Full log belum berhasil dimuat, lanjutkan data utama:',err.message);
+        return {ok:false,logs:[],optionalError:err.message||'Full log gagal'};
+      })
     : Promise.resolve({ok:true,logs:[],deltaOnly:true});
   pullAllInFlightPromise = Promise.all([
     fetchCloudAction('get_invs',CLOUD_PULL_TIMEOUT_MS),
@@ -6085,7 +6088,9 @@ function pullAllFromSheets(silent=false){
       if(!dashboardCacheHasSnapshot || hasInvoiceChanged || hasAgingChanged || hasLogsChanged){
         scheduleCloudSnapshotPersist();
       }
-      if(!shouldPullFullLogs) setTimeout(function(){ pollLogUpdates(); },0);
+      // Delta tetap dijalankan setelah sinkronisasi, termasuk ketika full log
+      // perangkat baru terlalu besar atau gagal sementara.
+      setTimeout(function(){ pollLogUpdates(); },0);
     } else {
       lastAutoSyncState='error';
       updateAutoSyncBadge('Data invoice belum tersedia di Sheets.');
