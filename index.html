@@ -4,8 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Sistem Penagihan Tim – PT Pelindo Daya Sejahtera</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<!-- Muat pustaka besar tanpa menahan proses parsing dan tampilan awal. -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <style>
 :root{
   --red:#e53935;--orange:#f57c00;--green:#43a047;--blue:#1976d2;
@@ -5308,8 +5309,9 @@ let lastInvoiceUpdatedAt='';
 // Payload cloud saat ini ±10 MB. Interval 5 menit menjaga data cukup segar
 // tanpa membuat browser parsing ulang 27 ribu record setiap menit.
 const AUTO_SYNC_MS = 300000;
-const AUTO_SYNC_BADGE_MS = 5000;
-const LOG_DELTA_SYNC_MS = 10000;
+// Kurangi pekerjaan latar belakang agar scroll, filter, dan input tetap responsif.
+const AUTO_SYNC_BADGE_MS = 15000;
+const LOG_DELTA_SYNC_MS = 30000;
 const AUTO_SYNC_MIN_GAP_MS = 8000;
 const AUTO_PUSH_RETRY_MS = 60000;
 const AUTO_PUSH_RETRY_MAX = 10;
