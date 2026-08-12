@@ -1374,7 +1374,10 @@ window.addEventListener('load',()=>{
         // Auto-sync berkala atau tombol manual tetap menyediakan data terbaru.
         restoreCloudSnapshot().then(function(restored){
           if(restored){
-            setGsStatus('⚡ Data cache siap. Pembaruan cloud berjalan berkala; klik Tarik Data Terbaru bila perlu.','#2e7d32');
+            setGsStatus('⚡ Data cache siap. Memeriksa pembaruan cloud otomatis...','#2e7d32');
+            // Tampilkan cache seketika, lalu perbarui invoice + aging di belakang
+            // layar. Full log tidak ikut ditarik; log baru memakai endpoint delta.
+            setTimeout(function(){ pullAllFromSheets(true); },1200);
           }else{
             pullAllFromSheets(true);
           }
