@@ -996,7 +996,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
         <div><label class="lbl">CC (opsional)</label><input type="text" id="entity-email-cc" placeholder="pic.internal@ptpds.co.id"></div>
       </div>
       <label class="lbl">Invoice unpaid yang digabungkan</label>
-      <div style="overflow:auto;max-height:300px;"><table class="entity-email-table"><thead><tr><th>Pilih</th><th>Invoice</th><th>Outstanding</th><th>Jatuh Tempo</th><th>Jumlah FU</th><th>FU Terakhir</th><th>Status</th></tr></thead><tbody id="entity-email-invoices"></tbody></table></div>
+      <div style="overflow:auto;max-height:300px;"><table class="entity-email-table"><thead><tr><th>Pilih</th><th>Invoice</th><th>Outstanding</th><th>Tanggal Dokumen</th><th>Jumlah FU</th><th>FU Terakhir</th><th>Status</th></tr></thead><tbody id="entity-email-invoices"></tbody></table></div>
       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-outline btn-sm" type="button" onclick="setAllEntityEmailInvoices(true)">Pilih Semua</button>
         <button class="btn btn-outline btn-sm" type="button" onclick="setAllEntityEmailInvoices(false)">Kosongkan</button>
@@ -2964,11 +2964,25 @@ function getInvoiceEmailLogSummary(no){
   const last=rows[0]||null;
   return {count:rows.length,last:last};
 }
-function formatEntityEmailDate(value){
+function formatEntityEmailDate(value,emptyLabel){
   const raw=String(value||'').slice(0,10);
-  if(!raw)return '-';
+  if(!raw)return emptyLabel||'Tidak tersedia';
   const m=raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   return m?m[3]+'/'+m[2]+'/'+m[1]:raw;
+}
+function formatEntityEmailCurrency(value){
+  return 'Rp'+Math.round(Number(value)||0).toLocaleString('id-ID');
+}
+function formatEntityEmailName(value){
+  return String(value||'').trim().toLowerCase().replace(/\b(pt|cv|ud|persero|tbk)\b|(^|[\s-])([a-z])/g,function(match,legal,prefix,letter){
+    if(legal)return legal.toUpperCase();
+    return (prefix||'')+(letter||'').toUpperCase();
+  });
+}
+function getEntityEmailSender(){
+  const sender=String(pic||'').trim();
+  if(!sender||sender.toUpperCase()==='SUPERVISOR')return 'Tim Penagihan';
+  return sender.replace(/\b\w/g,function(ch){return ch.toUpperCase();});
 }
 function selectedEntityEmailInvoices(){
   const selected=new Set(Array.from(document.querySelectorAll('.entity-email-check:checked')).map(function(el){return el.value;}));
@@ -2979,7 +2993,7 @@ function renderEntityEmailSummary(){
   const total=selected.reduce(function(sum,inv){return sum+(Number(inv.amt)||0);},0);
   const fu=selected.reduce(function(sum,inv){return sum+getInvoiceEmailLogSummary(inv.no).count;},0);
   const el=document.getElementById('entity-email-summary');
-  if(el)el.innerHTML='<div class="entity-email-stat"><strong>'+selected.length+'</strong><span>Invoice dipilih</span></div><div class="entity-email-stat"><strong>'+fmt(total)+'</strong><span>Total outstanding</span></div><div class="entity-email-stat"><strong>'+fu+'×</strong><span>Riwayat FU</span></div>';
+  if(el)el.innerHTML='<div class="entity-email-stat"><strong>'+selected.length+'</strong><span>Invoice dipilih</span></div><div class="entity-email-stat"><strong>'+formatEntityEmailCurrency(total)+'</strong><span>Total outstanding</span></div><div class="entity-email-stat"><strong>'+fu+'×</strong><span>Riwayat FU</span></div>';
 }
 function openEntityEmail(customer){
   const rows=getEntityEmailInvoices(customer);
@@ -2993,7 +3007,7 @@ function openEntityEmail(customer){
   document.getElementById('entity-email-invoices').innerHTML=rows.map(function(inv){
     const sum=getInvoiceEmailLogSummary(inv.no),last=sum.last;
     const status=last?(last.hasil||last.note||'-'):'Belum pernah FU';
-    return '<tr><td><input class="entity-email-check" type="checkbox" value="'+esc(inv.no)+'" checked onchange="renderEntityEmailSummary();generateEntityEmailDraft()"></td><td><strong>'+esc(inv.no)+'</strong></td><td>'+fmt(inv.amt)+'</td><td>'+formatEntityEmailDate(inv.tgl)+'</td><td>'+sum.count+'×</td><td>'+(last?formatEntityEmailDate(last.date):'-')+'</td><td>'+esc(status)+'</td></tr>';
+    return '<tr><td><input class="entity-email-check" type="checkbox" value="'+esc(inv.no)+'" checked onchange="renderEntityEmailSummary();generateEntityEmailDraft()"></td><td><strong>'+esc(inv.no)+'</strong></td><td>'+formatEntityEmailCurrency(inv.amt)+'</td><td>'+formatEntityEmailDate(inv.tgl,'Tidak tersedia')+'</td><td>'+sum.count+'×</td><td>'+(last?formatEntityEmailDate(last.date):'Belum ada')+'</td><td>'+esc(status)+'</td></tr>';
   }).join('');
   renderEntityEmailSummary();
   generateEntityEmailDraft();
@@ -3010,16 +3024,17 @@ function setAllEntityEmailInvoices(checked){
 }
 function buildEntityEmailDraftData(){
   const customer=entityEmailSelectedCustomer;
+  const customerDisplay=formatEntityEmailName(customer);
   const selected=selectedEntityEmailInvoices();
   const total=selected.reduce(function(sum,inv){return sum+(Number(inv.amt)||0);},0);
-  const subject='Tindak Lanjut Outstanding Tagihan '+customer+' – '+fmt(total);
+  const subject='Permohonan Konfirmasi Penyelesaian Outstanding Tagihan '+customerDisplay;
   const rows=selected.map(function(inv,index){
     const sum=getInvoiceEmailLogSummary(inv.no),last=sum.last;
-    let status=last?('Telah ditindaklanjuti '+sum.count+' kali; '+(last.hasil||'menunggu konfirmasi')):'Belum pernah ditindaklanjuti';
+    let status=last?('Telah ditindaklanjuti '+sum.count+' kali; status terakhir: '+(last.hasil||'menunggu konfirmasi')):'Belum pernah ditindaklanjuti';
     if(last&&last.hasil==='Janji Bayar'&&last.jt)status+='; janji bayar '+formatEntityEmailDate(last.jt);
-    return (index+1)+'. '+inv.no+' | '+fmt(inv.amt)+' | Jatuh tempo: '+formatEntityEmailDate(inv.tgl)+' | '+status;
+    return (index+1)+'. '+inv.no+' — '+formatEntityEmailCurrency(inv.amt)+'\n   Tanggal dokumen: '+formatEntityEmailDate(inv.tgl,'Tidak tersedia pada data')+'\n   Status follow-up: '+status;
   });
-  const body='Yth. Tim Keuangan\n'+customer+'\n\nSehubungan dengan outstanding tagihan PT Pelindo Daya Sejahtera, mohon bantuan konfirmasi atas proses penyelesaian tagihan berikut:\n\n'+rows.join('\n')+'\n\nTotal outstanding: '+fmt(total)+'\n\nApabila pembayaran telah dilakukan, mohon dapat disampaikan bukti pembayarannya. Jika masih terdapat kendala dokumen atau proses administrasi, mohon diinformasikan agar dapat segera kami tindak lanjuti.\n\nTerima kasih atas perhatian dan kerja samanya.\n\nHormat kami,\n'+(pic||'Tim Penagihan')+'\nTim Penagihan – PT Pelindo Daya Sejahtera';
+  const body='Yth. Tim Keuangan\n'+customerDisplay+'\n\nDengan hormat,\n\nSehubungan dengan outstanding tagihan PT Pelindo Daya Sejahtera, mohon bantuan konfirmasi atas status penyelesaian tagihan berikut:\n\n'+rows.join('\n\n')+'\n\nTotal outstanding: '+formatEntityEmailCurrency(total)+'\n\nApabila pembayaran telah direalisasikan, mohon disampaikan bukti pembayarannya. Apabila masih terdapat kendala dokumen atau proses administrasi, mohon informasinya agar dapat segera kami tindak lanjuti.\n\nDemikian kami sampaikan. Atas perhatian dan kerja samanya, kami ucapkan terima kasih.\n\nHormat kami,\n'+getEntityEmailSender()+'\nPT Pelindo Daya Sejahtera';
   return {customer:customer,selected:selected,total:total,subject:subject,body:body};
 }
 function generateEntityEmailDraft(){
