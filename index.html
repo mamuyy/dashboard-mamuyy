@@ -258,6 +258,16 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 .sync-loading-banner.show{display:flex;}
 .sync-loading-banner.warn{background:#fff3e0;border-color:#ffcc80;color:#e65100;}
 .sync-loading-banner .btn{flex-shrink:0;}
+.btn-email{display:inline-flex;align-items:center;text-decoration:none;background:#ede7f6;color:#512da8;border:1px solid #d1c4e9;border-radius:12px;padding:3px 8px;font-size:.6rem;font-weight:700;cursor:pointer;}
+.entity-email-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;}
+.entity-email-stat{background:#f5f7fb;border-radius:8px;padding:9px;text-align:center;}
+.entity-email-stat strong{display:block;color:var(--dark);font-size:.95rem;}
+.entity-email-stat span{font-size:.62rem;color:var(--sub);font-weight:700;text-transform:uppercase;}
+.entity-email-table{width:100%;border-collapse:collapse;font-size:.72rem;min-width:680px;}
+.entity-email-table th,.entity-email-table td{padding:7px 6px;border-bottom:1px solid #eee;text-align:left;vertical-align:top;}
+.entity-email-table th{background:#f5f7fb;color:#455a64;font-size:.62rem;text-transform:uppercase;}
+.entity-email-draft{width:100%;min-height:220px;font-size:.76rem;line-height:1.5;background:#fafafa;}
+@media(max-width:600px){.entity-email-summary{grid-template-columns:1fr;}}
 
 /* Aging table pro */
 .ag-wrap{overflow-x:auto;}
@@ -972,6 +982,35 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
   <!-- Export -->
   <div style="margin-top:4px;display:flex;gap:8px;flex-wrap:wrap;">
     <button class="btn btn-primary btn-sm" onclick="exportLaporan()">📥 Export Laporan Excel</button>
+  </div>
+</div>
+
+<div class="mbg" id="entity-email-bg" onclick="closeEntityEmail(event)">
+  <div class="modal" style="max-width:920px;">
+    <div class="mhead"><h3 id="entity-email-title">✉️ Follow-Up Email per Entitas</h3><button class="mclose" onclick="closeEntityEmail()">✕</button></div>
+    <div class="mbody">
+      <input type="hidden" id="entity-email-customer">
+      <div class="entity-email-summary" id="entity-email-summary"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div><label class="lbl">Kepada</label><input type="text" id="entity-email-to" placeholder="finance@customer.co.id"></div>
+        <div><label class="lbl">CC (opsional)</label><input type="text" id="entity-email-cc" placeholder="pic.internal@ptpds.co.id"></div>
+      </div>
+      <label class="lbl">Invoice unpaid yang digabungkan</label>
+      <div style="overflow:auto;max-height:300px;"><table class="entity-email-table"><thead><tr><th>Pilih</th><th>Invoice</th><th>Outstanding</th><th>Jatuh Tempo</th><th>Jumlah FU</th><th>FU Terakhir</th><th>Status</th></tr></thead><tbody id="entity-email-invoices"></tbody></table></div>
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm" type="button" onclick="setAllEntityEmailInvoices(true)">Pilih Semua</button>
+        <button class="btn btn-outline btn-sm" type="button" onclick="setAllEntityEmailInvoices(false)">Kosongkan</button>
+        <button class="btn btn-primary btn-sm" type="button" onclick="generateEntityEmailDraft()">📝 Buat/Ulang Draft</button>
+      </div>
+      <label class="lbl">Subject</label><input type="text" id="entity-email-subject">
+      <label class="lbl">Draft Email</label><textarea class="entity-email-draft" id="entity-email-body"></textarea>
+      <div style="font-size:.68rem;color:var(--sub);margin-top:5px;">Alamat email disimpan hanya di browser perangkat ini. Periksa penerima, isi, dan lampiran sebelum mengirim.</div>
+    </div>
+    <div class="mfoot" style="flex-wrap:wrap;">
+      <button class="btn btn-outline btn-sm" type="button" onclick="copyEntityEmailDraft()">📋 Salin Draft</button>
+      <button class="btn btn-primary btn-sm" type="button" onclick="openEntityEmailClient()">✉️ Buka Aplikasi Email</button>
+      <button class="btn btn-green btn-sm" type="button" onclick="recordEntityEmailSent()">✅ Catat Email Terkirim</button>
+    </div>
   </div>
 </div>
 
@@ -2742,7 +2781,7 @@ function renderQ(append=false){
       <div class="inv-cust">${custEsc}</div>
       ${issue&&issue.baRejectEver?`<div class="hist-badge">Pernah BA Reject${issue.baRejectCount?` · ${issue.baRejectCount}x`:''}</div>`:''}
       <div class="inv-desc">${descEsc}</div>
-      <div class="inv-foot">${stagePills(i, getLogs(i.no), prog)}<span class="fu-tag ${fu.d?'d':fu.w?'w':''}">${fu.t}</span><a class="btn-wa" onclick="event.stopPropagation(); window.open(buildWaUrl('${jsq(i.no)}'), '_blank')" title="Chat WA Customer">💬 WA Tagih</a></div>
+      <div class="inv-foot">${stagePills(i, getLogs(i.no), prog)}<span class="fu-tag ${fu.d?'d':fu.w?'w':''}">${fu.t}</span><a class="btn-wa" onclick="event.stopPropagation(); window.open(buildWaUrl('${jsq(i.no)}'), '_blank')" title="Chat WA Customer">💬 WA Tagih</a><button class="btn-email" type="button" onclick="event.stopPropagation();openEntityEmail('${jsq(i.cust)}')" title="Gabungkan invoice unpaid per entitas">✉️ Email Entitas</button></div>
     </div>`;
   }).join('');
 
@@ -2901,6 +2940,157 @@ function copyWaMessage(no){
   } else {
     toast('📋 Draft pesan WA siap digunakan');
   }
+}
+
+
+// ═══ EMAIL FOLLOW-UP PER ENTITAS ═══
+let entityEmailSelectedCustomer='';
+function getEntityEmailAddressBook(){
+  try{return JSON.parse(localStorage.getItem('mamuyy_customer_email_book')||'{}');}
+  catch(e){return {};}
+}
+function saveEntityEmailAddress(customer,to,cc){
+  const book=getEntityEmailAddressBook();
+  book[customer]={to:String(to||'').trim(),cc:String(cc||'').trim()};
+  localStorage.setItem('mamuyy_customer_email_book',JSON.stringify(book));
+}
+function getEntityEmailInvoices(customer){
+  return invs.filter(function(inv){return isInvoiceUnpaid(inv)&&String(inv.cust||'')===String(customer||'');})
+    .sort(function(a,b){return (String(a.tgl||'9999')).localeCompare(String(b.tgl||'9999'))||(Number(b.amt)||0)-(Number(a.amt)||0);});
+}
+function getInvoiceEmailLogSummary(no){
+  const rows=logs.filter(function(l){return String(l.inv||'')===String(no||'');})
+    .sort(function(a,b){return String(b.ts||b.date||'').localeCompare(String(a.ts||a.date||''));});
+  const last=rows[0]||null;
+  return {count:rows.length,last:last};
+}
+function formatEntityEmailDate(value){
+  const raw=String(value||'').slice(0,10);
+  if(!raw)return '-';
+  const m=raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m?m[3]+'/'+m[2]+'/'+m[1]:raw;
+}
+function selectedEntityEmailInvoices(){
+  const selected=new Set(Array.from(document.querySelectorAll('.entity-email-check:checked')).map(function(el){return el.value;}));
+  return getEntityEmailInvoices(entityEmailSelectedCustomer).filter(function(inv){return selected.has(String(inv.no));});
+}
+function renderEntityEmailSummary(){
+  const selected=selectedEntityEmailInvoices();
+  const total=selected.reduce(function(sum,inv){return sum+(Number(inv.amt)||0);},0);
+  const fu=selected.reduce(function(sum,inv){return sum+getInvoiceEmailLogSummary(inv.no).count;},0);
+  const el=document.getElementById('entity-email-summary');
+  if(el)el.innerHTML='<div class="entity-email-stat"><strong>'+selected.length+'</strong><span>Invoice dipilih</span></div><div class="entity-email-stat"><strong>'+fmt(total)+'</strong><span>Total outstanding</span></div><div class="entity-email-stat"><strong>'+fu+'×</strong><span>Riwayat FU</span></div>';
+}
+function openEntityEmail(customer){
+  const rows=getEntityEmailInvoices(customer);
+  if(!rows.length)return toast('Tidak ada invoice unpaid untuk entitas ini.');
+  entityEmailSelectedCustomer=customer;
+  document.getElementById('entity-email-customer').value=customer;
+  document.getElementById('entity-email-title').textContent='✉️ Follow-Up Email · '+customer;
+  const saved=getEntityEmailAddressBook()[customer]||{};
+  document.getElementById('entity-email-to').value=saved.to||'';
+  document.getElementById('entity-email-cc').value=saved.cc||'';
+  document.getElementById('entity-email-invoices').innerHTML=rows.map(function(inv){
+    const sum=getInvoiceEmailLogSummary(inv.no),last=sum.last;
+    const status=last?(last.hasil||last.note||'-'):'Belum pernah FU';
+    return '<tr><td><input class="entity-email-check" type="checkbox" value="'+esc(inv.no)+'" checked onchange="renderEntityEmailSummary();generateEntityEmailDraft()"></td><td><strong>'+esc(inv.no)+'</strong></td><td>'+fmt(inv.amt)+'</td><td>'+formatEntityEmailDate(inv.tgl)+'</td><td>'+sum.count+'×</td><td>'+(last?formatEntityEmailDate(last.date):'-')+'</td><td>'+esc(status)+'</td></tr>';
+  }).join('');
+  renderEntityEmailSummary();
+  generateEntityEmailDraft();
+  document.getElementById('entity-email-bg').classList.add('open');
+}
+function closeEntityEmail(evt){
+  if(evt&&evt.target!==evt.currentTarget)return;
+  document.getElementById('entity-email-bg').classList.remove('open');
+}
+function setAllEntityEmailInvoices(checked){
+  document.querySelectorAll('.entity-email-check').forEach(function(el){el.checked=checked;});
+  renderEntityEmailSummary();
+  generateEntityEmailDraft();
+}
+function buildEntityEmailDraftData(){
+  const customer=entityEmailSelectedCustomer;
+  const selected=selectedEntityEmailInvoices();
+  const total=selected.reduce(function(sum,inv){return sum+(Number(inv.amt)||0);},0);
+  const subject='Tindak Lanjut Outstanding Tagihan '+customer+' – '+fmt(total);
+  const rows=selected.map(function(inv,index){
+    const sum=getInvoiceEmailLogSummary(inv.no),last=sum.last;
+    let status=last?('Telah ditindaklanjuti '+sum.count+' kali; '+(last.hasil||'menunggu konfirmasi')):'Belum pernah ditindaklanjuti';
+    if(last&&last.hasil==='Janji Bayar'&&last.jt)status+='; janji bayar '+formatEntityEmailDate(last.jt);
+    return (index+1)+'. '+inv.no+' | '+fmt(inv.amt)+' | Jatuh tempo: '+formatEntityEmailDate(inv.tgl)+' | '+status;
+  });
+  const body='Yth. Tim Keuangan\n'+customer+'\n\nSehubungan dengan outstanding tagihan PT Pelindo Daya Sejahtera, mohon bantuan konfirmasi atas proses penyelesaian tagihan berikut:\n\n'+rows.join('\n')+'\n\nTotal outstanding: '+fmt(total)+'\n\nApabila pembayaran telah dilakukan, mohon dapat disampaikan bukti pembayarannya. Jika masih terdapat kendala dokumen atau proses administrasi, mohon diinformasikan agar dapat segera kami tindak lanjuti.\n\nTerima kasih atas perhatian dan kerja samanya.\n\nHormat kami,\n'+(pic||'Tim Penagihan')+'\nTim Penagihan – PT Pelindo Daya Sejahtera';
+  return {customer:customer,selected:selected,total:total,subject:subject,body:body};
+}
+function generateEntityEmailDraft(){
+  const data=buildEntityEmailDraftData();
+  renderEntityEmailSummary();
+  document.getElementById('entity-email-subject').value=data.subject;
+  document.getElementById('entity-email-body').value=data.selected.length?data.body:'Pilih minimal satu invoice.';
+}
+function copyEntityEmailDraft(){
+  const subject=document.getElementById('entity-email-subject').value;
+  const body=document.getElementById('entity-email-body').value;
+  const text='Subject: '+subject+'\n\n'+body;
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){toast('✅ Draft email berhasil disalin.');}).catch(function(){toast('⚠️ Gagal menyalin draft.');});
+  }else toast('Clipboard tidak tersedia.');
+}
+function openEntityEmailClient(){
+  const data=buildEntityEmailDraftData();
+  if(!data.selected.length)return toast('Pilih minimal satu invoice.');
+  const to=document.getElementById('entity-email-to').value.trim();
+  const cc=document.getElementById('entity-email-cc').value.trim();
+  const subject=document.getElementById('entity-email-subject').value;
+  const body=document.getElementById('entity-email-body').value;
+  saveEntityEmailAddress(data.customer,to,cc);
+  const params=new URLSearchParams();
+  if(cc)params.set('cc',cc);
+  params.set('subject',subject);
+  params.set('body',body);
+  window.location.href='mailto:'+encodeURIComponent(to)+'?'+params.toString();
+}
+function makeEntityEmailBatchId(){
+  const stamp=TODAY.replace(/-/g,'')+'-'+String(Date.now()).slice(-6);
+  return 'EMAIL-'+stamp;
+}
+function pushEntityEmailBatch(batchLogs){
+  if(!gsUrl){
+    batchLogs.forEach(queuePendingLog);
+    return Promise.resolve(false);
+  }
+  return Promise.all(batchLogs.map(function(log){
+    return postGsAction('add',{log:log},CLOUD_PUSH_LOGS_TIMEOUT_MS).catch(function(err){
+      queuePendingLog(log);
+      throw err;
+    });
+  }));
+}
+function recordEntityEmailSent(){
+  const data=buildEntityEmailDraftData();
+  if(!data.selected.length)return toast('Pilih minimal satu invoice.');
+  const to=document.getElementById('entity-email-to').value.trim();
+  if(!to)return toast('Isi alamat email penerima terlebih dahulu.');
+  if(!confirm('Pastikan email sudah benar-benar dikirim. Catat ke '+data.selected.length+' invoice?'))return;
+  const cc=document.getElementById('entity-email-cc').value.trim();
+  const batchId=makeEntityEmailBatchId();
+  const ts=new Date().toISOString();
+  const batchLogs=data.selected.map(function(inv,index){
+    return {id:Date.now()+index,inv:inv.no,date:TODAY,pic:pic||'SUPERVISOR',ch:'Email',hasil:'Contacted',
+      note:'Email gabungan per entitas telah dikirim | Batch '+batchId+' | To: '+to+(cc?' | CC: '+cc:''),
+      bukti:'',jt:'',jn:0,cust:inv.cust||'',amt:inv.amt||0,ts:ts,batchId:batchId};
+  });
+  logs=batchLogs.concat(logs);
+  saveEntityEmailAddress(data.customer,to,cc);
+  scheduleLocalLogSummaryPersist();
+  scheduleCloudSnapshotPersist();
+  pushEntityEmailBatch(batchLogs).then(function(){
+    toast('✅ Email dicatat ke '+batchLogs.length+' invoice · '+batchId);
+  }).catch(function(){
+    toast('⚠️ Log tersimpan lokal; sync cloud akan dicoba ulang.');
+  });
+  closeEntityEmail();
+  scheduleActiveTabRender();
 }
 
 // ═══ MODAL ═══
