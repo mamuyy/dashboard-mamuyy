@@ -1123,7 +1123,23 @@ const CLOUD_PULL_TIMEOUT_MS=45000;
 const CLOUD_LOGS_TIMEOUT_MS=60000;
 const CLOUD_PUSH_TIMEOUT_MS=90000;
 const CLOUD_PUSH_LOGS_TIMEOUT_MS=45000;
-const TODAY=new Date().toISOString().slice(0,10);
+function todayJakarta(){
+  const parts=new Intl.DateTimeFormat('en-CA',{
+    timeZone:'Asia/Jakarta',
+    year:'numeric',
+    month:'2-digit',
+    day:'2-digit'
+  }).formatToParts(new Date());
+
+  const y=parts.find(p=>p.type==='year').value;
+  const m=parts.find(p=>p.type==='month').value;
+  const d=parts.find(p=>p.type==='day').value;
+
+  return `${y}-${m}-${d}`;
+}
+
+// TODAY harus mengikuti Asia/Jakarta, bukan UTC.
+const TODAY=todayJakarta();
 // ═══ CENTRALIZED CONFIGURATION & BUSINESS RULES ═══
 const DASH_RULES = {
   SLA_HOURS: 48, // SLA 2x24 Jam
