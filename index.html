@@ -254,6 +254,10 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 /* ── TOAST ── */
 .toast{position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:9px 20px;border-radius:20px;font-size:.8rem;font-weight:600;z-index:999;opacity:0;transition:.25s;pointer-events:none;white-space:nowrap;}
 .toast.show{opacity:1;}
+.sync-loading-banner{display:none;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;padding:11px 13px;border-radius:10px;background:#e3f2fd;border:1px solid #90caf9;color:#0d47a1;font-size:.75rem;font-weight:700;}
+.sync-loading-banner.show{display:flex;}
+.sync-loading-banner.warn{background:#fff3e0;border-color:#ffcc80;color:#e65100;}
+.sync-loading-banner .btn{flex-shrink:0;}
 
 /* Aging table pro */
 .ag-wrap{overflow-x:auto;}
@@ -737,6 +741,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
     </div>
   </div>
 
+  <div class="sync-loading-banner" id="dash-loading-banner" role="status" aria-live="polite">
+    <span id="dash-loading-text">⏳ Sedang memuat data cloud…</span>
+    <button class="btn btn-primary btn-sm" type="button" onclick="recoverCloudData()">🔄 Sinkron Ulang</button>
+  </div>
+
   <div class="kpi-hero">
     <div class="kpi-hero-head">
       <div class="kpi-hero-title">📌 KPI Snapshot</div>
@@ -1139,7 +1148,44 @@ function todayJakarta(){
 }
 
 // TODAY harus mengikuti Asia/Jakarta, bukan UTC.
-const TODAY=todayJakarta();
+let TODAY=todayJakarta();
+let cloudSyncInProgress=false;
+let cloudSyncWarning='';
+function refreshTodayJakarta(){
+  const next=todayJakarta();
+  if(next===TODAY) return false;
+  const previous=TODAY;
+  TODAY=next;
+  ['ql-date','m-date'].forEach(function(id){
+    const el=document.getElementById(id);
+    if(el&&(!el.value||el.value===previous)) el.value=TODAY;
+  });
+  const badge=document.getElementById('data-badge');
+  if(badge) badge.textContent=(invs.length?'☁️ ':'📅 ')+TODAY;
+  scheduleActiveTabRender();
+  return true;
+}
+function setCloudSyncState(inProgress,warning){
+  cloudSyncInProgress=!!inProgress;
+  cloudSyncWarning=warning||'';
+  const banner=document.getElementById('dash-loading-banner');
+  const text=document.getElementById('dash-loading-text');
+  if(banner){
+    const shouldShow=cloudSyncInProgress||!!cloudSyncWarning;
+    banner.classList.toggle('show',shouldShow);
+    banner.classList.toggle('warn',!cloudSyncInProgress&&!!cloudSyncWarning);
+  }
+  if(text){
+    text.textContent=cloudSyncInProgress
+      ? '⏳ Sedang memuat invoice, aging, dan log dari cloud…'
+      : (cloudSyncWarning||'');
+  }
+}
+function recoverCloudData(){
+  setCloudSyncState(true,'');
+  renderActiveTabOnly();
+  return pullAllFromSheets(false);
+}
 // ═══ CENTRALIZED CONFIGURATION & BUSINESS RULES ═══
 const DASH_RULES = {
   SLA_HOURS: 48, // SLA 2x24 Jam
@@ -4136,7 +4182,27 @@ function closeKpiDetail(evt){
   document.getElementById('kpi-detail-bg').classList.remove('open');
 }
 function renderDash(){
+  refreshTodayJakarta();
   const today=TODAY;
+  setCloudSyncState(cloudSyncInProgress,cloudSyncWarning);
+  const syncBadge=document.getElementById('dash-sync-badge');
+  if(syncBadge){
+    const syncTime=lastAutoSyncAt
+      ? new Date(lastAutoSyncAt).toLocaleTimeString('id-ID',{timeZone:'Asia/Jakarta',hour:'2-digit',minute:'2-digit'})
+      : '';
+    syncBadge.textContent=cloudSyncInProgress
+      ? 'Data: sedang sinkron'
+      : ('Data: '+(localDraftMode?'Draft lokal':'Cloud / siap pakai')+(syncTime?' · '+syncTime+' WIB':''));
+  }
+  if(cloudSyncInProgress&&!invs.length){
+    ['topkpi-unpaid','topkpi-ar90','topkpi-bfu','topkpi-fu','ds-piutang','ds-pymad','ds-ar90','ds-unpaid'].forEach(function(id){
+      const el=document.getElementById(id);
+      if(el) el.textContent='Memuat…';
+    });
+    const actionBoard=document.getElementById('d-action-board');
+    if(actionBoard) actionBoard.innerHTML='<div class="card" style="grid-column:1/-1;text-align:center;color:#1565c0;">⏳ Menyiapkan data operasional terbaru…</div>';
+    return;
+  }
   const todayLogs=logs.filter(l => (l.date || (l.ts?l.ts.slice(0,10):'')) === today);
   const unpaid=invs.filter(isInvoiceUnpaid);
   const actionableUnpaid=unpaid.filter(function(i){
@@ -4146,8 +4212,6 @@ function renderDash(){
   renderKpiPerPic(unpaid,paid);
   renderKpiOfficial();
   const unpaidProgress=unpaid.map(function(i){ return {inv:i, prog:getInvoiceProgress(i)}; });
-  const syncBadge=document.getElementById('dash-sync-badge');
-  if(syncBadge) syncBadge.textContent='Data: '+(localDraftMode?'Draft lokal':'Cloud / siap pakai');
   const focusBadge=document.getElementById('dash-focus-badge');
   if(focusBadge) focusBadge.textContent='Fokus: '+(pic||'Semua PIC');
 
@@ -5464,6 +5528,7 @@ function pollLogUpdates(){
 }
 
 window.addEventListener('focus', function(){
+  refreshTodayJakarta();
   pollLogUpdates();
   if(gsUrl && !localDraftMode && (Date.now()-APP_STARTED_AT)>=AUTO_SYNC_MS && (!lastAutoSyncAt || (Date.now()-lastAutoSyncAt)>=AUTO_SYNC_MS)){
     pullAllFromSheets(true);
@@ -5471,7 +5536,10 @@ window.addEventListener('focus', function(){
 });
 
 document.addEventListener('visibilitychange', function(){
-  if(document.visibilityState === 'visible') pollLogUpdates();
+  if(document.visibilityState === 'visible'){
+    refreshTodayJakarta();
+    pollLogUpdates();
+  }
   if(document.visibilityState === 'visible' && gsUrl && !localDraftMode && (Date.now()-APP_STARTED_AT)>=AUTO_SYNC_MS && (!lastAutoSyncAt || (Date.now()-lastAutoSyncAt)>=AUTO_SYNC_MS)){
     pullAllFromSheets(true);
   }
@@ -6026,6 +6094,8 @@ function pullAllFromSheets(silent=false){
     return;
   }
   if(!gsUrl){ if(!silent) toast('⚠️ URL Google Sheets belum diisi!'); if(!silent) showPage('setup'); return; }
+  setCloudSyncState(true,'');
+  renderActiveTabOnly();
   if(!silent) setGsStatus('⏳ Mengambil semua data dari Sheets...','#1565c0');
   if(!silent) toast('⏳ Menarik data dari Sheets...');
   var prevInvCount=invs.length;
@@ -6064,17 +6134,27 @@ function pullAllFromSheets(silent=false){
       lastAutoSyncAt=Date.now();
       lastAutoSyncState='ok';
       updateAutoSyncBadge();
-    } else ok=false;
+    } else {
+      // Jangan timpa snapshot invoice terakhir dengan respons kosong/tidak valid.
+      if(prevInvCount>0){
+        console.warn('Respons invoice cloud kosong; snapshot terakhir dipertahankan.');
+      }else{
+        ok=false;
+      }
+    }
 
     // Aging
     if(rAging.ok && rAging.agMap){
       agMap=rAging.agMap || {};
       agTotals=rAging.agTotals || {b0:0,b30:0,b60:0,b90:0,b120:0,b150:0,b180:0,b210:0,bOld:0,hasData:Object.keys(agMap).length>0};
       window.fbl5nDocsMap=rAging.fbl5nDocsMap || {};
-    } else {
+    } else if(prevAgingCount===0) {
+      // Belum ada snapshot yang bisa dipertahankan pada bootstrap pertama.
       agMap={};
       agTotals={b0:0,b30:0,b60:0,b90:0,b120:0,b150:0,b180:0,b210:0,bOld:0,hasData:false};
       window.fbl5nDocsMap={};
+    } else {
+      console.warn('Respons aging cloud tidak valid; snapshot terakhir dipertahankan.');
     }
     hasAgingChanged = prevAgingCount!==Object.keys(agMap||{}).length || prevAgingTotalsSig!==JSON.stringify(agTotals||{});
 
@@ -6095,6 +6175,7 @@ function pullAllFromSheets(silent=false){
     hasLogsChanged = prevLogCount!==logs.length || latestLogKey!==prevLatestLogKey;
 
     if(ok){
+      setCloudSyncState(false,'');
       document.getElementById('data-badge').textContent='☁️ '+TODAY;
       setGsStatus('✅ Data Sheets berhasil ditarik ke browser ini — '+new Date().toLocaleTimeString('id-ID'),'var(--green)');
       if(!silent || hasInvoiceChanged || hasAgingChanged || hasLogsChanged){
@@ -6110,17 +6191,21 @@ function pullAllFromSheets(silent=false){
       setTimeout(function(){ pollLogUpdates(); },0);
     } else {
       lastAutoSyncState='error';
+      setCloudSyncState(false,'⚠️ Data cloud belum lengkap. Snapshot terakhir tetap aman.');
       updateAutoSyncBadge('Data invoice belum tersedia di Sheets.');
       if(!silent) setGsStatus('⚠️ Data invoice belum ada di Sheets. Minta admin push data dulu.','var(--orange)');
       if(!silent) toast('⚠️ Data invoice belum tersedia di Sheets');
     }
   }).catch(function(e){
     lastAutoSyncState='error';
+    setCloudSyncState(false,'⚠️ Sinkronisasi gagal. Data terakhir tetap dipertahankan.');
     updateAutoSyncBadge('Gagal sinkron: '+e.message);
     if(!silent) setGsStatus('❌ Gagal: '+e.message,'var(--red)');
     if(!silent) toast('❌ Gagal tarik data: '+e.message);
   }).finally(function(){
     pullAllInFlightPromise=null;
+    if(cloudSyncInProgress) setCloudSyncState(false,cloudSyncWarning);
+    renderActiveTabOnly();
   });
   return pullAllInFlightPromise;
 }
