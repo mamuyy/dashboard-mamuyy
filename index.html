@@ -3027,15 +3027,15 @@ function buildEntityEmailDraftData(){
   const customerDisplay=formatEntityEmailName(customer);
   const selected=selectedEntityEmailInvoices();
   const total=selected.reduce(function(sum,inv){return sum+(Number(inv.amt)||0);},0);
-  const subject='Permohonan Konfirmasi Penyelesaian Outstanding Tagihan '+customerDisplay;
+  const invoiceCount=selected.length;
+  const subject='Permohonan Konfirmasi Penyelesaian '+invoiceCount+' Tagihan Outstanding '+customerDisplay+' – '+formatEntityEmailCurrency(total);
+  // Body eksternal hanya memuat informasi yang relevan bagi customer.
+  // Riwayat/status follow-up tetap tersedia di layar internal dashboard.
   const rows=selected.map(function(inv,index){
-    const sum=getInvoiceEmailLogSummary(inv.no),last=sum.last;
-    let status=last?('Telah ditindaklanjuti '+sum.count+' kali; status terakhir: '+(last.hasil||'menunggu konfirmasi')):'Belum pernah ditindaklanjuti';
-    if(last&&last.hasil==='Janji Bayar'&&last.jt)status+='; janji bayar '+formatEntityEmailDate(last.jt);
-    return (index+1)+'. '+inv.no+' — '+formatEntityEmailCurrency(inv.amt)+'\n   Tanggal dokumen: '+formatEntityEmailDate(inv.tgl,'Tidak tersedia pada data')+'\n   Status follow-up: '+status;
+    return (index+1)+'. '+inv.no+' — '+formatEntityEmailCurrency(inv.amt);
   });
-  const body='Yth. Tim Keuangan\n'+customerDisplay+'\n\nDengan hormat,\n\nSehubungan dengan outstanding tagihan PT Pelindo Daya Sejahtera, mohon bantuan konfirmasi atas status penyelesaian tagihan berikut:\n\n'+rows.join('\n\n')+'\n\nTotal outstanding: '+formatEntityEmailCurrency(total)+'\n\nApabila pembayaran telah direalisasikan, mohon disampaikan bukti pembayarannya. Apabila masih terdapat kendala dokumen atau proses administrasi, mohon informasinya agar dapat segera kami tindak lanjuti.\n\nDemikian kami sampaikan. Atas perhatian dan kerja samanya, kami ucapkan terima kasih.\n\nHormat kami,\n'+getEntityEmailSender()+'\nPT Pelindo Daya Sejahtera';
-  return {customer:customer,selected:selected,total:total,subject:subject,body:body};
+  const body='Yth. Tim Keuangan\n'+customerDisplay+'\n\nDengan hormat,\n\nSehubungan dengan terdapatnya '+invoiceCount+' tagihan outstanding PT Pelindo Daya Sejahtera dengan total sebesar '+formatEntityEmailCurrency(total)+', mohon bantuan konfirmasi atas status penyelesaian tagihan sebagaimana daftar berikut:\n\n'+rows.join('\n')+'\n\nTotal outstanding: '+formatEntityEmailCurrency(total)+'\n\nApabila pembayaran telah direalisasikan, mohon dapat disampaikan bukti pembayarannya. Apabila masih terdapat kendala dokumen maupun proses administrasi, mohon informasinya agar dapat segera kami tindak lanjuti.\n\nDemikian kami sampaikan. Atas perhatian dan kerja samanya, kami ucapkan terima kasih.\n\nHormat kami,\n'+getEntityEmailSender()+'\nPT Pelindo Daya Sejahtera';
+  return {customer:customer,selected:selected,total:total,invoiceCount:invoiceCount,subject:subject,body:body};
 }
 function generateEntityEmailDraft(){
   const data=buildEntityEmailDraftData();
