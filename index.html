@@ -995,8 +995,17 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
         <div><label class="lbl">Kepada</label><input type="text" id="entity-email-to" placeholder="finance@customer.co.id"></div>
         <div><label class="lbl">CC (opsional)</label><input type="text" id="entity-email-cc" placeholder="pic.internal@ptpds.co.id"></div>
       </div>
+      <label class="lbl">Pilih berdasarkan status proses</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+        <button class="fbtn active" type="button" id="eef-all" onclick="selectEntityEmailByStatus('all',this)">Semua Invoice</button>
+        <button class="fbtn" type="button" id="eef-reject" onclick="selectEntityEmailByStatus('reject',this)">⚠️ Semua Reject</button>
+        <button class="fbtn" type="button" id="eef-ba" onclick="selectEntityEmailByStatus('ba',this)">BA Reject</button>
+        <button class="fbtn" type="button" id="eef-surat" onclick="selectEntityEmailByStatus('surat',this)">Surat Reject</button>
+        <button class="fbtn" type="button" id="eef-nota" onclick="selectEntityEmailByStatus('nota',this)">ND Reject</button>
+        <button class="fbtn" type="button" id="eef-mir7" onclick="selectEntityEmailByStatus('mir7',this)">MIR7 Reject</button>
+      </div>
       <label class="lbl">Invoice unpaid yang digabungkan</label>
-      <div style="overflow:auto;max-height:300px;"><table class="entity-email-table"><thead><tr><th>Pilih</th><th>Invoice</th><th>Outstanding</th><th>Tanggal Dokumen</th><th>Jumlah FU</th><th>FU Terakhir</th><th>Status</th></tr></thead><tbody id="entity-email-invoices"></tbody></table></div>
+      <div style="overflow:auto;max-height:300px;"><table class="entity-email-table"><thead><tr><th>Pilih</th><th>Invoice</th><th>Outstanding</th><th>Status Proses</th><th>Tanggal Dokumen</th><th>Jumlah FU</th><th>FU Terakhir</th><th>Status FU</th></tr></thead><tbody id="entity-email-invoices"></tbody></table></div>
       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-outline btn-sm" type="button" onclick="setAllEntityEmailInvoices(true)">Pilih Semua</button>
         <button class="btn btn-outline btn-sm" type="button" onclick="setAllEntityEmailInvoices(false)">Kosongkan</button>
@@ -2964,6 +2973,34 @@ function getInvoiceEmailLogSummary(no){
   const last=rows[0]||null;
   return {count:rows.length,last:last};
 }
+function getEntityEmailProcessInfo(inv){
+  const prog=getInvoiceProgress(inv);
+  const key=String(prog&&prog.key||'');
+  let rejectType='';
+  if(key==='ba_rejected')rejectType='ba';
+  else if(key==='surat_rejected')rejectType='surat';
+  else if(key==='nota_rejected')rejectType='nota';
+  else if(key==='mir7_rejected')rejectType='mir7';
+  return {label:(prog&&prog.label)||'Status belum tersedia',rejectType:rejectType,isRejected:!!rejectType};
+}
+function selectEntityEmailByStatus(kind,button){
+  const rows=getEntityEmailInvoices(entityEmailSelectedCustomer);
+  const byNo={};
+  rows.forEach(function(inv){byNo[String(inv.no)]=inv;});
+  let selectedCount=0;
+  document.querySelectorAll('.entity-email-check').forEach(function(el){
+    const inv=byNo[String(el.value)];
+    const info=inv?getEntityEmailProcessInfo(inv):{rejectType:'',isRejected:false};
+    const checked=kind==='all'||(kind==='reject'&&info.isRejected)||info.rejectType===kind;
+    el.checked=checked;
+    if(checked)selectedCount++;
+  });
+  document.querySelectorAll('#entity-email-bg .fbtn').forEach(function(el){el.classList.remove('active');});
+  if(button)button.classList.add('active');
+  renderEntityEmailSummary();
+  generateEntityEmailDraft();
+  if(!selectedCount)toast('Tidak ada invoice untuk filter status tersebut.');
+}
 function formatEntityEmailDate(value,emptyLabel){
   const raw=String(value||'').slice(0,10);
   if(!raw)return emptyLabel||'Tidak tersedia';
@@ -3004,10 +3041,15 @@ function openEntityEmail(customer){
   const saved=getEntityEmailAddressBook()[customer]||{};
   document.getElementById('entity-email-to').value=saved.to||'';
   document.getElementById('entity-email-cc').value=saved.cc||'';
+  document.querySelectorAll('#entity-email-bg .fbtn').forEach(function(el){el.classList.remove('active');});
+  const allFilter=document.getElementById('eef-all');
+  if(allFilter)allFilter.classList.add('active');
   document.getElementById('entity-email-invoices').innerHTML=rows.map(function(inv){
     const sum=getInvoiceEmailLogSummary(inv.no),last=sum.last;
     const status=last?(last.hasil||last.note||'-'):'Belum pernah FU';
-    return '<tr><td><input class="entity-email-check" type="checkbox" value="'+esc(inv.no)+'" checked onchange="renderEntityEmailSummary();generateEntityEmailDraft()"></td><td><strong>'+esc(inv.no)+'</strong></td><td>'+formatEntityEmailCurrency(inv.amt)+'</td><td>'+formatEntityEmailDate(inv.tgl,'Tidak tersedia')+'</td><td>'+sum.count+'×</td><td>'+(last?formatEntityEmailDate(last.date):'Belum ada')+'</td><td>'+esc(status)+'</td></tr>';
+    const processInfo=getEntityEmailProcessInfo(inv);
+    const processStyle=processInfo.isRejected?'color:#c62828;font-weight:800;':'color:#455a64;';
+    return '<tr><td><input class="entity-email-check" type="checkbox" value="'+esc(inv.no)+'" checked onchange="renderEntityEmailSummary();generateEntityEmailDraft()"></td><td><strong>'+esc(inv.no)+'</strong></td><td>'+formatEntityEmailCurrency(inv.amt)+'</td><td style="'+processStyle+'">'+esc(processInfo.label)+'</td><td>'+formatEntityEmailDate(inv.tgl,'Tidak tersedia')+'</td><td>'+sum.count+'×</td><td>'+(last?formatEntityEmailDate(last.date):'Belum ada')+'</td><td>'+esc(status)+'</td></tr>';
   }).join('');
   renderEntityEmailSummary();
   generateEntityEmailDraft();
