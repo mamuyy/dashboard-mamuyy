@@ -4977,7 +4977,13 @@ function renderDash(){
       </div>`;
     }).join(''):'<div style="font-size:.78rem;color:var(--sub);padding:8px 2px;">Belum ada data customer risk.</div>';
   }
-  renderPiutangEntitas(true);
+  // Kartu piutang tidak boleh menggagalkan render dashboard/sinkron bila datanya aneh.
+  try{ renderPiutangEntitas(true); }
+  catch(err){
+    console.error('Daftar piutang per entitas gagal dirender:',err);
+    const piuBody=document.getElementById('piu-body');
+    if(piuBody) piuBody.innerHTML='<tr><td colspan="7" style="color:#c62828;">⚠️ Daftar piutang gagal ditampilkan: '+esc(err&&err.message||err)+'</td></tr>';
+  }
 
   // Piutang Lama table
   const plamaEl=document.getElementById('d-piutang-lama');
@@ -5523,7 +5529,7 @@ function buildPiutangEntitasRows(){
   Object.keys(agMap).forEach(function(k){
     const ag=agMap[k];
     const total=Number(ag.total)||0, o90=Number(ag.o90)||0;
-    const row={name:ag.custName||k,code:ag.custCode||'',total:total,o90:o90,u90:total-o90,
+    const row={name:String(ag.custName||k),code:String(ag.custCode||''),total:total,o90:o90,u90:total-o90,
       inFbl5n:true,count:0,invAmt:0,picMap:{},custNames:{},lastFu:''};
     byAg.set(ag,row);
     const nk=normalizeEntityName(row.name);
@@ -5547,7 +5553,7 @@ function buildPiutangEntitasRows(){
     let row=(ag&&byAg.get(ag))||byNormName[normalizeEntityName(inv.cust)]||byRegional[entityRegionalNo(inv.cust)];
     if(!row){
       const key=ck||'(tanpa nama)';
-      row=extra[key]||(extra[key]={name:inv.cust||'Tanpa Nama',code:'',total:0,o90:0,u90:0,
+      row=extra[key]||(extra[key]={name:String(inv.cust||'Tanpa Nama'),code:'',total:0,o90:0,u90:0,
         inFbl5n:false,count:0,invAmt:0,picMap:{},custNames:{},lastFu:'',nMigrasi:0,nNoSap:0});
       const cls=getInvoiceBusinessClass(inv);
       if(cls==='nonp2p_migrasi') row.nMigrasi++;
@@ -5579,7 +5585,7 @@ function getVisiblePiutangEntitasRows(){
   const q=((document.getElementById('piu-search')||{}).value||'').trim().toLowerCase();
   const key=piutangEntitasSort.key, dir=piutangEntitasSort.dir;
   return piutangEntitasRows.filter(function(r){
-    return !q||r.name.toLowerCase().includes(q)||String(r.code).toLowerCase().includes(q);
+    return !q||String(r.name).toLowerCase().includes(q)||String(r.code).toLowerCase().includes(q);
   }).sort(function(a,b){
     const va=a[key], vb=b[key];
     const cmp=typeof va==='number'?va-vb:String(va||'').localeCompare(String(vb||''),'id');
@@ -6787,7 +6793,8 @@ function pullAllFromSheets(silent=false){
     }
   }).catch(function(e){
     lastAutoSyncState='error';
-    setCloudSyncState(false,'⚠️ Sinkronisasi gagal. Data terakhir tetap dipertahankan.');
+    setCloudSyncState(false,'⚠️ Sinkronisasi gagal ('+((e&&e.message)||e)+'). Data terakhir tetap dipertahankan.');
+    console.error('Sinkronisasi gagal:',e);
     updateAutoSyncBadge('Gagal sinkron: '+e.message);
     if(!silent) setGsStatus('❌ Gagal: '+e.message,'var(--red)');
     if(!silent) toast('❌ Gagal tarik data: '+e.message);
