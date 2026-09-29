@@ -1,0 +1,13 @@
+# File yang TIDAK ikut dipublish ke Cloudflare (assets directory = "./").
+# Hanya index.html + Panduan_Aplikasi_Penagihan_Tim.docx yang perlu publik.
+.git
+.gitignore
+.assetsignore
+.wrangler
+node_modules
+wrangler.toml
+*.gs
+*.md
+docs/
+mamuyy-v2-mock.html
+team_dashboard_raw.html

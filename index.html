@@ -395,6 +395,16 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 .queue-brief-meta{font-size:.65rem;color:var(--sub);margin-top:2px;}
 .queue-brief-cta{font-size:.64rem;font-weight:800;color:#1565c0;white-space:nowrap;}
 .risk-stack{display:grid;gap:10px;}
+.piu-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;}
+.piu-table{width:100%;border-collapse:collapse;font-size:.72rem;min-width:720px;}
+.piu-table th,.piu-table td{padding:7px 6px;border-bottom:1px solid #eee;text-align:left;vertical-align:top;}
+.piu-table th{background:#f5f7fb;color:#455a64;font-size:.62rem;text-transform:uppercase;position:sticky;top:0;cursor:pointer;user-select:none;white-space:nowrap;}
+.piu-table td.num,.piu-table th.num{text-align:right;white-space:nowrap;}
+.piu-table tbody tr.click{cursor:pointer;}
+.piu-table tbody tr.click:hover{background:#f5f9ff;}
+.piu-table tfoot td{font-weight:800;background:#f5f7fb;border-top:2px solid #cfd8dc;position:sticky;bottom:0;}
+.piu-code{font-size:.62rem;color:var(--sub);}
+.piu-warn{display:inline-block;margin-left:4px;padding:1px 6px;border-radius:999px;background:#fff3e0;color:#e65100;font-size:.6rem;font-weight:800;}
 .risk-row{border-left:4px solid #c62828;background:#fff;border-radius:12px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,.05);cursor:pointer;transition:transform .15s, box-shadow .15s, border-color .15s;}
 .risk-row:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,0,0,.08);}
 .risk-row:nth-child(2){border-left-color:#ef6c00;}
@@ -580,6 +590,9 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
     <label class="lbl">URL Google Apps Script</label>
     <input type="text" id="gs-url" placeholder="https://script.google.com/macros/s/.../exec"
       style="font-size:.75rem;" oninput="saveGsUrl(this.value)">
+    <label class="lbl">Kunci Akses Tim</label>
+    <input type="password" id="api-key" placeholder="Otomatis terisi dari link undangan admin"
+      style="font-size:.75rem;" oninput="saveApiKey(this.value)">
     <label class="lbl">PIN Admin Lokal (opsional, untuk proses master data)</label>
     <input type="password" id="admin-pin" placeholder="Set PIN admin perangkat ini"
       style="font-size:.75rem;" oninput="saveAdminPin(this.value)">
@@ -815,6 +828,32 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
     <div class="risk-stack" id="d-customer-risk">
       <div style="font-size:.78rem;color:var(--sub);padding:8px 2px;">Belum ada data customer risk.</div>
     </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px;" id="card-piutang-entitas">
+    <div class="piu-head">
+      <h3 style="margin:0;">📒 Daftar Piutang per Entitas</h3>
+      <button class="btn btn-outline btn-sm" type="button" onclick="exportPiutangEntitas()">⬇️ Export Excel</button>
+    </div>
+    <div style="font-size:.72rem;color:var(--sub);margin:6px 0 10px;">Nilai piutang dari FBL5N (sama dengan Total Piutang di atas). Invoice aktif, PIC &amp; FU terakhir dari data invoice dan Log FU. Klik judul kolom untuk mengurutkan, klik baris untuk detail entitas.</div>
+    <input type="text" id="piu-search" placeholder="🔎 Cari nama / kode entitas…" oninput="renderPiutangEntitas()" style="font-size:.78rem;margin-bottom:8px;">
+    <div id="piu-summary" style="font-size:.72rem;color:var(--sub);margin-bottom:6px;"></div>
+    <div style="overflow:auto;max-height:520px;">
+      <table class="piu-table">
+        <thead><tr>
+          <th onclick="sortPiutangEntitas('name')">Entitas<span id="piu-s-name"></span></th>
+          <th class="num" onclick="sortPiutangEntitas('total')">Total Piutang<span id="piu-s-total"></span></th>
+          <th class="num" onclick="sortPiutangEntitas('u90')">0–90 Hari<span id="piu-s-u90"></span></th>
+          <th class="num" onclick="sortPiutangEntitas('o90')">&gt;90 Hari<span id="piu-s-o90"></span></th>
+          <th class="num" onclick="sortPiutangEntitas('count')">Invoice Aktif<span id="piu-s-count"></span></th>
+          <th onclick="sortPiutangEntitas('pic')">PIC<span id="piu-s-pic"></span></th>
+          <th onclick="sortPiutangEntitas('lastFu')">FU Terakhir<span id="piu-s-lastFu"></span></th>
+        </tr></thead>
+        <tbody id="piu-body"><tr><td colspan="7" style="color:var(--sub);">Belum ada data piutang.</td></tr></tbody>
+        <tfoot id="piu-foot"></tfoot>
+      </table>
+    </div>
+    <div id="piu-note" style="font-size:.68rem;color:var(--sub);margin-top:6px;"></div>
   </div>
 
   <!-- Summary boxes -->
@@ -1300,14 +1339,25 @@ const KPI_OFFICIAL_ITEMS={
     {code:'A5',label:'Implementasi ICOFR di lingkungan PT Pelabuhan Indonesia (Persero)',weight:0.05,periode:'Tahunan',source:'manual',formula:'(Realisasi SOP Expend & Revenue / Jumlah Keseluruhan SOP Expend & Revenue) × 100% - dinilai tahunan, di luar cakupan data AR'}
   ]
 };
-// Kuartal yang didukung - mulai TW II 2026. Tambah entri baru saat kuartal berikutnya berjalan.
-const KPI_OFFICIAL_QUARTERS={
-  'TW II 2026':{start:'2026-04-01',end:'2026-06-30'},
-  'TW III 2026':{start:'2026-07-01',end:'2026-09-30'}
-};
+// Kuartal yang didukung - mulai TW II 2026 s.d. kuartal berjalan (tanggal WIB),
+// dibentuk otomatis sehingga kuartal baru muncul sendiri tanpa edit manual.
 // TW II sudah lewat & tervalidasi manual (89.77/94.49 cocok formulir asli Achmad).
-// TW III = kuartal berjalan - basis snapshot/baseline dimulai dari sini.
-const KPI_OFFICIAL_DEFAULT_QUARTER='TW III 2026';
+function buildKpiOfficialQuarters(todayStr){
+  const names=['I','II','III','IV'];
+  const ends=['03-31','06-30','09-30','12-31'];
+  const nowY=Number(todayStr.slice(0,4));
+  const nowQ=Math.floor((Number(todayStr.slice(5,7))-1)/3);
+  const out={};
+  let y=2026,q=1;
+  do{
+    out['TW '+names[q]+' '+y]={start:y+'-'+String(q*3+1).padStart(2,'0')+'-01',end:y+'-'+ends[q]};
+    if(++q>3){ q=0; y++; }
+  }while(y<nowY||(y===nowY&&q<=nowQ));
+  return out;
+}
+const KPI_OFFICIAL_QUARTERS=buildKpiOfficialQuarters(todayJakarta());
+// Default = kuartal berjalan (entri terakhir).
+const KPI_OFFICIAL_DEFAULT_QUARTER=Object.keys(KPI_OFFICIAL_QUARTERS).pop();
 const KPI_MANUAL_SCORES_KEY='kpi_manual_scores';
 const KPI_SNAPSHOTS_KEY='kpi_snapshots';
 const KPI_PIC_DUMMY={
@@ -1354,6 +1404,29 @@ function applySdmAdminVisibility(){
 
 // ═══ INIT ═══
 let gsUrl='';
+
+// Kunci akses backend Apps Script. Tidak disimpan di source (repo publik):
+// dibagikan admin lewat link ?key=..., lalu disimpan di browser perangkat.
+const API_KEY_STORAGE='api_key';
+let apiKey='';
+(function initApiKey(){
+  try{
+    const url=new URL(window.location.href);
+    const fromLink=(url.searchParams.get('key')||'').trim();
+    if(fromLink){
+      localStorage.setItem(API_KEY_STORAGE,fromLink);
+      url.searchParams.delete('key');
+      history.replaceState(null,'',url.pathname+url.search+url.hash);
+    }
+    apiKey=localStorage.getItem(API_KEY_STORAGE)||'';
+  }catch(e){ apiKey=''; }
+})();
+function saveApiKey(v){
+  apiKey=(v||'').trim();
+  if(apiKey) localStorage.setItem(API_KEY_STORAGE,apiKey);
+  else localStorage.removeItem(API_KEY_STORAGE);
+  setGsStatus(apiKey?'✅ Kunci akses tim disimpan di perangkat ini.':'ℹ️ Kunci akses tim dihapus.',apiKey?'var(--green)':'var(--sub)');
+}
 const APP_STARTED_AT=Date.now();
 
 // Cache data cloud di IndexedDB agar kunjungan berikutnya dapat menampilkan
@@ -1472,6 +1545,8 @@ window.addEventListener('load',()=>{
     gsUrl=DEFAULT_GS_URL;
     if(gsUrl){
       document.getElementById('gs-url').value=gsUrl;
+      const keyEl=document.getElementById('api-key');
+      if(keyEl) keyEl.value=apiKey;
       const cb=document.getElementById('cloud-badge');
       if(cb) cb.style.display='block';
       if(localDraftMode){
@@ -3241,7 +3316,14 @@ function getCustomerSnapshot(cust){
   const invNos=new Set(related.map(i=>i.no));
   const relatedLogs=logs.filter(l=>invNos.has(l.inv)).sort((a,b)=>(b.ts||b.date||'').localeCompare(a.ts||a.date||''));
   const totalAmt=unpaid.reduce((s,i)=>s+(Number(i.amt)||0),0);
-  const totalO90=unpaid.reduce((s,i)=>{ const ag=getAgingByInvoice(i); return s+((ag&&Number(ag.o90))||0); },0);
+  // Aging FBL5N tercatat per entitas: hitung sekali per baris aging, bukan per invoice.
+  const agSeen=new Set();
+  const totalO90=unpaid.reduce((s,i)=>{
+    const ag=getAgingByInvoice(i);
+    if(!ag||agSeen.has(ag)) return s;
+    agSeen.add(ag);
+    return s+(Number(ag.o90)||0);
+  },0);
   const overdueJanji=relatedLogs.filter(l=>l.hasil==='Janji Bayar'&&l.jt&&l.jt<TODAY).length;
   const latest=relatedLogs[0]||null;
   const picMap={};
@@ -4829,11 +4911,12 @@ function renderDash(){
     const byCustomer={};
     unpaid.forEach(function(inv){
       const key=inv.cust||'Tanpa Nama';
-      if(!byCustomer[key]) byCustomer[key]={cust:key,amt:0,count:0,o90:0,last:'',janji:false,pic:''};
+      if(!byCustomer[key]) byCustomer[key]={cust:key,amt:0,count:0,o90:0,last:'',janji:false,pic:'',agSeen:new Set()};
       byCustomer[key].amt+=Number(inv.amt)||0;
       byCustomer[key].count++;
+      // Aging FBL5N tercatat per entitas: hitung sekali per baris aging, bukan per invoice.
       const ag=getAgingByInvoice(inv);
-      byCustomer[key].o90+=ag&&ag.o90?Number(ag.o90)||0:0;
+      if(ag&&!byCustomer[key].agSeen.has(ag)){ byCustomer[key].agSeen.add(ag); byCustomer[key].o90+=Number(ag.o90)||0; }
       const relLogs=logs.filter(function(l){return l.inv===inv.no;});
       if(relLogs.length && (!byCustomer[key].last || relLogs[0].date>byCustomer[key].last)) byCustomer[key].last=relLogs[0].date;
       if(relLogs.some(function(l){return l.hasil==='Janji Bayar'&&l.jt&&l.jt<TODAY;})) byCustomer[key].janji=true;
@@ -4858,6 +4941,7 @@ function renderDash(){
       </div>`;
     }).join(''):'<div style="font-size:.78rem;color:var(--sub);padding:8px 2px;">Belum ada data customer risk.</div>';
   }
+  renderPiutangEntitas(true);
 
   // Piutang Lama table
   const plamaEl=document.getElementById('d-piutang-lama');
@@ -5349,6 +5433,151 @@ function goToInv(no){
   showPage('queue');
   const srch=document.getElementById('srch');
   if(srch){srch.value=no; setF('a');}
+}
+// ═══ DAFTAR PIUTANG PER ENTITAS ═══
+let piutangEntitasRows=[];
+let piutangEntitasSort={key:'total',dir:-1};
+function topKeyByCount(map){
+  let best='',bestN=0;
+  Object.keys(map).forEach(function(k){ if(map[k]>bestN){ best=k; bestN=map[k]; } });
+  return best;
+}
+function buildPiutangEntitasRows(){
+  const byAg=new Map();
+  Object.keys(agMap).forEach(function(k){
+    const ag=agMap[k];
+    const total=Number(ag.total)||0, o90=Number(ag.o90)||0;
+    byAg.set(ag,{name:ag.custName||k,code:ag.custCode||'',total:total,o90:o90,u90:total-o90,
+      inFbl5n:true,count:0,invAmt:0,picMap:{},custNames:{},lastFu:''});
+  });
+  const lastFuByInv={};
+  logs.forEach(function(l){
+    const d=l.date||(l.ts?String(l.ts).slice(0,10):'');
+    if(l.inv&&d&&(!lastFuByInv[l.inv]||d>lastFuByInv[l.inv])) lastFuByInv[l.inv]=d;
+  });
+  const agByCust={}, extra={};
+  invs.filter(isInvoiceUnpaid).forEach(function(inv){
+    const ck=customerKey(inv.cust);
+    let ag=agMap[inv.no];
+    if(!ag){
+      if(!(ck in agByCust)) agByCust[ck]=getAgingByInvoice(inv);
+      ag=agByCust[ck];
+    }
+    let row=ag&&byAg.get(ag);
+    if(!row){
+      const key=ck||'(tanpa nama)';
+      row=extra[key]||(extra[key]={name:inv.cust||'Tanpa Nama',code:'',total:0,o90:0,u90:0,
+        inFbl5n:false,count:0,invAmt:0,picMap:{},custNames:{},lastFu:''});
+    }
+    row.count++;
+    row.invAmt+=Number(inv.amt)||0;
+    const owner=getInvoiceProgress(inv).ownerPerson||inv.picB||'';
+    if(owner) row.picMap[owner]=(row.picMap[owner]||0)+1;
+    if(inv.cust) row.custNames[inv.cust]=(row.custNames[inv.cust]||0)+1;
+    const fu=lastFuByInv[inv.no];
+    if(fu&&fu>row.lastFu) row.lastFu=fu;
+  });
+  return Array.from(byAg.values()).concat(Object.values(extra))
+    .filter(function(r){ return r.total!==0||r.count>0; })
+    .map(function(r){
+      r.pic=topKeyByCount(r.picMap)||'-';
+      r.panelName=topKeyByCount(r.custNames)||r.name;
+      return r;
+    });
+}
+function getVisiblePiutangEntitasRows(){
+  const q=((document.getElementById('piu-search')||{}).value||'').trim().toLowerCase();
+  const key=piutangEntitasSort.key, dir=piutangEntitasSort.dir;
+  return piutangEntitasRows.filter(function(r){
+    return !q||r.name.toLowerCase().includes(q)||String(r.code).toLowerCase().includes(q);
+  }).sort(function(a,b){
+    const va=a[key], vb=b[key];
+    const cmp=typeof va==='number'?va-vb:String(va||'').localeCompare(String(vb||''),'id');
+    return cmp*dir || (b.total-a.total);
+  });
+}
+function sortPiutangEntitas(key){
+  if(piutangEntitasSort.key===key) piutangEntitasSort.dir*=-1;
+  else piutangEntitasSort={key:key,dir:(key==='name'||key==='pic')?1:-1};
+  renderPiutangEntitas();
+}
+function renderPiutangEntitas(rebuild){
+  const body=document.getElementById('piu-body');
+  if(!body) return;
+  if(rebuild) piutangEntitasRows=buildPiutangEntitasRows();
+  ['name','total','u90','o90','count','pic','lastFu'].forEach(function(k){
+    const el=document.getElementById('piu-s-'+k);
+    if(el) el.textContent=piutangEntitasSort.key===k?(piutangEntitasSort.dir>0?' ▲':' ▼'):'';
+  });
+  const rows=getVisiblePiutangEntitasRows();
+  const fbl=rows.filter(function(r){ return r.inFbl5n; });
+  const sum=function(list,k){ return list.reduce(function(s,r){ return s+(Number(r[k])||0); },0); };
+  const summaryEl=document.getElementById('piu-summary');
+  const foot=document.getElementById('piu-foot');
+  const noteEl=document.getElementById('piu-note');
+  if(!piutangEntitasRows.length){
+    body.innerHTML='<tr><td colspan="7" style="color:var(--sub);">'+(agTotals.hasData?'Belum ada piutang aktif.':'Upload File 3 (Aging SAP / FBL5N) atau tarik data cloud untuk melihat piutang per entitas.')+'</td></tr>';
+    if(summaryEl) summaryEl.textContent='';
+    if(foot) foot.innerHTML='';
+    if(noteEl) noteEl.textContent='';
+    return;
+  }
+  const full=function(n){ return 'Rp '+Math.round(Number(n)||0).toLocaleString('id-ID'); };
+  body.innerHTML=rows.length?rows.map(function(r){
+    const click=r.count>0?' class="click" onclick="goToCustomerRisk(\''+esc(jsq(r.panelName))+'\')"':'';
+    const totalCell=r.inFbl5n
+      ?'<span title="'+full(r.total)+'">'+fmt(r.total)+'</span>'
+      :'<span style="color:var(--sub);" title="Nilai invoice aktif (bukan FBL5N)">('+fmt(r.invAmt)+')</span>';
+    return '<tr'+click+'>'
+      +'<td><strong>'+esc(r.name)+'</strong>'+(r.inFbl5n?'':'<span class="piu-warn">⚠️ tidak cocok FBL5N</span>')
+      +(r.code&&r.code!==r.name?'<div class="piu-code">'+esc(r.code)+'</div>':'')+'</td>'
+      +'<td class="num">'+totalCell+'</td>'
+      +'<td class="num" title="'+full(r.u90)+'">'+(r.inFbl5n?fmt(r.u90):'–')+'</td>'
+      +'<td class="num" title="'+full(r.o90)+'" style="'+(r.o90>0?'color:#c62828;font-weight:700;':'')+'">'+(r.inFbl5n?fmt(r.o90):'–')+'</td>'
+      +'<td class="num">'+r.count+'</td>'
+      +'<td>'+esc(r.pic)+'</td>'
+      +'<td>'+(r.lastFu?esc(r.lastFu):'<span style="color:var(--sub);">Belum FU</span>')+'</td>'
+      +'</tr>';
+  }).join(''):'<tr><td colspan="7" style="color:var(--sub);">Tidak ada entitas yang cocok dengan pencarian.</td></tr>';
+  if(foot) foot.innerHTML='<tr><td>Total ('+fbl.length+' entitas FBL5N)</td>'
+    +'<td class="num" title="'+full(sum(fbl,'total'))+'">'+fmt(sum(fbl,'total'))+'</td>'
+    +'<td class="num">'+fmt(sum(fbl,'u90'))+'</td>'
+    +'<td class="num">'+fmt(sum(fbl,'o90'))+'</td>'
+    +'<td class="num">'+sum(rows,'count')+'</td><td></td><td></td></tr>';
+  if(summaryEl) summaryEl.textContent=rows.length+' dari '+piutangEntitasRows.length+' entitas ditampilkan';
+  if(noteEl){
+    const notes=[];
+    const unmatched=piutangEntitasRows.filter(function(r){ return !r.inFbl5n; }).length;
+    if(unmatched) notes.push('⚠️ '+unmatched+' entitas dari data invoice belum cocok dengan nama/kode di FBL5N — tidak dihitung di total (nilai dalam kurung = nilai invoice aktif).');
+    const allFbl=sum(piutangEntitasRows.filter(function(r){ return r.inFbl5n; }),'total');
+    const header=getAgingGrandTotal();
+    if(header&&Math.abs(header-allFbl)>1) notes.push('ℹ️ Selisih '+full(header-allFbl)+' dengan Total Piutang header (dokumen FBL5N vs rekap per customer).');
+    noteEl.textContent=notes.join(' ');
+  }
+}
+function exportPiutangEntitas(){
+  if(typeof XLSX==='undefined'||!XLSX.utils){ toast('⚠️ Library Excel belum termuat, coba lagi sebentar.'); return; }
+  const rows=getVisiblePiutangEntitasRows();
+  if(!rows.length){ toast('⚠️ Tidak ada data untuk diexport.'); return; }
+  const data=rows.map(function(r){
+    return {
+      'Entitas':r.name,
+      'Kode Customer':r.code,
+      'Total Piutang (FBL5N)':r.inFbl5n?Math.round(r.total):'',
+      '0-90 Hari':r.inFbl5n?Math.round(r.u90):'',
+      '>90 Hari':r.inFbl5n?Math.round(r.o90):'',
+      'Invoice Aktif':r.count,
+      'Nilai Invoice Aktif':Math.round(r.invAmt),
+      'PIC':r.pic,
+      'FU Terakhir':r.lastFu||'',
+      'Keterangan':r.inFbl5n?'':'Tidak cocok dengan FBL5N'
+    };
+  });
+  const ws=XLSX.utils.json_to_sheet(data);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Piutang per Entitas');
+  XLSX.writeFile(wb,'Piutang_per_Entitas_'+TODAY.replace(/-/g,'')+'.xlsx');
+  toast('✅ '+data.length+' entitas diexport.');
 }
 function goToCustomerRisk(cust){
   openCustomerPanel(cust);
@@ -5873,10 +6102,20 @@ function setGsStatus(msg,color){
 function fetchJsonWithTimeout(url, opts={}, timeoutMs=12000){
   const ctrl=new AbortController();
   const t=setTimeout(()=>ctrl.abort(), timeoutMs);
+  if(gsUrl && apiKey && url.indexOf(gsUrl)===0){
+    url+=(url.indexOf('?')>=0?'&':'?')+'key='+encodeURIComponent(apiKey);
+  }
   return fetch(url,{...opts,signal:ctrl.signal})
     .then(function(r){
       if(!r.ok) throw new Error('HTTP '+r.status);
       return r.json();
+    })
+    .then(function(j){
+      if(j && j.error==='unauthorized'){
+        setGsStatus('⛔ Kunci akses tim salah/belum diisi. Minta link terbaru ke admin.','#c62828');
+        throw new Error('Kunci akses tim salah/belum diisi');
+      }
+      return j;
     })
     .finally(function(){ clearTimeout(t); });
 }

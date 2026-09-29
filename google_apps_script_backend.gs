@@ -5,7 +5,25 @@
  * lalu deploy sebagai Web App (Execute as: Me, Who has access: Anyone).
  */
 
+/**
+ * KUNCI AKSES TIM
+ * Isi Script Properties "API_KEY" (Project Settings → Script Properties).
+ * Selama API_KEY belum diisi, semua permintaan tetap diizinkan (mode transisi).
+ * Setelah diisi, permintaan tanpa ?key=<API_KEY> yang benar ditolak.
+ */
+function isAuthorized_(e) {
+  var expected = PropertiesService.getScriptProperties().getProperty('API_KEY');
+  if (!expected) return true;
+  return !!(e && e.parameter && e.parameter.key === expected);
+}
+
+function unauthorizedResponse_() {
+  return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'unauthorized' }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
 function doGet(e) {
+  if (!isAuthorized_(e)) return unauthorizedResponse_();
   var action = (e && e.parameter && e.parameter.action) ? e.parameter.action : 'get_all';
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   
@@ -108,6 +126,7 @@ function doGet(e) {
 }
 
 function doPost(e) {
+  if (!isAuthorized_(e)) return unauthorizedResponse_();
   try {
     var contents = e.postData ? e.postData.contents : '';
     var payload = contents ? JSON.parse(contents) : {};
