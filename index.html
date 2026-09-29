@@ -5499,13 +5499,27 @@ function suggestFbl5nName(name,agRows){
   });
   return bestScore>=0.34?best:'';
 }
+// Nomor regional dari nama entitas, angka biasa maupun romawi:
+// "PT PELINDO - REGIONAL 3" dan "REGIONAL III PELABUHAN INDONESIA" sama-sama → 3.
+function entityRegionalNo(v){
+  const m=normalizeEntityName(v).match(/\bREGIONAL ([IVX]+|\d+)\b/);
+  if(!m) return 0;
+  if(/^\d+$/.test(m[1])) return Number(m[1]);
+  const val={I:1,V:5,X:10};
+  let n=0;
+  for(let i=0;i<m[1].length;i++){
+    const cur=val[m[1][i]], next=val[m[1][i+1]]||0;
+    n+=cur<next?-cur:cur;
+  }
+  return n;
+}
 const PIUTANG_UNMATCHED_REASONS={
   migrasi:{badge:'🗂 Migrasi lama — tidak ada di FBL5N',note:'migrasi lama yang sudah tidak ada di FBL5N (kemungkinan sudah lunas/cleared di SAP — cek lalu tandai Paid)'},
   nosap:{badge:'⏳ Belum masuk SAP',note:'Non-P2P manual yang belum di-posting ke SAP'},
   nama:{badge:'⚠️ Nama beda dengan FBL5N',note:'nama tidak cocok dengan FBL5N (lihat saran nama mirip)'}
 };
 function buildPiutangEntitasRows(){
-  const byAg=new Map(), byNormName={};
+  const byAg=new Map(), byNormName={}, byRegional={};
   Object.keys(agMap).forEach(function(k){
     const ag=agMap[k];
     const total=Number(ag.total)||0, o90=Number(ag.o90)||0;
@@ -5514,6 +5528,8 @@ function buildPiutangEntitasRows(){
     byAg.set(ag,row);
     const nk=normalizeEntityName(row.name);
     if(nk&&!byNormName[nk]) byNormName[nk]=row;
+    const reg=entityRegionalNo(row.name);
+    if(reg&&!byRegional[reg]) byRegional[reg]=row;
   });
   const lastFuByInv={};
   logs.forEach(function(l){
@@ -5528,7 +5544,7 @@ function buildPiutangEntitasRows(){
       if(!(ck in agByCust)) agByCust[ck]=getAgingByInvoice(inv);
       ag=agByCust[ck];
     }
-    let row=(ag&&byAg.get(ag))||byNormName[normalizeEntityName(inv.cust)];
+    let row=(ag&&byAg.get(ag))||byNormName[normalizeEntityName(inv.cust)]||byRegional[entityRegionalNo(inv.cust)];
     if(!row){
       const key=ck||'(tanpa nama)';
       row=extra[key]||(extra[key]={name:inv.cust||'Tanpa Nama',code:'',total:0,o90:0,u90:0,
