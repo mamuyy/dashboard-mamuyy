@@ -405,6 +405,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
 .piu-table tfoot td{font-weight:800;background:#f5f7fb;border-top:2px solid #cfd8dc;position:sticky;bottom:0;}
 .piu-code{font-size:.62rem;color:var(--sub);}
 .piu-warn{display:inline-block;margin-left:4px;padding:1px 6px;border-radius:999px;background:#fff3e0;color:#e65100;font-size:.6rem;font-weight:800;}
+.piu-warn-migrasi{background:#efebe9;color:#4e342e;}
+.piu-warn-nosap{background:#f3e5f5;color:#6a1b9a;}
 .risk-row{border-left:4px solid #c62828;background:#fff;border-radius:12px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,.05);cursor:pointer;transition:transform .15s, box-shadow .15s, border-color .15s;}
 .risk-row:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,0,0,.08);}
 .risk-row:nth-child(2){border-left-color:#ef6c00;}
@@ -5476,13 +5478,42 @@ function topKeyByCount(map){
   Object.keys(map).forEach(function(k){ if(map[k]>bestN){ best=k; bestN=map[k]; } });
   return best;
 }
+// Nama entitas untuk pencocokan: abaikan badan usaha (PT/CV/Tbk/Persero), tanda baca & spasi ganda.
+function normalizeEntityName(v){
+  return String(v||'').toUpperCase()
+    .replace(/[^A-Z0-9 ]+/g,' ')
+    .replace(/\b(PT|CV|TBK|UD|PD|PERSERO)\b/g,' ')
+    .replace(/\s+/g,' ').trim();
+}
+// Nama FBL5N paling mirip (irisan kata terbanyak) sebagai saran untuk entitas yang tidak cocok.
+function suggestFbl5nName(name,agRows){
+  const words=new Set(normalizeEntityName(name).split(' ').filter(function(w){ return w.length>2; }));
+  if(!words.size) return '';
+  let best='',bestScore=0;
+  agRows.forEach(function(r){
+    const other=normalizeEntityName(r.name).split(' ').filter(function(w){ return w.length>2; });
+    if(!other.length) return;
+    const hit=other.filter(function(w){ return words.has(w); }).length;
+    const score=hit/Math.max(words.size,other.length);
+    if(score>bestScore){ bestScore=score; best=r.name; }
+  });
+  return bestScore>=0.34?best:'';
+}
+const PIUTANG_UNMATCHED_REASONS={
+  migrasi:{badge:'🗂 Migrasi lama — tidak ada di FBL5N',note:'migrasi lama yang sudah tidak ada di FBL5N (kemungkinan sudah lunas/cleared di SAP — cek lalu tandai Paid)'},
+  nosap:{badge:'⏳ Belum masuk SAP',note:'Non-P2P manual yang belum di-posting ke SAP'},
+  nama:{badge:'⚠️ Nama beda dengan FBL5N',note:'nama tidak cocok dengan FBL5N (lihat saran nama mirip)'}
+};
 function buildPiutangEntitasRows(){
-  const byAg=new Map();
+  const byAg=new Map(), byNormName={};
   Object.keys(agMap).forEach(function(k){
     const ag=agMap[k];
     const total=Number(ag.total)||0, o90=Number(ag.o90)||0;
-    byAg.set(ag,{name:ag.custName||k,code:ag.custCode||'',total:total,o90:o90,u90:total-o90,
-      inFbl5n:true,count:0,invAmt:0,picMap:{},custNames:{},lastFu:''});
+    const row={name:ag.custName||k,code:ag.custCode||'',total:total,o90:o90,u90:total-o90,
+      inFbl5n:true,count:0,invAmt:0,picMap:{},custNames:{},lastFu:''};
+    byAg.set(ag,row);
+    const nk=normalizeEntityName(row.name);
+    if(nk&&!byNormName[nk]) byNormName[nk]=row;
   });
   const lastFuByInv={};
   logs.forEach(function(l){
@@ -5497,11 +5528,14 @@ function buildPiutangEntitasRows(){
       if(!(ck in agByCust)) agByCust[ck]=getAgingByInvoice(inv);
       ag=agByCust[ck];
     }
-    let row=ag&&byAg.get(ag);
+    let row=(ag&&byAg.get(ag))||byNormName[normalizeEntityName(inv.cust)];
     if(!row){
       const key=ck||'(tanpa nama)';
       row=extra[key]||(extra[key]={name:inv.cust||'Tanpa Nama',code:'',total:0,o90:0,u90:0,
-        inFbl5n:false,count:0,invAmt:0,picMap:{},custNames:{},lastFu:''});
+        inFbl5n:false,count:0,invAmt:0,picMap:{},custNames:{},lastFu:'',nMigrasi:0,nNoSap:0});
+      const cls=getInvoiceBusinessClass(inv);
+      if(cls==='nonp2p_migrasi') row.nMigrasi++;
+      else if(cls==='nonp2p_manual'&&!isSapEnteredForManual(inv)) row.nNoSap++;
     }
     row.count++;
     row.invAmt+=Number(inv.amt)||0;
@@ -5511,7 +5545,13 @@ function buildPiutangEntitasRows(){
     const fu=lastFuByInv[inv.no];
     if(fu&&fu>row.lastFu) row.lastFu=fu;
   });
-  return Array.from(byAg.values()).concat(Object.values(extra))
+  const agRows=Array.from(byAg.values());
+  Object.values(extra).forEach(function(r){
+    if(r.nMigrasi===r.count) r.reason='migrasi';
+    else if(r.nNoSap===r.count) r.reason='nosap';
+    else { r.reason='nama'; r.suggestion=suggestFbl5nName(r.name,agRows); }
+  });
+  return agRows.concat(Object.values(extra))
     .filter(function(r){ return r.total!==0||r.count>0; })
     .map(function(r){
       r.pic=topKeyByCount(r.picMap)||'-';
@@ -5569,8 +5609,9 @@ function renderPiutangEntitas(rebuild){
       ?'<span title="'+full(r.total)+'">'+fmt(r.total)+'</span>'
       :'<span style="color:var(--sub);" title="Nilai invoice aktif (bukan FBL5N)">('+fmt(r.invAmt)+')</span>';
     return '<tr'+click+'>'
-      +'<td><strong>'+esc(r.name)+'</strong>'+(r.inFbl5n?'':'<span class="piu-warn">⚠️ tidak cocok FBL5N</span>')
-      +(r.code&&r.code!==r.name?'<div class="piu-code">'+esc(r.code)+'</div>':'')+'</td>'
+      +'<td><strong>'+esc(r.name)+'</strong>'+(r.inFbl5n?'':'<span class="piu-warn piu-warn-'+r.reason+'">'+PIUTANG_UNMATCHED_REASONS[r.reason].badge+'</span>')
+      +(r.code&&r.code!==r.name?'<div class="piu-code">'+esc(r.code)+'</div>':'')
+      +(r.suggestion?'<div class="piu-code">Mirip di FBL5N: '+esc(r.suggestion)+'</div>':'')+'</td>'
       +'<td class="num" data-label="Total Piutang">'+totalCell+'</td>'
       +'<td class="num" data-label="0–90 Hari" title="'+full(r.u90)+'">'+(r.inFbl5n?fmt(r.u90):'–')+'</td>'
       +'<td class="num" data-label="&gt;90 Hari" title="'+full(r.o90)+'" style="'+(r.o90>0?'color:#c62828;font-weight:700;':'')+'">'+(r.inFbl5n?fmt(r.o90):'–')+'</td>'
@@ -5587,8 +5628,14 @@ function renderPiutangEntitas(rebuild){
   if(summaryEl) summaryEl.textContent=rows.length+' dari '+piutangEntitasRows.length+' entitas ditampilkan';
   if(noteEl){
     const notes=[];
-    const unmatched=piutangEntitasRows.filter(function(r){ return !r.inFbl5n; }).length;
-    if(unmatched) notes.push('⚠️ '+unmatched+' entitas dari data invoice belum cocok dengan nama/kode di FBL5N — tidak dihitung di total (nilai dalam kurung = nilai invoice aktif).');
+    const unmatched=piutangEntitasRows.filter(function(r){ return !r.inFbl5n; });
+    if(unmatched.length){
+      const parts=Object.keys(PIUTANG_UNMATCHED_REASONS).map(function(k){
+        const n=unmatched.filter(function(r){ return r.reason===k; }).length;
+        return n?n+' '+PIUTANG_UNMATCHED_REASONS[k].note:'';
+      }).filter(Boolean);
+      notes.push(unmatched.length+' entitas dari data invoice tidak ada di FBL5N: '+parts.join('; ')+'. Tidak dihitung di total (nilai dalam kurung = nilai invoice aktif).');
+    }
     const allFbl=sum(piutangEntitasRows.filter(function(r){ return r.inFbl5n; }),'total');
     const header=getAgingGrandTotal();
     if(header&&Math.abs(header-allFbl)>1) notes.push('ℹ️ Selisih '+full(header-allFbl)+' dengan Total Piutang header (dokumen FBL5N vs rekap per customer).');
@@ -5610,7 +5657,7 @@ function exportPiutangEntitas(){
       'Nilai Invoice Aktif':Math.round(r.invAmt),
       'PIC':r.pic,
       'FU Terakhir':r.lastFu||'',
-      'Keterangan':r.inFbl5n?'':'Tidak cocok dengan FBL5N'
+      'Keterangan':r.inFbl5n?'':PIUTANG_UNMATCHED_REASONS[r.reason].badge.replace(/^\S+\s/,'')+(r.suggestion?' (mirip: '+r.suggestion+')':'')
     };
   });
   const ws=XLSX.utils.json_to_sheet(data);
