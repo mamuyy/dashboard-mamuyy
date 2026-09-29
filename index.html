@@ -1300,14 +1300,25 @@ const KPI_OFFICIAL_ITEMS={
     {code:'A5',label:'Implementasi ICOFR di lingkungan PT Pelabuhan Indonesia (Persero)',weight:0.05,periode:'Tahunan',source:'manual',formula:'(Realisasi SOP Expend & Revenue / Jumlah Keseluruhan SOP Expend & Revenue) × 100% - dinilai tahunan, di luar cakupan data AR'}
   ]
 };
-// Kuartal yang didukung - mulai TW II 2026. Tambah entri baru saat kuartal berikutnya berjalan.
-const KPI_OFFICIAL_QUARTERS={
-  'TW II 2026':{start:'2026-04-01',end:'2026-06-30'},
-  'TW III 2026':{start:'2026-07-01',end:'2026-09-30'}
-};
+// Kuartal yang didukung - mulai TW II 2026 s.d. kuartal berjalan (tanggal WIB),
+// dibentuk otomatis sehingga kuartal baru muncul sendiri tanpa edit manual.
 // TW II sudah lewat & tervalidasi manual (89.77/94.49 cocok formulir asli Achmad).
-// TW III = kuartal berjalan - basis snapshot/baseline dimulai dari sini.
-const KPI_OFFICIAL_DEFAULT_QUARTER='TW III 2026';
+function buildKpiOfficialQuarters(todayStr){
+  const names=['I','II','III','IV'];
+  const ends=['03-31','06-30','09-30','12-31'];
+  const nowY=Number(todayStr.slice(0,4));
+  const nowQ=Math.floor((Number(todayStr.slice(5,7))-1)/3);
+  const out={};
+  let y=2026,q=1;
+  do{
+    out['TW '+names[q]+' '+y]={start:y+'-'+String(q*3+1).padStart(2,'0')+'-01',end:y+'-'+ends[q]};
+    if(++q>3){ q=0; y++; }
+  }while(y<nowY||(y===nowY&&q<=nowQ));
+  return out;
+}
+const KPI_OFFICIAL_QUARTERS=buildKpiOfficialQuarters(todayJakarta());
+// Default = kuartal berjalan (entri terakhir).
+const KPI_OFFICIAL_DEFAULT_QUARTER=Object.keys(KPI_OFFICIAL_QUARTERS).pop();
 const KPI_MANUAL_SCORES_KEY='kpi_manual_scores';
 const KPI_SNAPSHOTS_KEY='kpi_snapshots';
 const KPI_PIC_DUMMY={
