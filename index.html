@@ -476,6 +476,31 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
   .queue-focus{grid-template-columns:1fr;}
   .queue-glance{grid-template-columns:1fr;}
 }
+/* Tampilan HP: header ringkas, pipeline 2 kolom, kartu PIC selebar layar, daftar piutang jadi kartu. */
+.piu-sort-mobile{display:none;}
+@media(max-width:600px){
+  .topbar{padding:9px 12px;gap:8px;}
+  .topbar h1{font-size:.8rem;line-height:1.25;flex:1;min-width:0;}
+  .topbar .right{gap:5px;flex-shrink:0;}
+  .data-badge{white-space:nowrap;}
+  .pipe{flex-wrap:wrap;gap:8px;overflow-x:visible;padding:10px;}
+  .pipe .pstep{flex:1 1 calc(50% - 8px);min-width:0;}
+  .pstep::after{display:none;}
+  .pic-card{flex:1 1 100%;min-width:0;max-width:none;}
+  .pic-card-detail{overflow-x:auto;}
+  .tim-hd{flex-wrap:wrap;gap:4px;}
+  .piu-sort-mobile{display:flex;align-items:center;gap:6px;font-size:.72rem;color:var(--sub);margin-bottom:6px;}
+  .piu-sort-mobile select{flex:1;font-size:.75rem;}
+  .piu-table{min-width:0;}
+  .piu-table thead{display:none;}
+  .piu-table tr{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;padding:9px 2px;border-bottom:1px solid #eee;}
+  .piu-table td{border:0;padding:0;text-align:left!important;white-space:normal!important;}
+  .piu-table td:first-child{grid-column:1/-1;}
+  .piu-table td[data-label]::before{content:attr(data-label);display:block;font-size:.58rem;color:var(--sub);text-transform:uppercase;font-weight:700;}
+  .piu-table td:empty{display:none;}
+  .piu-table tfoot tr{background:#f5f7fb;border-radius:8px;padding:9px 8px;}
+  .piu-table tfoot td{background:transparent;border:0;position:static;}
+}
 </style>
 </head>
 <body>
@@ -838,6 +863,15 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
     <div style="font-size:.72rem;color:var(--sub);margin:6px 0 10px;">Nilai piutang dari FBL5N (sama dengan Total Piutang di atas). Invoice aktif, PIC &amp; FU terakhir dari data invoice dan Log FU. Klik judul kolom untuk mengurutkan, klik baris untuk detail entitas.</div>
     <input type="text" id="piu-search" placeholder="🔎 Cari nama / kode entitas…" oninput="renderPiutangEntitas()" style="font-size:.78rem;margin-bottom:8px;">
     <div id="piu-summary" style="font-size:.72rem;color:var(--sub);margin-bottom:6px;"></div>
+    <label class="piu-sort-mobile">Urutkan
+      <select id="piu-sort-select" onchange="setPiutangEntitasSort(this.value)">
+        <option value="total:-1">Total piutang terbesar</option>
+        <option value="o90:-1">&gt;90 hari terbesar</option>
+        <option value="count:-1">Invoice aktif terbanyak</option>
+        <option value="name:1">Nama entitas (A–Z)</option>
+        <option value="lastFu:1">FU terlama / belum FU</option>
+      </select>
+    </label>
     <div style="overflow:auto;max-height:520px;">
       <table class="piu-table">
         <thead><tr>
@@ -4326,7 +4360,7 @@ function renderKpiOfficialTable(result){
     :'';
   return '<div style="font-size:.76rem;font-weight:700;color:var(--dark);margin:10px 0 4px;">'+esc(result.pic)+' ('+roleLabel+')</div>'
     +'<div style="font-size:.7rem;color:var(--sub);margin-bottom:6px;">'+baselineInfo+baselineBtn+'</div>'
-    +'<table class="kpi-pic-tbl"><thead><tr><th>Kode</th><th>Item KPI</th><th>Bobot</th><th>Target</th><th>Realisasi</th><th>Skor</th><th>Sumber</th></tr></thead><tbody>'+rows+'</tbody></table>'
+    +'<div class="kpi-pic-wrap"><table class="kpi-pic-tbl"><thead><tr><th>Kode</th><th>Item KPI</th><th>Bobot</th><th>Target</th><th>Realisasi</th><th>Skor</th><th>Sumber</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
     +'<div style="font-size:.74rem;margin-top:4px;">Total Skor: <strong>'+result.totalScore.toFixed(1)+'</strong> <span class="kpi-badge '+result.band.cls+'">'+result.band.label+'</span>'+tertimbangNote+'</div>';
 }
 function renderKpiOfficial(){
@@ -5501,6 +5535,12 @@ function sortPiutangEntitas(key){
   else piutangEntitasSort={key:key,dir:(key==='name'||key==='pic')?1:-1};
   renderPiutangEntitas();
 }
+// Pilihan urutan untuk tampilan HP (judul kolom disembunyikan), format "key:dir".
+function setPiutangEntitasSort(value){
+  const parts=String(value||'total:-1').split(':');
+  piutangEntitasSort={key:parts[0],dir:Number(parts[1])||-1};
+  renderPiutangEntitas();
+}
 function renderPiutangEntitas(rebuild){
   const body=document.getElementById('piu-body');
   if(!body) return;
@@ -5531,19 +5571,19 @@ function renderPiutangEntitas(rebuild){
     return '<tr'+click+'>'
       +'<td><strong>'+esc(r.name)+'</strong>'+(r.inFbl5n?'':'<span class="piu-warn">⚠️ tidak cocok FBL5N</span>')
       +(r.code&&r.code!==r.name?'<div class="piu-code">'+esc(r.code)+'</div>':'')+'</td>'
-      +'<td class="num">'+totalCell+'</td>'
-      +'<td class="num" title="'+full(r.u90)+'">'+(r.inFbl5n?fmt(r.u90):'–')+'</td>'
-      +'<td class="num" title="'+full(r.o90)+'" style="'+(r.o90>0?'color:#c62828;font-weight:700;':'')+'">'+(r.inFbl5n?fmt(r.o90):'–')+'</td>'
-      +'<td class="num">'+r.count+'</td>'
-      +'<td>'+esc(r.pic)+'</td>'
-      +'<td>'+(r.lastFu?esc(r.lastFu):'<span style="color:var(--sub);">Belum FU</span>')+'</td>'
+      +'<td class="num" data-label="Total Piutang">'+totalCell+'</td>'
+      +'<td class="num" data-label="0–90 Hari" title="'+full(r.u90)+'">'+(r.inFbl5n?fmt(r.u90):'–')+'</td>'
+      +'<td class="num" data-label="&gt;90 Hari" title="'+full(r.o90)+'" style="'+(r.o90>0?'color:#c62828;font-weight:700;':'')+'">'+(r.inFbl5n?fmt(r.o90):'–')+'</td>'
+      +'<td class="num" data-label="Invoice Aktif">'+r.count+'</td>'
+      +'<td data-label="PIC">'+esc(r.pic)+'</td>'
+      +'<td data-label="FU Terakhir">'+(r.lastFu?esc(r.lastFu):'<span style="color:var(--sub);">Belum FU</span>')+'</td>'
       +'</tr>';
   }).join(''):'<tr><td colspan="7" style="color:var(--sub);">Tidak ada entitas yang cocok dengan pencarian.</td></tr>';
   if(foot) foot.innerHTML='<tr><td>Total ('+fbl.length+' entitas FBL5N)</td>'
-    +'<td class="num" title="'+full(sum(fbl,'total'))+'">'+fmt(sum(fbl,'total'))+'</td>'
-    +'<td class="num">'+fmt(sum(fbl,'u90'))+'</td>'
-    +'<td class="num">'+fmt(sum(fbl,'o90'))+'</td>'
-    +'<td class="num">'+sum(rows,'count')+'</td><td></td><td></td></tr>';
+    +'<td class="num" data-label="Total Piutang" title="'+full(sum(fbl,'total'))+'">'+fmt(sum(fbl,'total'))+'</td>'
+    +'<td class="num" data-label="0–90 Hari">'+fmt(sum(fbl,'u90'))+'</td>'
+    +'<td class="num" data-label="&gt;90 Hari">'+fmt(sum(fbl,'o90'))+'</td>'
+    +'<td class="num" data-label="Invoice Aktif">'+sum(rows,'count')+'</td><td></td><td></td></tr>';
   if(summaryEl) summaryEl.textContent=rows.length+' dari '+piutangEntitasRows.length+' entitas ditampilkan';
   if(noteEl){
     const notes=[];
