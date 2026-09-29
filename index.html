@@ -580,6 +580,9 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
     <label class="lbl">URL Google Apps Script</label>
     <input type="text" id="gs-url" placeholder="https://script.google.com/macros/s/.../exec"
       style="font-size:.75rem;" oninput="saveGsUrl(this.value)">
+    <label class="lbl">Kunci Akses Tim</label>
+    <input type="password" id="api-key" placeholder="Otomatis terisi dari link undangan admin"
+      style="font-size:.75rem;" oninput="saveApiKey(this.value)">
     <label class="lbl">PIN Admin Lokal (opsional, untuk proses master data)</label>
     <input type="password" id="admin-pin" placeholder="Set PIN admin perangkat ini"
       style="font-size:.75rem;" oninput="saveAdminPin(this.value)">
@@ -1365,6 +1368,29 @@ function applySdmAdminVisibility(){
 
 // ═══ INIT ═══
 let gsUrl='';
+
+// Kunci akses backend Apps Script. Tidak disimpan di source (repo publik):
+// dibagikan admin lewat link ?key=..., lalu disimpan di browser perangkat.
+const API_KEY_STORAGE='api_key';
+let apiKey='';
+(function initApiKey(){
+  try{
+    const url=new URL(window.location.href);
+    const fromLink=(url.searchParams.get('key')||'').trim();
+    if(fromLink){
+      localStorage.setItem(API_KEY_STORAGE,fromLink);
+      url.searchParams.delete('key');
+      history.replaceState(null,'',url.pathname+url.search+url.hash);
+    }
+    apiKey=localStorage.getItem(API_KEY_STORAGE)||'';
+  }catch(e){ apiKey=''; }
+})();
+function saveApiKey(v){
+  apiKey=(v||'').trim();
+  if(apiKey) localStorage.setItem(API_KEY_STORAGE,apiKey);
+  else localStorage.removeItem(API_KEY_STORAGE);
+  setGsStatus(apiKey?'✅ Kunci akses tim disimpan di perangkat ini.':'ℹ️ Kunci akses tim dihapus.',apiKey?'var(--green)':'var(--sub)');
+}
 const APP_STARTED_AT=Date.now();
 
 // Cache data cloud di IndexedDB agar kunjungan berikutnya dapat menampilkan
@@ -1483,6 +1509,8 @@ window.addEventListener('load',()=>{
     gsUrl=DEFAULT_GS_URL;
     if(gsUrl){
       document.getElementById('gs-url').value=gsUrl;
+      const keyEl=document.getElementById('api-key');
+      if(keyEl) keyEl.value=apiKey;
       const cb=document.getElementById('cloud-badge');
       if(cb) cb.style.display='block';
       if(localDraftMode){
@@ -5884,10 +5912,20 @@ function setGsStatus(msg,color){
 function fetchJsonWithTimeout(url, opts={}, timeoutMs=12000){
   const ctrl=new AbortController();
   const t=setTimeout(()=>ctrl.abort(), timeoutMs);
+  if(gsUrl && apiKey && url.indexOf(gsUrl)===0){
+    url+=(url.indexOf('?')>=0?'&':'?')+'key='+encodeURIComponent(apiKey);
+  }
   return fetch(url,{...opts,signal:ctrl.signal})
     .then(function(r){
       if(!r.ok) throw new Error('HTTP '+r.status);
       return r.json();
+    })
+    .then(function(j){
+      if(j && j.error==='unauthorized'){
+        setGsStatus('⛔ Kunci akses tim salah/belum diisi. Minta link terbaru ke admin.','#c62828');
+        throw new Error('Kunci akses tim salah/belum diisi');
+      }
+      return j;
     })
     .finally(function(){ clearTimeout(t); });
 }
