@@ -1,0 +1,11 @@
+# File yang TIDAK ikut dipublish ke Vercel.
+# Hanya index.html + Panduan_Aplikasi_Penagihan_Tim.docx yang perlu publik.
+.gitignore
+.assetsignore
+.vercelignore
+wrangler.toml
+*.gs
+*.md
+docs/
+mamuyy-v2-mock.html
+team_dashboard_raw.html
