@@ -1,0 +1,80 @@
+From 7c216f08ec575dabf131bce80cf3cce22d8e91fe Mon Sep 17 00:00:00 2001
+From: mamuyy <mamuyuwono3@gmail.com>
+Date: Thu, 19 Nov 2026 06:03:27 +0000
+Subject: [PATCH] CI: allow manual runs of the CP-148D, CP-149 and CP-157B
+ suites
+
+PR #326 (CP-160) was merged while its only CI attempt still used the old
+GitHub-hosted runner, which failed in 1 s without running a step (minutes
+exhausted). Its suites have therefore never run on Python 3.10.
+
+Add workflow_dispatch so these suites can be run against main from the
+Actions tab. This PR itself touches each workflow file, which is in each
+workflow's pull_request paths, so all three suites (including the CP-160
+tests) run on the self-hosted runner for 3.10 and 3.12.
+
+Locally on merged main 673f39b: 287 passed on 3.12 and 3.11.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QUNKmuofdfSH1May1dWao8
+---
+ .github/workflows/cp148d-shadow-compare.yml             | 1 +
+ .github/workflows/cp149-prospective-klines-boundary.yml | 1 +
+ .github/workflows/cp157b-corrected-history-gate.yml     | 1 +
+ docs/CI_SELF_HOSTED_RUNNER.md                           | 7 +++++++
+ 4 files changed, 10 insertions(+)
+
+diff --git a/.github/workflows/cp148d-shadow-compare.yml b/.github/workflows/cp148d-shadow-compare.yml
+index ff6988c..98a2f6a 100644
+--- a/.github/workflows/cp148d-shadow-compare.yml
++++ b/.github/workflows/cp148d-shadow-compare.yml
+@@ -13,6 +13,7 @@ name: CP-148D Shadow-Compare Tests
+ # every test explicitly monkeypatches config for its own scope only.
+ 
+ on:
++  workflow_dispatch:
+   push:
+     branches:
+       - cp148d-shadow-compare
+diff --git a/.github/workflows/cp149-prospective-klines-boundary.yml b/.github/workflows/cp149-prospective-klines-boundary.yml
+index d04afb3..218bc3a 100644
+--- a/.github/workflows/cp149-prospective-klines-boundary.yml
++++ b/.github/workflows/cp149-prospective-klines-boundary.yml
+@@ -1,6 +1,7 @@
+ name: CP-149 Prospective KLINES Boundary
+ 
+ on:
++  workflow_dispatch:
+   push:
+     branches: [cp149-prospective-klines-boundary]
+   pull_request:
+diff --git a/.github/workflows/cp157b-corrected-history-gate.yml b/.github/workflows/cp157b-corrected-history-gate.yml
+index c7f5902..b040ec9 100644
+--- a/.github/workflows/cp157b-corrected-history-gate.yml
++++ b/.github/workflows/cp157b-corrected-history-gate.yml
+@@ -6,6 +6,7 @@ name: CP-157B Corrected-History Reconciliation Gate Tests
+ # SQLite fixtures, no network.
+ 
+ on:
++  workflow_dispatch:
+   push:
+     branches:
+       - cp157b-corrected-history-gate
+diff --git a/docs/CI_SELF_HOSTED_RUNNER.md b/docs/CI_SELF_HOSTED_RUNNER.md
+index 491ea4e..b7d60f8 100644
+--- a/docs/CI_SELF_HOSTED_RUNNER.md
++++ b/docs/CI_SELF_HOSTED_RUNNER.md
+@@ -30,3 +30,10 @@ runner minutes are not counted.
+ 
+ Workflows only use `actions/checkout` and `actions/setup-python` (3.10, 3.12);
+ `setup-python` downloads the interpreters on first use. Nothing needs `sudo`.
++
++## Manual runs
++
++The CP-148D, CP-149 and CP-157B workflows also accept `workflow_dispatch`:
++**Actions → (workflow) → Run workflow → main**. Use it to re-verify `main`
++when a PR was merged without its checks having run (e.g. PR #326, whose only
++CI attempt failed before any step because GitHub-hosted minutes were spent).
+-- 
+2.43.0
+
