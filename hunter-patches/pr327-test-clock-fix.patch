@@ -1,0 +1,154 @@
+From 5b04be84743fd4468ed57859d1cc56d7b59b107a Mon Sep 17 00:00:00 2001
+From: mamuyy <mamuyuwono3@gmail.com>
+Date: Thu, 19 Nov 2026 04:31:29 +0000
+Subject: [PATCH] Tests: pin the engine clock in CP-135/CP-148C suites
+
+Both modules compute their 15m candle boundary once at import, while the
+engine reads the wall clock when each test runs. On the slower self-hosted
+runner the CP-149 job took 224 s and crossed a boundary mid-suite, so a
+"too new" trade already had a closed candle and was held as
+INGESTION_GAP_AT_BOUNDARY:
+
+  test_trade_too_new_is_the_only_clean_point_price_fallback
+  test_s3_true_too_new_trade_keeps_the_only_clean_fallback
+
+An autouse fixture now pins engine.datetime.now() to the import instant,
+and test-side clock reads use the same instant. Shifting the import clock
+by 15 min reproduces both failures (and a latent one in
+test_mixed_path_history_remains_visible) on the old code; with this change
+all pass at 0, 15 and 60 min drift. Engine code unchanged.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QUNKmuofdfSH1May1dWao8
+---
+ tests/test_cp135_exit_decision_provenance.py | 20 +++++++++++++--
+ tests/test_cp148c_failclosed_guards.py       | 26 ++++++++++++++++----
+ 2 files changed, 39 insertions(+), 7 deletions(-)
+
+diff --git a/tests/test_cp135_exit_decision_provenance.py b/tests/test_cp135_exit_decision_provenance.py
+index 9b791fb..de614ee 100644
+--- a/tests/test_cp135_exit_decision_provenance.py
++++ b/tests/test_cp135_exit_decision_provenance.py
+@@ -2,6 +2,8 @@ import dataclasses
+ import sqlite3
+ from datetime import datetime, timedelta, timezone
+ 
++import pytest
++
+ import internal_paper_engine as engine
+ from database import init_db
+ from timestamp_canon import canonical_join_key
+@@ -13,6 +15,20 @@ BASE = (NOW_EPOCH - 7200) - ((NOW_EPOCH - 7200) % CANDLE_SECONDS)
+ CURRENT_BOUNDARY = NOW_EPOCH - (NOW_EPOCH % CANDLE_SECONDS)
+ 
+ 
++class _FrozenDatetime(datetime):
++    """Pin the engine's clock to NOW_EPOCH so a slow runner crossing a 15m
++    boundary mid-suite cannot change which candles count as complete."""
++
++    @classmethod
++    def now(cls, tz=None):
++        return datetime.fromtimestamp(NOW_EPOCH, tz=tz)
++
++
++@pytest.fixture(autouse=True)
++def _frozen_engine_clock(monkeypatch):
++    monkeypatch.setattr(engine, "datetime", _FrozenDatetime)
++
++
+ def _make_source_fresh(db_path, after_epoch):
+     """CP-148C: the activated KLINES path refuses a non-authoritative (stale)
+     source. BASE is pinned two hours back, so a fixture whose newest candle
+@@ -142,7 +158,7 @@ def test_stale_fallback_is_distinct(tmp_path, monkeypatch):
+     monkeypatch.setattr(engine, "STALE_SYMBOL_MAX_AGE_HOURS", 0.01)
+     db_path = str(tmp_path / "paper.db")
+     init_db(db_path)
+-    old = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
++    old = (datetime.fromtimestamp(NOW_EPOCH, timezone.utc) - timedelta(hours=2)).isoformat()
+     _insert_trade(db_path, updated_at=old)
+     assert engine._update_open_trades(db_path, {"OTHERUSDT": 100.0}) == 1
+     event = _events(db_path)[0]
+@@ -397,7 +413,7 @@ def test_unknown_source_is_fail_closed(tmp_path, monkeypatch):
+         engine._ensure_exit_provenance_table(connection)
+         assert engine._record_exit_provenance(
+             connection,
+-            trade_id=1, cycle_timestamp_utc=datetime.now(timezone.utc).isoformat(),
++            trade_id=1, cycle_timestamp_utc=datetime.fromtimestamp(NOW_EPOCH, timezone.utc).isoformat(),
+             source="UNKNOWN", checkpoint_before=None, checkpoint_after=None,
+             status_before="OPEN", status_after="CLOSED", exit_reason="STOP_LOSS",
+             exit_price=98.0, exit_mode=None, observed_price=98.0, pnl=-2.0,
+diff --git a/tests/test_cp148c_failclosed_guards.py b/tests/test_cp148c_failclosed_guards.py
+index dc27c5c..185fc49 100644
+--- a/tests/test_cp148c_failclosed_guards.py
++++ b/tests/test_cp148c_failclosed_guards.py
+@@ -17,6 +17,22 @@ CURRENT_BOUNDARY = _NOW_EPOCH - (_NOW_EPOCH % CANDLE_SECONDS)
+ FRESH_BASE = CURRENT_BOUNDARY - CANDLE_SECONDS
+ STALE_BASE = CURRENT_BOUNDARY - 8 * CANDLE_SECONDS
+ 
++
++class _FrozenDatetime(datetime):
++    """The constants above are fixed at import; the engine reads the wall
++    clock. On a slow runner the suite can cross a 15m boundary between the
++    two, turning a 'too new' trade into one whose candle has closed. Pin the
++    engine's clock to the same instant the constants were computed from."""
++
++    @classmethod
++    def now(cls, tz=None):
++        return datetime.fromtimestamp(_NOW_EPOCH, tz=tz)
++
++
++@pytest.fixture(autouse=True)
++def _frozen_engine_clock(monkeypatch):
++    monkeypatch.setattr(engine, "datetime", _FrozenDatetime)
++
+ # internal_paper_trades columns produced by origin/main @ 4981865 after a
+ # flag-OFF _update_open_trades() cycle. CP-148C must add none of its own.
+ BASELINE_TRADE_COLUMNS = [
+@@ -236,7 +252,7 @@ def test_stale_symbol_safety_release_remains_distinct_from_klines_hold(tmp_path,
+     monkeypatch.setattr(engine, "STALE_SYMBOL_MAX_AGE_HOURS", 0.01)
+     db_path = str(tmp_path / "paper.db")
+     init_db(db_path)
+-    old = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
++    old = (datetime.fromtimestamp(_NOW_EPOCH, timezone.utc) - timedelta(hours=2)).isoformat()
+     _insert_trade(db_path, updated_at=old)
+     # Base schema lacks ts_epoch -> SCHEMA_UNSUPPORTED. With no fresh point
+     # price, the pre-existing stale-symbol release is still allowed.
+@@ -486,7 +502,7 @@ def test_klines_hold_cannot_age_a_priced_trade_into_the_stale_symbol_release(
+     monkeypatch.setattr(engine, "STALE_SYMBOL_MAX_AGE_HOURS", 0.01)
+     db_path = str(tmp_path / "paper.db")
+     init_db(db_path)
+-    old = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
++    old = (datetime.fromtimestamp(_NOW_EPOCH, timezone.utc) - timedelta(hours=2)).isoformat()
+     _insert_trade(db_path, updated_at=old)
+     # The symbol IS priced every cycle; only the KLINES source is broken.
+     for _ in range(5):
+@@ -621,7 +637,7 @@ def test_cp106_bound_is_inoperative_while_the_point_feed_is_healthy(
+     monkeypatch.setattr(engine, "STALE_SYMBOL_MAX_AGE_HOURS", 0.01)
+     db_path = str(tmp_path / "paper.db")
+     init_db(db_path)
+-    ancient = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
++    ancient = (datetime.fromtimestamp(_NOW_EPOCH, timezone.utc) - timedelta(days=3)).isoformat()
+     _insert_trade(db_path, updated_at=ancient)
+     # Force updated_at back to "ancient" before EVERY cycle, i.e. simulate the
+     # rejected option A in which a HOLD leaves updated_at frozen.
+@@ -1379,7 +1395,7 @@ def test_s4_persistent_minority_hold_alerts_below_rate_threshold(tmp_path, monke
+ 
+ def test_s4_persistent_hold_state_is_per_trade_and_resets_on_reason_change(tmp_path):
+     db_path = str(tmp_path / "s4-state.db")
+-    now = datetime.now(timezone.utc)
++    now = datetime.fromtimestamp(_NOW_EPOCH, timezone.utc)
+     with sqlite3.connect(db_path) as connection:
+         engine._ensure_klines_persistent_hold_state_table(connection)
+         assert engine._update_klines_persistent_hold_state(
+@@ -1418,7 +1434,7 @@ def test_s4_no_point_price_hold_still_advances_persistent_timer(tmp_path, monkey
+ 
+     with sqlite3.connect(db_path) as connection:
+         engine._ensure_klines_persistent_hold_state_table(connection)
+-        old = datetime.now(timezone.utc) - timedelta(minutes=5)
++        old = datetime.fromtimestamp(_NOW_EPOCH, timezone.utc) - timedelta(minutes=5)
+         engine._update_klines_persistent_hold_state(
+             connection, trade_id=held_id, reason="DB_ERROR", now=old
+         )
+-- 
+2.43.0
+

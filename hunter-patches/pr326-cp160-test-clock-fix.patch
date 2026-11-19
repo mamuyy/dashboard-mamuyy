@@ -1,0 +1,54 @@
+From cad1ed342fc04766ccd140e67bcf129a7f09dd4e Mon Sep 17 00:00:00 2001
+From: mamuyy <mamuyuwono3@gmail.com>
+Date: Thu, 19 Nov 2026 04:32:16 +0000
+Subject: [PATCH] CP-160 tests: pin the engine clock to the import instant
+
+The module computes CURRENT_BOUNDARY at import while the engine reads the
+wall clock per test. If the suite crosses a 15m boundary (slow self-hosted
+runner), 7 of 8 tests fail. An autouse fixture pins engine.datetime.now();
+all 8 pass at 0, 15 and 60 min simulated drift, and the 3 behaviour tests
+still fail on the pre-CP-160 engine.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QUNKmuofdfSH1May1dWao8
+---
+ .../test_cp160_klines_fallback_freshness_gate.py | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/tests/test_cp160_klines_fallback_freshness_gate.py b/tests/test_cp160_klines_fallback_freshness_gate.py
+index 479e170..3e507f7 100644
+--- a/tests/test_cp160_klines_fallback_freshness_gate.py
++++ b/tests/test_cp160_klines_fallback_freshness_gate.py
+@@ -13,6 +13,8 @@ import dataclasses
+ import sqlite3
+ from datetime import datetime, timedelta, timezone
+ 
++import pytest
++
+ import internal_paper_engine as engine
+ from database import init_db
+ from timestamp_canon import canonical_join_key
+@@ -23,6 +25,20 @@ CURRENT_BOUNDARY = _NOW_EPOCH - (_NOW_EPOCH % CANDLE_SECONDS)
+ CUTOFF_EPOCH = CURRENT_BOUNDARY - 20 * CANDLE_SECONDS
+ 
+ 
++class _FrozenDatetime(datetime):
++    """Pin the engine's clock to _NOW_EPOCH so a slow runner crossing a 15m
++    boundary mid-suite cannot change which candles count as complete."""
++
++    @classmethod
++    def now(cls, tz=None):
++        return datetime.fromtimestamp(_NOW_EPOCH, tz=tz)
++
++
++@pytest.fixture(autouse=True)
++def _frozen_engine_clock(monkeypatch):
++    monkeypatch.setattr(engine, "datetime", _FrozenDatetime)
++
++
+ def _flags(monkeypatch, *, klines=True, gate=False):
+     cutoff = datetime.fromtimestamp(CUTOFF_EPOCH, tz=timezone.utc).isoformat() if klines else ""
+     monkeypatch.setattr(
+-- 
+2.43.0
+
